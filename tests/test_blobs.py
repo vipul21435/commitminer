@@ -10,6 +10,7 @@ import pytest
 
 from commitminer.gitlog import BlobReader, GitError, file_details, walk
 from commitminer.models import Commit, FileChange
+from commitminer.scoring import mine
 from gitrepo import GitRepo
 
 LIB_V1 = (
@@ -168,3 +169,18 @@ def test_file_details_for_root_commits_and_deletions(git_repo: GitRepo) -> None:
         assert change.signals == ("rust-inline-tests", "rust-tests-added")
         # Missing at the commit and no parent to fall back to: no signals.
         assert file_details(gone, FileChange("src/lib.rs", 0, 11), None, blobs).signals == ()
+
+
+def test_a_crate_root_that_mentions_generated_bindings_is_a_candidate(git_repo: GitRepo) -> None:
+    # A comment such as "Include the auto-generated bindings" used to mark the whole file
+    # generated, which dropped it from source and rejected the fix as no-source.
+    head = (
+        "//! Safe wrappers over the C library.\n\n// Include the auto-generated bindings\n"
+        'mod ffi {\n    include!(concat!(env!("OUT_DIR"), "/bindings.rs"));\n}\n\n'
+    )
+    git_repo.commit("Add wrappers", {"src/lib.rs": head + LIB_V1, "Cargo.toml": "[package]\n"})
+    git_repo.commit("Fix pass error mapping (fixes #42)", {"src/lib.rs": head + LIB_V2})
+    fix, _ = walk(git_repo.root)
+    assert signals_by_path(fix) == {"src/lib.rs": ("rust-inline-tests", "rust-tests-added")}
+    result = mine([fix])
+    assert [c.commit.sha for c in result.candidates] == [fix.sha]

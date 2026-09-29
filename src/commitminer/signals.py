@@ -5,8 +5,11 @@ extension) and only from the file's own bytes, so they can be computed once,
 when a history is walked, and stored with the recording. The classifier's
 ``signal`` rules then match on the stored names.
 
-- ``generated-header``: a comment in the first lines says the file is tool
-  output (``Code generated ... DO NOT EDIT``, ``@generated``, "auto-generated").
+- ``generated-header``: a comment in the first lines says this file is tool
+  output: ``Code generated ... DO NOT EDIT``, ``@generated``, or a comment that
+  opens with "auto-generated" or "this file was generated". A comment that
+  only mentions generated code ("Include the auto-generated bindings") is not
+  a claim about the file it sits in.
 - ``minified``: JavaScript whose lines average at least 200 characters, the
   shape of a minified bundle that does not carry a ``.min.js`` name.
 - ``rust-inline-tests``: Rust source with an in-file ``#[cfg(test)]`` module.
@@ -28,7 +31,7 @@ RUST_INLINE_TESTS: Final = "rust-inline-tests"
 RUST_TESTS_ADDED: Final = "rust-tests-added"
 
 SIGNALS: Final[dict[str, str]] = {
-    GENERATED_HEADER: "a comment in the first lines marks the file as generated",
+    GENERATED_HEADER: "a comment in the first lines says this file is generated",
     MINIFIED: "JavaScript with an average line length of at least 200 characters",
     RUST_INLINE_TESTS: "Rust source with an in-file #[cfg(test)] module",
     RUST_TESTS_ADDED: "a Rust source file gained #[test] functions in this commit",
@@ -45,12 +48,19 @@ MINIFIED_MIN_BYTES: Final = 512
 MINIFIED_MEAN_LINE: Final = 200
 _MINIFIED_SAMPLE: Final = 64 * 1024
 
-_COMMENT_START = re.compile(r"^\s*(?://|/\*|\*|#|\"\"\"|''')")
+_COMMENT_START = re.compile(r"^\s*(?://+!?|/\*+!?|\*+|#+!?|\"\"\"|''')\s*")
 _GENERATED_MARK = re.compile(
     r"@generated\b"
     r"|\bgenerated\b.*\bdo not (?:edit|modify)\b"
-    r"|\bdo not (?:edit|modify)\b.*\bgenerated\b"
-    r"|\b(?:auto-?generated|automatically generated|machine generated)\b",
+    r"|\bdo not (?:edit|modify)\b.*\bgenerated\b",
+    re.IGNORECASE,
+)
+_GENERATED_CLAIM = re.compile(
+    # Checked at the start of the comment text: a claim about this file, not a mention.
+    r"(?:this\s+(?:\w+\s+)?(?:file|code|module|class|package|source|header)\s+"
+    r"(?:is|was|has\s+been)\s+(?:auto-?|automatically\s+|machine[- ])?generated"
+    r"|(?:this\s+is\s+)?(?:an?\s+)?(?:auto-?generated|automatically\s+generated"
+    r"|machine[- ]generated))\b",
     re.IGNORECASE,
 )
 _CFG_TEST = re.compile(r"^\s*#\[cfg\((?:all\()?test\b", re.MULTILINE)
@@ -62,9 +72,18 @@ def _text(content: bytes) -> str:
 
 
 def has_generated_header(text: str) -> bool:
-    """True when a comment line among the first :data:`HEADER_LINES` marks generated code."""
+    """True when a comment line among the first :data:`HEADER_LINES` marks the file generated.
+
+    A marker (``@generated``, "generated ... do not edit") may sit anywhere in
+    the comment; the words "auto-generated", "automatically generated" and
+    "machine generated" count only when the comment opens with them or with
+    "this file (is|was|has been) generated".
+    """
     for line in text.splitlines()[:HEADER_LINES]:
-        if _COMMENT_START.match(line) and _GENERATED_MARK.search(line):
+        start = _COMMENT_START.match(line)
+        if start is None:
+            continue
+        if _GENERATED_MARK.search(line) or _GENERATED_CLAIM.match(line, start.end()):
             return True
     return False
 

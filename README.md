@@ -46,7 +46,9 @@ the flip is the downstream builder's job.
   Every rule has positive and negative examples in a table-driven test, which fails when a
   rule has none.
 - **Content signals**: generated-code headers (`Code generated ... DO NOT EDIT`,
-  `@generated`), minified JavaScript and Rust `#[cfg(test)]` modules, read through one
+  `@generated`, or a comment that opens with "Auto-generated" or "This file was
+  generated"; a comment that only mentions generated bindings does not count), minified
+  JavaScript and Rust `#[cfg(test)]` modules, read through one
   `git cat-file --batch` process while walking. A Rust file whose `#[test]` count grew, or
   that gained lines inside its test modules, counts as a test change, so Rust fixes with
   inline tests become candidates.
@@ -327,7 +329,7 @@ docs       docs-file          README.md
 
 rules used:
   rust-inline-tests  Rust source with an in-file #[cfg(test)] module: still source, but a commit can change its tests without touching tests/
-  generated-header   a 'Code generated ... DO NOT EDIT', '@generated' or 'auto-generated' comment in the first 30 lines marks tool output
+  generated-header   a comment in the first 30 lines says this file is tool output ('Code generated ... DO NOT EDIT', '@generated', or opening with 'Auto-generated'); one that only mentions generated code does not count
   minified-content   lines averaging 200+ characters: a minified bundle without a .min.js name
   js-test-file       *.test.* and *.spec.* file names (Jest, Vitest, Mocha, Jasmine) next to the code
   vendored-dir       copies of other projects' code (Go and Rust vendor/, npm node_modules/); a change there, tests included, is not this project's fix

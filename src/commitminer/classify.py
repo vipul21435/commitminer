@@ -274,8 +274,9 @@ RULES: tuple[Rule, ...] = (
         Category.GENERATED,
         "signal",
         (GENERATED_HEADER,),
-        "a 'Code generated ... DO NOT EDIT', '@generated' or 'auto-generated' comment in "
-        "the first 30 lines marks tool output",
+        "a comment in the first 30 lines says this file is tool output ('Code generated ... "
+        "DO NOT EDIT', '@generated', or opening with 'Auto-generated'); one that only "
+        "mentions generated code does not count",
         languages=_CODE,
     ),
     Rule(
