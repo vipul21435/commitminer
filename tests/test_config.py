@@ -60,12 +60,16 @@ def test_every_matcher_and_option_is_accepted() -> None:
                         category="generated",
                     ),
                     rule(id="d", dirs=None, names=["*Spec.java"], case_sensitive=True),
+                    rule(id="e", unless_paths=["src/**"]),
                 ]
             }
         }
     )
-    a, b, c, d = config.custom_rules
+    a, b, c, d, e = config.custom_rules
     assert (a.kind, b.kind, c.kind, d.kind) == ("name", "path", "signal", "name")
+    assert e.unless == ("src/**",)
+    assert classify("fixtures/x.json", config.rules).rule_id == "e"
+    assert classify("src/fixtures/x.json", config.rules).rule_id == "fallback"
     assert c.languages_label == "javascript"
     assert d.case_sensitive
     assert classify("api/x.proto", config.rules).rule_id == "a"
@@ -115,6 +119,8 @@ def test_describe() -> None:
             "cannot contain '/'",
         ),
         ({"classify": {"rules": [rule(dirs=None, paths=["/gen/**"])]}}, "leading or trailing"),
+        ({"classify": {"rules": [rule(unless_paths="src")]}}, "unless_paths: expected a list"),
+        ({"classify": {"rules": [rule(unless_paths=["a//b"])]}}, "unless: 'a//b': empty path"),
         ({"classify": {"rules": [rule(dirs=["{" + "a," * 300 + "b}"])]}}, "alternatives"),
     ],
 )

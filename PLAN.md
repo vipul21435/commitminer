@@ -93,6 +93,15 @@ Its output (JSONL) is the input for downstream environment builders.
   errors. Slice 2 adds weights to the same file.
 - Real-history check (live clones, not bundled): dtolnay/semver (Rust) went from 0 to 50
   candidates (18 with `--no-content`), spf13/pflag (Go) from 0 to 97.
+- Review fixes after slice 2: `java-main-dir` came before the tooling rule but after the
+  vendored, test-directory and test-name rules, so junit5's `src/main/java/.../Test.java`
+  was a test and grpc-java's `examples/src/main/java/` was source. Replaced by two general
+  mechanisms: `dir` rules skip Java package directories below `src/<set>/java/`, and a rule
+  may list `unless` path globs (`java-test-file` does not apply under `src/main/`). Also
+  new: `rust-build-script` (Cargo `build.rs` outside `src/` is config; it was the only
+  "source" of two semver candidates) and `js-spec-dir` (Jasmine's default `spec/`, JS/TS
+  only). Globs are now checked when a rule is built and matched without regex
+  backtracking across components.
 
 ### Decisions made while building slice 2
 

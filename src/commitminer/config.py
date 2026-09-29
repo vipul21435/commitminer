@@ -11,6 +11,7 @@ The classifier::
     dirs = ["fixtures"]                # exactly one of: dirs, names, paths, signals
     languages = ["python"]             # optional; default: every file
     case_sensitive = false             # optional
+    unless_paths = ["src/fixtures/**"] # optional; path globs where the rule does not apply
     rationale = "this project keeps test data in fixtures/"
 
 Filter limits, feature caps, weights and difficulty bands (every key is
@@ -65,7 +66,9 @@ _MATCHERS: Final[dict[str, RuleKind]] = {
     "paths": "path",
     "signals": "signal",
 }
-_RULE_KEYS: Final = frozenset({"id", "category", "rationale", "languages", "case_sensitive"})
+_RULE_KEYS: Final = frozenset(
+    {"id", "category", "rationale", "languages", "case_sensitive", "unless_paths"}
+)
 _BUILTIN_IDS: Final = frozenset(rule.rule_id for rule in RULES)
 _TABLES: Final = frozenset({"classify", "filter", "score", "difficulty"})
 _NUMBERS: Final[dict[str, dict[str, type]]] = {
@@ -187,6 +190,7 @@ def _rule(raw: Any, where: str) -> Rule:
     case_sensitive = raw.get("case_sensitive", False)
     if not isinstance(case_sensitive, bool):
         raise ConfigError(f"{where}: case_sensitive must be true or false")
+    unless = _strings(raw.get("unless_paths", []), f"{where}.unless_paths")
     try:
         return Rule(
             rule_id,
@@ -196,6 +200,7 @@ def _rule(raw: Any, where: str) -> Rule:
             raw["rationale"],
             languages=tuple(languages),
             case_sensitive=case_sensitive,
+            unless=unless,
         )
     except ValueError as exc:
         raise ConfigError(f"{where}: {exc}") from None

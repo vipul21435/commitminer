@@ -92,9 +92,13 @@ def render_verdicts(verdicts: Sequence[Verdict], content: bool) -> str:
 
 
 def describe_match(rule: Rule) -> str:
-    """The matcher of a rule as one line, e.g. ``name: *_test.go``."""
+    """The matcher of a rule as one line, e.g. ``name: *_test.go, unless: **/src/main/**``."""
     text = f"{rule.kind}: {', '.join(rule.patterns)}"
-    return text + " (case-sensitive)" if rule.case_sensitive else text
+    if rule.case_sensitive:
+        text += " (case-sensitive)"
+    if rule.unless:
+        text += f", unless: {', '.join(rule.unless)}"
+    return text
 
 
 def render_rules(rules: Sequence[Rule], custom: int = 0) -> str:
@@ -120,6 +124,8 @@ def render_rules_markdown(rules: Sequence[Rule]) -> str:
     for number, rule in enumerate(rules, start=1):
         patterns = ", ".join(f"`{pattern}`" for pattern in rule.patterns)
         sensitive = " (case-sensitive)" if rule.case_sensitive else ""
+        if rule.unless:
+            sensitive += "; unless: " + ", ".join(f"`{pattern}`" for pattern in rule.unless)
         rows.append(
             f"| {number} | `{rule.rule_id}` | {rule.category.value} | {rule.languages_label} "
             f"| {rule.kind}: {patterns}{sensitive} | {rule.rationale.replace('|', '\\|')} |"

@@ -9,9 +9,12 @@ trailing `/**` needs at least one more component), `{a,b}` is an alternative, `[
 character class. Patterns are checked when the table is built: a `/` in a `dir` or `name`
 pattern, a backslash, an empty path segment or an empty range such as `[z-a]` is an error.
 Matching takes linear time in the path length, whatever the pattern. `dir` rules match any
-directory component, `name` rules the file name, `path` rules the whole
-repository-relative path, and `signal` rules a content signal detected from the file's
-bytes. Matching is case-insensitive unless marked.
+layout directory: below a Maven or Gradle source root `src/<set>/java/` the directories are
+Java package names and are skipped, so `com/acme/vendor/` or `org/junit/test/` never match
+a `dir` rule. `name` rules match the file name, `path` rules the whole repository-relative
+path, and `signal` rules a content signal detected from the file's bytes. A rule does not
+apply to a path matching one of its `unless` globs. Matching is case-insensitive unless
+marked.
 `languages` restricts a rule to files of those languages (by extension).
 
 Per-repository overrides go in `commitminer.toml` at the repository root; see
@@ -23,34 +26,35 @@ Per-repository overrides go in `commitminer.toml` at the repository root; see
 | 2 | `java-test-dir` | test | any | path: `**/src/test/**`, `**/src/testFixtures/**`, `**/src/integrationTest/**` | Maven and Gradle test source sets, with their resources |
 | 3 | `test-dir` | test | any | dir: `tests`, `test` | test trees and their data: pytest and unittest, Cargo integration tests (tests/), mocha and tap (test/) |
 | 4 | `js-test-dir` | test | any | dir: `__tests__`, `__snapshots__`, `__mocks__` | Jest test, snapshot and manual-mock directories |
-| 5 | `go-testdata-dir` | test | any | dir: `testdata` | the go tool ignores testdata/; it holds fixtures and golden files for tests |
-| 6 | `lockfile` | generated | any | name: `*.lock`, `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `bun.lockb`, `go.sum`, `gradle.lockfile` | dependency lockfiles (Cargo.lock, yarn.lock, go.sum, uv.lock, ...) are written by the package manager |
-| 7 | `generated-name` | generated | any | name: `*.pb.go`, `*.pb.gw.go`, `*_pb2.py`, `*_pb2.pyi`, `*_pb2_grpc.py`, `*_pb.js`, `*_pb.d.ts`, `*_grpc_pb.js`, `zz_generated*.go`, `*_generated.go`, `*.generated.*` | file names used by protobuf, gRPC and other code generators |
-| 8 | `minified-name` | generated | any | name: `*.min.js`, `*.min.mjs`, `*.min.cjs`, `*.min.css`, `*.js.map`, `*.mjs.map`, `*.css.map` | minified bundles and source maps are build output |
-| 9 | `generated-header` | generated | python, rust, javascript, typescript, go, java | signal: `generated-header` | a 'Code generated ... DO NOT EDIT', '@generated' or 'auto-generated' comment in the first 30 lines marks tool output |
-| 10 | `minified-content` | generated | javascript | signal: `minified` | lines averaging 200+ characters: a minified bundle without a .min.js name |
-| 11 | `js-dist-dir` | generated | javascript, typescript | dir: `dist` | compiled JavaScript and type declarations committed under dist/ |
-| 12 | `py-test-file` | test | python | name: `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` | pytest discovery names and shared fixtures, wherever they live |
-| 13 | `js-test-file` | test | javascript, typescript | name: `*.test.{js,jsx,mjs,cjs,ts,tsx,mts,cts}`, `*.spec.{js,jsx,mjs,cjs,ts,tsx,mts,cts}` | Jest, Vitest, Mocha and Jasmine test file names |
-| 14 | `go-test-file` | test | go | name: `*_test.go` | go test compiles only files ending in _test.go as tests |
-| 15 | `java-test-file` | test | java | name: `*Test.java`, `*Tests.java`, `*TestCase.java`, `*IT.java`, `Test[A-Z0-9_]*.java` (case-sensitive) | Maven Surefire and Failsafe test class names (case-sensitive: Latest.java is source) |
-| 16 | `rust-test-file` | test | rust | name: `tests.rs`, `*_tests.rs` | Rust test modules kept in their own file (#[cfg(test)] mod tests; in the parent) |
-| 17 | `java-main-dir` | source | java | path: `**/src/main/java/**` | Maven and Gradle main source set, decided before the directory rules so package directories such as com/example/ or tools/ are not read as tooling or docs |
+| 5 | `js-spec-dir` | test | javascript, typescript | dir: `spec` | Jasmine's default spec_dir (spec/, with spec/helpers/); JavaScript and TypeScript only, so a Go or Python package named spec stays source |
+| 6 | `go-testdata-dir` | test | any | dir: `testdata` | the go tool ignores testdata/; it holds fixtures and golden files for tests |
+| 7 | `lockfile` | generated | any | name: `*.lock`, `package-lock.json`, `npm-shrinkwrap.json`, `pnpm-lock.yaml`, `bun.lockb`, `go.sum`, `gradle.lockfile` | dependency lockfiles (Cargo.lock, yarn.lock, go.sum, uv.lock, ...) are written by the package manager |
+| 8 | `generated-name` | generated | any | name: `*.pb.go`, `*.pb.gw.go`, `*_pb2.py`, `*_pb2.pyi`, `*_pb2_grpc.py`, `*_pb.js`, `*_pb.d.ts`, `*_grpc_pb.js`, `zz_generated*.go`, `*_generated.go`, `*.generated.*` | file names used by protobuf, gRPC and other code generators |
+| 9 | `minified-name` | generated | any | name: `*.min.js`, `*.min.mjs`, `*.min.cjs`, `*.min.css`, `*.js.map`, `*.mjs.map`, `*.css.map` | minified bundles and source maps are build output |
+| 10 | `generated-header` | generated | python, rust, javascript, typescript, go, java | signal: `generated-header` | a 'Code generated ... DO NOT EDIT', '@generated' or 'auto-generated' comment in the first 30 lines marks tool output |
+| 11 | `minified-content` | generated | javascript | signal: `minified` | lines averaging 200+ characters: a minified bundle without a .min.js name |
+| 12 | `js-dist-dir` | generated | javascript, typescript | dir: `dist` | compiled JavaScript and type declarations committed under dist/ |
+| 13 | `py-test-file` | test | python | name: `test_*.py`, `*_test.py`, `tests.py`, `conftest.py` | pytest discovery names and shared fixtures, wherever they live |
+| 14 | `js-test-file` | test | javascript, typescript | name: `*.test.{js,jsx,mjs,cjs,ts,tsx,mts,cts}`, `*.spec.{js,jsx,mjs,cjs,ts,tsx,mts,cts}` | *.test.* and *.spec.* file names (Jest, Vitest, Mocha, Jasmine) next to the code |
+| 15 | `go-test-file` | test | go | name: `*_test.go` | go test compiles only files ending in _test.go as tests |
+| 16 | `java-test-file` | test | java | name: `*Test.java`, `*Tests.java`, `*TestCase.java`, `*IT.java`, `Test[A-Z0-9_]*.java` (case-sensitive); unless: `**/src/main/**` | Maven Surefire and Failsafe test class names (case-sensitive: Latest.java is source); not under src/main/, which Maven compiles as main code whatever the name |
+| 17 | `rust-test-file` | test | rust | name: `tests.rs`, `*_tests.rs` | Rust test modules kept in their own file (#[cfg(test)] mod tests; in the parent) |
 | 18 | `ci-config` | config | any | path: `.github/**`, `.circleci/**`, `.buildkite/**`, `.gitlab-ci*`, `.travis*`, `azure-*.y*ml` | continuous integration settings |
 | 19 | `build-config` | config | any | name: `makefile`, `*.mk`, `dockerfile`, `*.dockerfile`, `.dockerignore`, `cmakelists.txt`, `.gitignore`, `.gitattributes`, `.gitmodules`, `.editorconfig`, `.pre-commit-config.yaml`, `*.cfg`, `*.ini` | build, container and repository settings shared by every language |
 | 20 | `py-config-file` | config | any | name: `pyproject.toml`, `setup.py`, `noxfile.py`, `.flake8`, `.coveragerc`, `requirements*.txt`, `manifest.in`, `.python-version`, `.readthedocs.y*ml` | Python packaging and tooling settings |
 | 21 | `rust-config-file` | config | any | name: `cargo.toml`, `rust-toolchain`, `rust-toolchain.toml`, `rustfmt.toml`, `.rustfmt.toml`, `clippy.toml`, `.clippy.toml`, `deny.toml` | Cargo manifests, toolchain pins and lint settings |
-| 22 | `js-config-file` | config | any | name: `package.json`, `tsconfig*.json`, `jsconfig*.json`, `deno.json{,c}`, `biome.json{,c}`, `.eslintrc*`, `eslint.config.*`, `.prettierrc*`, `prettier.config.*`, `.babelrc*`, `babel.config.*`, `{jest,vitest,vite,webpack,rollup}.config.*`, `.npmrc`, `.nvmrc`, `.npmignore`, `.yarnrc*` | npm manifests and JS/TS compiler, linter, bundler and test-runner settings |
-| 23 | `go-config-file` | config | any | name: `go.mod`, `go.work`, `.golangci.y*ml`, `.goreleaser.y*ml` | Go module files and linter or release settings |
-| 24 | `java-config-file` | config | any | name: `pom.xml`, `build.gradle{,.kts}`, `settings.gradle{,.kts}`, `gradle.properties`, `gradle-wrapper.properties`, `gradlew{,.bat}`, `mvnw{,.cmd}` | Maven and Gradle builds and their wrappers |
-| 25 | `docs-dir` | docs | any | dir: `docs`, `doc`, `documentation` | documentation trees, including their build scripts such as Sphinx's conf.py |
-| 26 | `docs-file` | docs | any | name: `*.md`, `*.mdx`, `*.rst`, `*.adoc`, `*.txt` | prose by extension (Markdown, reStructuredText, AsciiDoc, plain text) |
-| 27 | `tooling-dir` | other | any | dir: `benchmark`, `benchmarks`, `benches`, `scripts`, `tools`, `examples`, `example`, `fuzz`, `fuzzer`, `profiler` | helper code outside the package: benchmarks (including Rust benches/), scripts, examples and fuzzers are not the tests a task runs |
-| 28 | `rust-inline-tests` | source | rust | signal: `rust-inline-tests` | Rust source with an in-file #[cfg(test)] module: still source, but a commit can change its tests without touching tests/ |
-| 29 | `py-source` | source | python | name: `*.py`, `*.pyi`, `*.pyx`, `*.pxd` | Python modules, stubs and Cython sources |
-| 30 | `rust-source` | source | rust | name: `*.rs` | Rust source |
-| 31 | `js-source` | source | javascript, typescript | name: `*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}` | JavaScript and TypeScript modules |
-| 32 | `go-source` | source | go | name: `*.go` | Go source |
-| 33 | `java-source` | source | java | name: `*.java` | Java source |
-| 34 | `docs-name` | docs | any | name: `readme*`, `changelog*`, `changes*`, `history*`, `license*`, `copying*`, `notice*`, `authors*`, `contributing*` | prose and legal file names (README, LICENSE-MIT, CHANGELOG, ...), checked after source so a module named license.py or history.rs stays source |
+| 22 | `rust-build-script` | config | rust | name: `build.rs`; unless: `**/src/**` | Cargo build scripts (build.rs next to Cargo.toml) configure compilation, like setup.py; a module named build.rs under src/ stays source |
+| 23 | `js-config-file` | config | any | name: `package.json`, `tsconfig*.json`, `jsconfig*.json`, `deno.json{,c}`, `biome.json{,c}`, `.eslintrc*`, `eslint.config.*`, `.prettierrc*`, `prettier.config.*`, `.babelrc*`, `babel.config.*`, `{jest,vitest,vite,webpack,rollup}.config.*`, `.npmrc`, `.nvmrc`, `.npmignore`, `.yarnrc*` | npm manifests and JS/TS compiler, linter, bundler and test-runner settings |
+| 24 | `go-config-file` | config | any | name: `go.mod`, `go.work`, `.golangci.y*ml`, `.goreleaser.y*ml` | Go module files and linter or release settings |
+| 25 | `java-config-file` | config | any | name: `pom.xml`, `build.gradle{,.kts}`, `settings.gradle{,.kts}`, `gradle.properties`, `gradle-wrapper.properties`, `gradlew{,.bat}`, `mvnw{,.cmd}` | Maven and Gradle builds and their wrappers |
+| 26 | `docs-dir` | docs | any | dir: `docs`, `doc`, `documentation` | documentation trees, including their build scripts such as Sphinx's conf.py |
+| 27 | `docs-file` | docs | any | name: `*.md`, `*.mdx`, `*.rst`, `*.adoc`, `*.txt` | prose by extension (Markdown, reStructuredText, AsciiDoc, plain text) |
+| 28 | `tooling-dir` | other | any | dir: `benchmark`, `benchmarks`, `benches`, `scripts`, `tools`, `examples`, `example`, `fuzz`, `fuzzer`, `profiler` | helper code outside the package: benchmarks (including Rust benches/), scripts, examples and fuzzers are not the tests a task runs |
+| 29 | `rust-inline-tests` | source | rust | signal: `rust-inline-tests` | Rust source with an in-file #[cfg(test)] module: still source, but a commit can change its tests without touching tests/ |
+| 30 | `py-source` | source | python | name: `*.py`, `*.pyi`, `*.pyx`, `*.pxd` | Python modules, stubs and Cython sources |
+| 31 | `rust-source` | source | rust | name: `*.rs` | Rust source |
+| 32 | `js-source` | source | javascript, typescript | name: `*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}` | JavaScript and TypeScript modules |
+| 33 | `go-source` | source | go | name: `*.go` | Go source |
+| 34 | `java-source` | source | java | name: `*.java` | Java source |
+| 35 | `docs-name` | docs | any | name: `readme*`, `changelog*`, `changes*`, `history*`, `license*`, `copying*`, `notice*`, `authors*`, `contributing*` | prose and legal file names (README, LICENSE-MIT, CHANGELOG, ...), checked after source so a module named license.py or history.rs stays source |
 | - | `fallback` | other | any | no rule matched | |

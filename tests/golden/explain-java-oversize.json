@@ -19,7 +19,7 @@
         "test_deleted": 0
       },
       "path": "src/main/java/com/acme/Report.java",
-      "rule": "java-main-dir"
+      "rule": "java-source"
     },
     {
       "added": 5,

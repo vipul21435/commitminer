@@ -7,12 +7,18 @@ file was put where it was.
 
 Matchers (``kind``):
 
-- ``dir``: some directory component of the path matches one of the globs.
+- ``dir``: some layout directory of the path matches one of the globs. In a
+  Maven or Gradle source root (``src/<set>/java/``) the directories below the
+  root are Java package names, not layout, so ``com/acme/vendor/`` or
+  ``org/junit/test/`` never match a ``dir`` rule; ``path`` rules still see them.
 - ``name``: the file name matches one of the globs.
 - ``path``: the whole repository-relative path matches one of the globs;
   ``**/`` spans any number of directories.
 - ``signal``: the file carries one of the named content signals
   (see :mod:`commitminer.signals`).
+
+A rule may also list ``unless`` path globs: it does not apply to a path that
+matches one of them (Java test class names do not count under ``src/main/``).
 
 Globs support ``*``, ``?``, ``[...]``, ``{a,b}`` and whole-segment ``**``
 (see :mod:`commitminer.globs`); ``*`` never crosses a ``/``. Patterns are
@@ -23,10 +29,9 @@ empty tuple means every file. Paths use ``/``; a ``\\`` is read as ``/``.
 
 Order matters: vendored copies first (their tests are not this project's),
 then test directories (so golden files and fixtures stay test data even when
-they look generated), then generated files, test file names, the Java main
-source set, configuration, documentation, tooling, source, and finally prose
-file names such as README or LICENSE (after source, so a module named
-``license.py`` stays source).
+they look generated), then generated files, test file names, configuration,
+documentation, tooling, source, and finally prose file names such as README or
+LICENSE (after source, so a module named ``license.py`` stays source).
 """
 
 from __future__ import annotations
@@ -60,6 +65,19 @@ RULE_KINDS: Final[tuple[str, ...]] = get_args(RuleKind)
 _RULE_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
+def layout_directories(parts: Sequence[str]) -> tuple[str, ...]:
+    """The directories of a path that describe the project layout.
+
+    Below a Maven or Gradle source root ``src/<set>/java/`` the directories are
+    Java package names (``org/example/test/``), so they are left out.
+    """
+    directories = tuple(parts[:-1])
+    for index in range(len(directories) - 2):
+        if directories[index] == "src" and directories[index + 2] == "java":
+            return directories[: index + 3]
+    return directories
+
+
 @dataclass(frozen=True, slots=True)
 class Target:
     """A path prepared for matching: its parts, language and content signals."""
@@ -78,7 +96,14 @@ class Target:
         while normal.startswith("./"):
             normal = normal[2:]
         parts = tuple(normal.split("/"))
-        return cls(normal, parts, parts[:-1], parts[-1], language_of(normal), frozenset(signals))
+        return cls(
+            normal,
+            parts,
+            layout_directories(parts),
+            parts[-1],
+            language_of(normal),
+            frozenset(signals),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +117,8 @@ class Rule:
     rationale: str
     languages: tuple[Language, ...] = ()
     case_sensitive: bool = False
+    unless: tuple[str, ...] = ()
+    """Path globs where the rule does not apply, whatever else matches."""
 
     def __post_init__(self) -> None:
         if not _RULE_ID.match(self.rule_id):
@@ -110,6 +137,11 @@ class Rule:
                     check_pattern(pattern, "path" if self.kind == "path" else "component")
             except GlobError as exc:
                 raise ValueError(f"rule {self.rule_id}: {exc}") from None
+        try:
+            for pattern in self.unless:
+                check_pattern(pattern, "path")
+        except GlobError as exc:
+            raise ValueError(f"rule {self.rule_id}: unless: {exc}") from None
         if not self.rationale.strip():
             raise ValueError(f"rule {self.rule_id}: needs a rationale")
 
@@ -118,20 +150,25 @@ class Rule:
             component_regex(pattern, self.case_sensitive).match(text) for pattern in self.patterns
         )
 
-    def matches(self, target: Target) -> bool:
-        """True when this rule applies to ``target``."""
-        if self.languages and target.language not in self.languages:
-            return False
+    def _path(self, patterns: Iterable[str], target: Target) -> bool:
+        return any(
+            path_glob(pattern, self.case_sensitive).match(target.parts) for pattern in patterns
+        )
+
+    def _positive(self, target: Target) -> bool:
         if self.kind == "dir":
             return any(self._component(part) for part in target.directories)
         if self.kind == "name":
             return self._component(target.name)
         if self.kind == "path":
-            return any(
-                path_glob(pattern, self.case_sensitive).match(target.parts)
-                for pattern in self.patterns
-            )
+            return self._path(self.patterns, target)
         return any(signal in target.signals for signal in self.patterns)
+
+    def matches(self, target: Target) -> bool:
+        """True when this rule applies to ``target``."""
+        if self.languages and target.language not in self.languages:
+            return False
+        return self._positive(target) and not self._path(self.unless, target)
 
     @property
     def languages_label(self) -> str:
@@ -173,6 +210,15 @@ RULES: tuple[Rule, ...] = (
         "dir",
         ("__tests__", "__snapshots__", "__mocks__"),
         "Jest test, snapshot and manual-mock directories",
+    ),
+    Rule(
+        "js-spec-dir",
+        Category.TEST,
+        "dir",
+        ("spec",),
+        "Jasmine's default spec_dir (spec/, with spec/helpers/); JavaScript and TypeScript "
+        "only, so a Go or Python package named spec stays source",
+        languages=_JS_TS,
     ),
     Rule(
         "go-testdata-dir",
@@ -261,7 +307,7 @@ RULES: tuple[Rule, ...] = (
         Category.TEST,
         "name",
         (f"*.test.{_JS_EXT}", f"*.spec.{_JS_EXT}"),
-        "Jest, Vitest, Mocha and Jasmine test file names",
+        "*.test.* and *.spec.* file names (Jest, Vitest, Mocha, Jasmine) next to the code",
         languages=_JS_TS,
     ),
     Rule(
@@ -277,9 +323,11 @@ RULES: tuple[Rule, ...] = (
         Category.TEST,
         "name",
         ("*Test.java", "*Tests.java", "*TestCase.java", "*IT.java", "Test[A-Z0-9_]*.java"),
-        "Maven Surefire and Failsafe test class names (case-sensitive: Latest.java is source)",
+        "Maven Surefire and Failsafe test class names (case-sensitive: Latest.java is "
+        "source); not under src/main/, which Maven compiles as main code whatever the name",
         languages=(Language.JAVA,),
         case_sensitive=True,
+        unless=("**/src/main/**",),
     ),
     Rule(
         "rust-test-file",
@@ -288,15 +336,6 @@ RULES: tuple[Rule, ...] = (
         ("tests.rs", "*_tests.rs"),
         "Rust test modules kept in their own file (#[cfg(test)] mod tests; in the parent)",
         languages=(Language.RUST,),
-    ),
-    Rule(
-        "java-main-dir",
-        Category.SOURCE,
-        "path",
-        ("**/src/main/java/**",),
-        "Maven and Gradle main source set, decided before the directory rules so package "
-        "directories such as com/example/ or tools/ are not read as tooling or docs",
-        languages=(Language.JAVA,),
     ),
     Rule(
         "ci-config",
@@ -358,6 +397,16 @@ RULES: tuple[Rule, ...] = (
             "deny.toml",
         ),
         "Cargo manifests, toolchain pins and lint settings",
+    ),
+    Rule(
+        "rust-build-script",
+        Category.CONFIG,
+        "name",
+        ("build.rs",),
+        "Cargo build scripts (build.rs next to Cargo.toml) configure compilation, like "
+        "setup.py; a module named build.rs under src/ stays source",
+        languages=(Language.RUST,),
+        unless=("**/src/**",),
     ),
     Rule(
         "js-config-file",

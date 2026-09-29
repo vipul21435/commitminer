@@ -7,6 +7,6 @@ verdict  rejected (oversize): more source+test lines or source files than the li
 
   files
     category  rule               added   del hunks  code tests asserts  path
-    source    java-main-dir        424     0     1     1     0       0  src/main/java/com/acme/Report.java
+    source    java-source          424     0     1     1     0       0  src/main/java/com/acme/Report.java
     test      java-test-dir          5     0     1     1     0       1  src/test/java/com/acme/ReportTest.java
     public API touched: public class Report

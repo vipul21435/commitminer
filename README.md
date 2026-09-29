@@ -38,7 +38,7 @@ the flip is the downstream builder's job.
   included, as deterministic JSON Lines (gzipped when the name ends in `.gz`);
   `commitminer mine --history` replays it through the same code path. Mining the live tomli
   clone and replaying its recording produce byte-identical JSONL (checked with `cmp`).
-- **Multi-language file classifier**: one ordered table of 34 rules
+- **Multi-language file classifier**: one ordered table of 35 rules
   ([docs/rules.md](docs/rules.md), generated from the code) for Python, Rust,
   JavaScript/TypeScript, Go and Java. Each rule has an id, languages, a matcher (directory,
   file-name or path glob, or a content signal), a category (source, test, docs, config,
@@ -329,7 +329,7 @@ rules used:
   rust-inline-tests  Rust source with an in-file #[cfg(test)] module: still source, but a commit can change its tests without touching tests/
   generated-header   a 'Code generated ... DO NOT EDIT', '@generated' or 'auto-generated' comment in the first 30 lines marks tool output
   minified-content   lines averaging 200+ characters: a minified bundle without a .min.js name
-  js-test-file       Jest, Vitest, Mocha and Jasmine test file names
+  js-test-file       *.test.* and *.spec.* file names (Jest, Vitest, Mocha, Jasmine) next to the code
   vendored-dir       copies of other projects' code (Go and Rust vendor/, npm node_modules/); a change there, tests included, is not this project's fix
   fixtures-dir       this project keeps test inputs and expected outputs in fixtures/
   go-source          Go source
@@ -466,7 +466,7 @@ flowchart LR
 | --- | --- | --- |
 | Tests and coverage | `make cov` | 596 passed, 100.00% line and branch coverage (gate 90%) |
 | Types | `make typecheck` | `mypy --strict`: no issues in 18 source files |
-| Classifier table | `commitminer rules --markdown` | 34 rules, each with positive and negative examples in `tests/test_classify.py` |
+| Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |
 | Live walk of the tomli clone | `/usr/bin/time -p uv run commitminer mine <tomli clone> --top 0 --explain 0` | 0.35 s with content signals, 0.33 s with `--no-content` (3 runs each; 0.25 s before patches were read) |
 | Live walk of the semver clone | same on dtolnay/semver (572 commits) | 0.65 s with content signals, 0.35 s with `--no-content` (3 runs each) |
@@ -525,11 +525,16 @@ flowchart LR
   task harder, so it does not count against `--max-lines`.
 - **One ordered rule table, first match wins.** Vendored copies come first (their tests are
   not this project's), then test directories (so golden files under `testdata/` stay test
-  data even when they carry a generated header), generated files, test file names, the
-  Java main source set (so a package directory like `com/example/` is not read as
-  `examples/`), configuration, documentation, tooling, source, and last prose names such as
-  `LICENSE` (so a module named `license.py` stays source). Every rule carries its rationale,
-  and `docs/rules.md` is generated from the table and checked by a test.
+  data even when they carry a generated header), generated files, test file names,
+  configuration, documentation, tooling, source, and last prose names such as `LICENSE`
+  (so a module named `license.py` stays source). Every rule carries its rationale, and
+  `docs/rules.md` is generated from the table and checked by a test.
+- **Java packages are not layout.** Below a Maven or Gradle source root (`src/<set>/java/`)
+  directories are package names, so directory rules skip them: `com/shop/vendor/` is not
+  vendored and `org/springframework/test/` is not a test tree. Test class names
+  (`*Test.java`, `Test*.java`) do not count under `src/main/`, which Maven compiles as main
+  code (junit5's own `Test.java` is source), while an `examples/` module above the source
+  root is still tooling.
 - **Rust inline tests by measuring, not guessing.** A Rust file with a `#[cfg(test)]`
   module is a test change when its `#[test]` count grew or lines inside the module were
   added; lines inside the module are test lines, the rest are code. A commit whose only
@@ -579,7 +584,8 @@ flowchart LR
 - **English keywords only** for `fix_keyword` and closing references.
 - **Directory rules match any path component.** A Go or Python package directory named
   `tools`, `scripts`, `examples`, `docs` or `test` is classified by that directory rule
-  (Java's `src/main/java/` is special-cased). Override with `commitminer.toml`.
+  (Java package directories below `src/<set>/java/` are skipped). Override with
+  `commitminer.toml`.
 - **Docker and file ownership.** git refuses a repository owned by another user, and the
   walker deliberately ignores global config (so `safe.directory` cannot be set there);
   mining a bind-mounted clone on Linux needs `-u "$(id -u):$(id -g)"`.

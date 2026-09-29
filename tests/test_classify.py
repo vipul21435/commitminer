@@ -22,6 +22,10 @@ from commitminer.classify import (
     classify,
     match,
 )
+from commitminer.filters import RejectReason
+from commitminer.models import Commit, FileChange
+from commitminer.scoring import Candidate, Rejection, evaluate
+from commitminer.settings import Settings
 from commitminer.signals import detect_path
 
 C = Category
@@ -65,10 +69,13 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
             ex("web/node_modules/left-pad/index.js", C.VENDORED, "vendored-dir"),
             ex("third_party/zlib/tests/test_inflate.py", C.VENDORED, "vendored-dir"),
             ex("vendor/serde/src/lib.rs", C.VENDORED, "vendored-dir", RUST_WITH_TESTS),
+            ex("third_party/lib/src/main/java/org/lib/Util.java", C.VENDORED, "vendored-dir"),
         ],
         [
             ex("src/vendors/api.py", C.SOURCE, "py-source"),
             ex("pkg/vendor.go", C.SOURCE, "go-source"),
+            # A Java package named vendor is not a vendored tree.
+            ex("src/main/java/com/shop/vendor/VendorService.java", C.SOURCE, "java-source"),
         ],
     ),
     "java-test-dir": (
@@ -77,9 +84,10 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
             ex("core/src/test/resources/fixture.json", C.TEST, "java-test-dir"),
             ex("lib/src/testFixtures/java/Fakes.java", C.TEST, "java-test-dir"),
             ex("app/src/integrationTest/kotlin/Smoke.kt", C.TEST, "java-test-dir"),
+            ex("src/test/java/com/shop/vendor/VendorTest.java", C.TEST, "java-test-dir"),
         ],
         [
-            ex("src/main/java/com/example/Parser.java", C.SOURCE, "java-main-dir"),
+            ex("src/main/java/com/example/Parser.java", C.SOURCE, "java-source"),
             ex("src/testing/java/Helper.java", C.SOURCE, "java-source"),
         ],
     ),
@@ -97,6 +105,11 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
             ex("src/pkg/testing.py", C.SOURCE, "py-source"),
             ex("src/latest/mod.rs", C.SOURCE, "rust-source"),
             ex("src/contest/index.ts", C.SOURCE, "js-source"),
+            ex(
+                "spring-test/src/main/java/org/springframework/test/context/TestContextManager.java",
+                C.SOURCE,
+                "java-source",
+            ),
         ],
     ),
     "js-test-dir": (
@@ -108,6 +121,21 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
         [
             ex("src/__test__/app.ts", C.SOURCE, "js-source"),
             ex("src/tests_helper.ts", C.SOURCE, "js-source"),
+        ],
+    ),
+    "js-spec-dir": (
+        [
+            ex("spec/jasmine_examples/PlayerSpec.js", C.TEST, "js-spec-dir"),
+            ex("spec/helpers/jasmine_examples/SpecHelper.js", C.TEST, "js-spec-dir"),
+            ex("spec/player_spec.js", C.TEST, "js-spec-dir"),
+            ex("packages/core/spec/parser.spec.ts", C.TEST, "js-spec-dir"),
+        ],
+        [
+            ex("lib/jasmine_examples/Player.js", C.SOURCE, "js-source"),
+            ex("internal/spec/spec.go", C.SOURCE, "go-source"),
+            ex("src/spec/model.py", C.SOURCE, "py-source"),
+            ex("spec/support/jasmine.json", C.OTHER, FALLBACK_RULE),
+            ex("src/inspect.js", C.SOURCE, "js-source"),
         ],
     ),
     "go-testdata-dir": (
@@ -245,6 +273,14 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
             ex("app/Latest.java", C.SOURCE, "java-source"),
             ex("app/Testable.java", C.SOURCE, "java-source"),
             ex("app/parsertest.java", C.SOURCE, "java-source"),
+            # Maven compiles src/main/ as main code whatever the class is called.
+            ex(
+                "junit-jupiter-api/src/main/java/org/junit/jupiter/api/Test.java",
+                C.SOURCE,
+                "java-source",
+            ),
+            ex("testng-core/src/main/java/org/testng/TestNG.java", C.SOURCE, "java-source"),
+            ex("src/main/java/com/example/ParserTest.java", C.SOURCE, "java-source"),
         ],
     ),
     "rust-test-file": (
@@ -256,18 +292,6 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
             ex("src/testing.rs", C.SOURCE, "rust-source"),
             ex("src/tests.py", C.TEST, "py-test-file"),
             ex("src/tests_support.rs", C.SOURCE, "rust-source"),
-        ],
-    ),
-    "java-main-dir": (
-        [
-            ex("src/main/java/com/example/Parser.java", C.SOURCE, "java-main-dir"),
-            ex("core/src/main/java/org/acme/tools/Cli.java", C.SOURCE, "java-main-dir"),
-            ex("src/main/java/org/acme/docs/Render.java", C.SOURCE, "java-main-dir"),
-        ],
-        [
-            ex("src/main/java/com/example/ParserTest.java", C.TEST, "java-test-file"),
-            ex("src/main/resources/app.properties", C.OTHER, FALLBACK_RULE),
-            ex("src/main/java/api/Model.java", C.GENERATED, "generated-header", JAVA_GENERATED),
         ],
     ),
     "ci-config": (
@@ -318,6 +342,19 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
         [
             ex("src/cargo.rs", C.SOURCE, "rust-source"),
             ex("Cargo.toml.orig", C.OTHER, FALLBACK_RULE),
+            ex("build.rs", C.CONFIG, "rust-build-script"),
+        ],
+    ),
+    "rust-build-script": (
+        [
+            ex("build.rs", C.CONFIG, "rust-build-script"),
+            ex("crates/core/build.rs", C.CONFIG, "rust-build-script"),
+        ],
+        [
+            ex("src/build.rs", C.SOURCE, "rust-source"),
+            ex("crates/core/src/bin/build.rs", C.SOURCE, "rust-source"),
+            ex("tests/build.rs", C.TEST, "test-dir"),
+            ex("build.py", C.SOURCE, "py-source"),
         ],
     ),
     "js-config-file": (
@@ -354,7 +391,7 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
             ex("gradle/wrapper/gradle-wrapper.properties", C.CONFIG, "java-config-file"),
         ],
         [
-            ex("src/main/java/Build.java", C.SOURCE, "java-main-dir"),
+            ex("src/main/java/Build.java", C.SOURCE, "java-source"),
             ex("gradle.md", C.DOCS, "docs-file"),
         ],
     ),
@@ -376,10 +413,17 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
             ex("scripts/release.py", C.OTHER, "tooling-dir"),
             ex("examples/demo/main.go", C.OTHER, "tooling-dir"),
             ex("fuzz/fuzz_targets/parse.rs", C.OTHER, "tooling-dir"),
+            # An example module's main source set is example code, as in Go and Python.
+            ex(
+                "examples/src/main/java/io/grpc/examples/helloworld/HelloWorldServer.java",
+                C.OTHER,
+                "tooling-dir",
+            ),
         ],
         [
             ex("src/benchmarks.py", C.SOURCE, "py-source"),
             ex("src/scripting/eval.rs", C.SOURCE, "rust-source"),
+            ex("src/main/java/com/example/Demo.java", C.SOURCE, "java-source"),
         ],
     ),
     "rust-inline-tests": (
@@ -448,6 +492,8 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
         [
             ex("app/Contest.java", C.SOURCE, "java-source"),
             ex("Parser.java", C.SOURCE, "java-source"),
+            ex("core/src/main/java/org/acme/tools/Cli.java", C.SOURCE, "java-source"),
+            ex("src/main/java/org/acme/docs/Render.java", C.SOURCE, "java-source"),
         ],
         [
             ex("tools/Parser.java", C.OTHER, "tooling-dir"),
@@ -568,6 +614,22 @@ def test_target_normalises_paths() -> None:
     assert Target.of("././a.go").path == "a.go"
 
 
+def test_java_package_directories_are_not_layout() -> None:
+    target = Target.of("core/src/main/java/com/acme/test/A.java")
+    assert target.directories == ("core", "src", "main", "java")
+    assert target.parts[-3:] == ("acme", "test", "A.java")
+    assert Target.of("src/java/test/A.java").directories == ("src", "java", "test")
+    assert Target.of("src/main/java").directories == ("src", "main")
+
+
+def test_unless_globs_veto_a_rule() -> None:
+    rule = Rule("fx", Category.TEST, "dir", ("fixtures",), "why", unless=("src/**",))
+    assert rule.matches(Target.of("fixtures/a.json"))
+    assert not rule.matches(Target.of("src/fixtures/a.json"))
+    with pytest.raises(ValueError, match="rule fx: unless: '/src': paths are relative"):
+        Rule("fx", Category.TEST, "dir", ("fixtures",), "why", unless=("/src",))
+
+
 @pytest.mark.parametrize(
     ("kwargs", "message"),
     [
@@ -606,3 +668,50 @@ def test_path_rules_match_whole_components() -> None:
     assert not rule.matches(Target.of("gen"))
     assert not rule.matches(Target.of("generated/a.go"))
     assert not rule.matches(Target.of("api/v1/x.json"))
+
+
+# --- regressions through the filter: the classification decides the verdict ----------
+
+
+def _commit(subject: str, *files: tuple[str, int, int]) -> Commit:
+    return Commit(
+        "a" * 40,
+        ("b" * 40,),
+        "2024-01-01T00:00:00+00:00",
+        subject,
+        tuple(FileChange(path, added, deleted) for path, added, deleted in files),
+    )
+
+
+def test_a_fix_in_a_test_named_main_package_is_a_candidate() -> None:
+    package = "org/springframework/test/context"
+    commit = _commit(
+        "Fix x (fixes #1)",
+        (f"spring-test/src/main/java/{package}/TestContextManager.java", 5, 2),
+        (f"spring-test/src/test/java/{package}/TestContextManagerTests.java", 20, 0),
+    )
+    assert isinstance(evaluate(commit, Settings()), Candidate)
+
+
+def test_a_build_script_is_not_the_source_of_a_fix() -> None:
+    commit = _commit(
+        "Delete no_track_caller configuration",
+        ("build.rs", 0, 7),
+        ("tests/util/mod.rs", 2, 2),
+    )
+    outcome = evaluate(commit, Settings())
+    assert isinstance(outcome, Rejection)
+    assert outcome.reason is RejectReason.NO_SOURCE
+
+
+def test_a_jasmine_spec_counts_as_the_test_of_a_fix() -> None:
+    commit = _commit(
+        "Fix resume (fixes #9)",
+        ("lib/jasmine_examples/Player.js", 3, 1),
+        ("spec/jasmine_examples/PlayerSpec.js", 12, 0),
+    )
+    outcome = evaluate(commit, Settings())
+    assert isinstance(outcome, Candidate)
+    assert [f.change.path for f in outcome.stats.test_files] == [
+        "spec/jasmine_examples/PlayerSpec.js"
+    ]
