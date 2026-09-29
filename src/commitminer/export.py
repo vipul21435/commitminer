@@ -95,15 +95,23 @@ def render_summary(result: MineResult, repo: str) -> str:
 
 
 def render_table(result: MineResult, top: int, subject_width: int = 56) -> str:
-    """The ``top`` best candidates as a fixed-width table."""
+    """The ``top`` best candidates as a fixed-width table.
+
+    The ``test`` column counts test files, plus ``+N`` source files that gained
+    inline tests (Rust ``#[test]`` functions).
+    """
     header = f"{'rank':>4}  {'score':>6}  {'sha':<10}  {'date':<10}  {'lines':>5}  "
     header += f"{'src':>3}  {'test':>4}  subject"
     rows = [header]
     for rank, c in enumerate(result.candidates[:top], start=1):
+        tests = str(len(c.stats.test_files))
+        if c.stats.inline_test_files:
+            # "0+1": no test file, one source file that gained inline tests.
+            tests += f"+{len(c.stats.inline_test_files)}"
         rows.append(
             f"{rank:>4}  {c.score:>6.2f}  {c.commit.sha[:10]:<10}  {c.commit.date[:10]:<10}  "
             f"{c.stats.changed_lines:>5}  {len(c.stats.source_files):>3}  "
-            f"{len(c.stats.test_files):>4}  {_clip(c.commit.subject, subject_width)}"
+            f"{tests:>4}  {_clip(c.commit.subject, subject_width)}"
         )
     return "\n".join(rows)
 

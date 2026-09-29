@@ -311,6 +311,14 @@ RULES: tuple[Rule, ...] = (
         case_sensitive=True,
     ),
     Rule(
+        "rust-test-file",
+        Category.TEST,
+        "name",
+        ("tests.rs", "*_tests.rs"),
+        "Rust test modules kept in their own file (#[cfg(test)] mod tests; in the parent)",
+        languages=(Language.RUST,),
+    ),
+    Rule(
         "java-main-dir",
         Category.SOURCE,
         "path",

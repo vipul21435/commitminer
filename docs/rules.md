@@ -30,22 +30,23 @@ Per-repository overrides go in `commitminer.toml` at the repository root; see
 | 13 | `js-test-file` | test | javascript, typescript | name: `*.test.{js,jsx,mjs,cjs,ts,tsx,mts,cts}`, `*.spec.{js,jsx,mjs,cjs,ts,tsx,mts,cts}` | Jest, Vitest, Mocha and Jasmine test file names |
 | 14 | `go-test-file` | test | go | name: `*_test.go` | go test compiles only files ending in _test.go as tests |
 | 15 | `java-test-file` | test | java | name: `*Test.java`, `*Tests.java`, `*TestCase.java`, `*IT.java`, `Test[A-Z0-9_]*.java` (case-sensitive) | Maven Surefire and Failsafe test class names (case-sensitive: Latest.java is source) |
-| 16 | `java-main-dir` | source | java | path: `**/src/main/java/**` | Maven and Gradle main source set, decided before the directory rules so package directories such as com/example/ or tools/ are not read as tooling or docs |
-| 17 | `ci-config` | config | any | path: `.github/**`, `.circleci/**`, `.buildkite/**`, `.gitlab-ci*`, `.travis*`, `azure-*.y*ml` | continuous integration settings |
-| 18 | `build-config` | config | any | name: `makefile`, `*.mk`, `dockerfile`, `*.dockerfile`, `.dockerignore`, `cmakelists.txt`, `.gitignore`, `.gitattributes`, `.gitmodules`, `.editorconfig`, `.pre-commit-config.yaml`, `*.cfg`, `*.ini` | build, container and repository settings shared by every language |
-| 19 | `py-config-file` | config | any | name: `pyproject.toml`, `setup.py`, `noxfile.py`, `.flake8`, `.coveragerc`, `requirements*.txt`, `manifest.in`, `.python-version`, `.readthedocs.y*ml` | Python packaging and tooling settings |
-| 20 | `rust-config-file` | config | any | name: `cargo.toml`, `rust-toolchain`, `rust-toolchain.toml`, `rustfmt.toml`, `.rustfmt.toml`, `clippy.toml`, `.clippy.toml`, `deny.toml` | Cargo manifests, toolchain pins and lint settings |
-| 21 | `js-config-file` | config | any | name: `package.json`, `tsconfig*.json`, `jsconfig*.json`, `deno.json{,c}`, `biome.json{,c}`, `.eslintrc*`, `eslint.config.*`, `.prettierrc*`, `prettier.config.*`, `.babelrc*`, `babel.config.*`, `{jest,vitest,vite,webpack,rollup}.config.*`, `.npmrc`, `.nvmrc`, `.npmignore`, `.yarnrc*` | npm manifests and JS/TS compiler, linter, bundler and test-runner settings |
-| 22 | `go-config-file` | config | any | name: `go.mod`, `go.work`, `.golangci.y*ml`, `.goreleaser.y*ml` | Go module files and linter or release settings |
-| 23 | `java-config-file` | config | any | name: `pom.xml`, `build.gradle{,.kts}`, `settings.gradle{,.kts}`, `gradle.properties`, `gradle-wrapper.properties`, `gradlew{,.bat}`, `mvnw{,.cmd}` | Maven and Gradle builds and their wrappers |
-| 24 | `docs-dir` | docs | any | dir: `docs`, `doc`, `documentation` | documentation trees, including their build scripts such as Sphinx's conf.py |
-| 25 | `docs-file` | docs | any | name: `*.md`, `*.mdx`, `*.rst`, `*.adoc`, `*.txt` | prose by extension (Markdown, reStructuredText, AsciiDoc, plain text) |
-| 26 | `tooling-dir` | other | any | dir: `benchmark`, `benchmarks`, `benches`, `scripts`, `tools`, `examples`, `example`, `fuzz`, `fuzzer`, `profiler` | helper code outside the package: benchmarks (including Rust benches/), scripts, examples and fuzzers are not the tests a task runs |
-| 27 | `rust-inline-tests` | source | rust | signal: `rust-inline-tests` | Rust source with an in-file #[cfg(test)] module: still source, but a commit can change its tests without touching tests/ |
-| 28 | `py-source` | source | python | name: `*.py`, `*.pyi`, `*.pyx`, `*.pxd` | Python modules, stubs and Cython sources |
-| 29 | `rust-source` | source | rust | name: `*.rs` | Rust source |
-| 30 | `js-source` | source | javascript, typescript | name: `*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}` | JavaScript and TypeScript modules |
-| 31 | `go-source` | source | go | name: `*.go` | Go source |
-| 32 | `java-source` | source | java | name: `*.java` | Java source |
-| 33 | `docs-name` | docs | any | name: `readme*`, `changelog*`, `changes*`, `history*`, `license*`, `copying*`, `notice*`, `authors*`, `contributing*` | prose and legal file names (README, LICENSE-MIT, CHANGELOG, ...), checked after source so a module named license.py or history.rs stays source |
+| 16 | `rust-test-file` | test | rust | name: `tests.rs`, `*_tests.rs` | Rust test modules kept in their own file (#[cfg(test)] mod tests; in the parent) |
+| 17 | `java-main-dir` | source | java | path: `**/src/main/java/**` | Maven and Gradle main source set, decided before the directory rules so package directories such as com/example/ or tools/ are not read as tooling or docs |
+| 18 | `ci-config` | config | any | path: `.github/**`, `.circleci/**`, `.buildkite/**`, `.gitlab-ci*`, `.travis*`, `azure-*.y*ml` | continuous integration settings |
+| 19 | `build-config` | config | any | name: `makefile`, `*.mk`, `dockerfile`, `*.dockerfile`, `.dockerignore`, `cmakelists.txt`, `.gitignore`, `.gitattributes`, `.gitmodules`, `.editorconfig`, `.pre-commit-config.yaml`, `*.cfg`, `*.ini` | build, container and repository settings shared by every language |
+| 20 | `py-config-file` | config | any | name: `pyproject.toml`, `setup.py`, `noxfile.py`, `.flake8`, `.coveragerc`, `requirements*.txt`, `manifest.in`, `.python-version`, `.readthedocs.y*ml` | Python packaging and tooling settings |
+| 21 | `rust-config-file` | config | any | name: `cargo.toml`, `rust-toolchain`, `rust-toolchain.toml`, `rustfmt.toml`, `.rustfmt.toml`, `clippy.toml`, `.clippy.toml`, `deny.toml` | Cargo manifests, toolchain pins and lint settings |
+| 22 | `js-config-file` | config | any | name: `package.json`, `tsconfig*.json`, `jsconfig*.json`, `deno.json{,c}`, `biome.json{,c}`, `.eslintrc*`, `eslint.config.*`, `.prettierrc*`, `prettier.config.*`, `.babelrc*`, `babel.config.*`, `{jest,vitest,vite,webpack,rollup}.config.*`, `.npmrc`, `.nvmrc`, `.npmignore`, `.yarnrc*` | npm manifests and JS/TS compiler, linter, bundler and test-runner settings |
+| 23 | `go-config-file` | config | any | name: `go.mod`, `go.work`, `.golangci.y*ml`, `.goreleaser.y*ml` | Go module files and linter or release settings |
+| 24 | `java-config-file` | config | any | name: `pom.xml`, `build.gradle{,.kts}`, `settings.gradle{,.kts}`, `gradle.properties`, `gradle-wrapper.properties`, `gradlew{,.bat}`, `mvnw{,.cmd}` | Maven and Gradle builds and their wrappers |
+| 25 | `docs-dir` | docs | any | dir: `docs`, `doc`, `documentation` | documentation trees, including their build scripts such as Sphinx's conf.py |
+| 26 | `docs-file` | docs | any | name: `*.md`, `*.mdx`, `*.rst`, `*.adoc`, `*.txt` | prose by extension (Markdown, reStructuredText, AsciiDoc, plain text) |
+| 27 | `tooling-dir` | other | any | dir: `benchmark`, `benchmarks`, `benches`, `scripts`, `tools`, `examples`, `example`, `fuzz`, `fuzzer`, `profiler` | helper code outside the package: benchmarks (including Rust benches/), scripts, examples and fuzzers are not the tests a task runs |
+| 28 | `rust-inline-tests` | source | rust | signal: `rust-inline-tests` | Rust source with an in-file #[cfg(test)] module: still source, but a commit can change its tests without touching tests/ |
+| 29 | `py-source` | source | python | name: `*.py`, `*.pyi`, `*.pyx`, `*.pxd` | Python modules, stubs and Cython sources |
+| 30 | `rust-source` | source | rust | name: `*.rs` | Rust source |
+| 31 | `js-source` | source | javascript, typescript | name: `*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}` | JavaScript and TypeScript modules |
+| 32 | `go-source` | source | go | name: `*.go` | Go source |
+| 33 | `java-source` | source | java | name: `*.java` | Java source |
+| 34 | `docs-name` | docs | any | name: `readme*`, `changelog*`, `changes*`, `history*`, `license*`, `copying*`, `notice*`, `authors*`, `contributing*` | prose and legal file names (README, LICENSE-MIT, CHANGELOG, ...), checked after source so a module named license.py or history.rs stays source |
 | - | `fallback` | other | any | no rule matched | |

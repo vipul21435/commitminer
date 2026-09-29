@@ -198,12 +198,10 @@ def test_rust_inline_tests_count_as_tests() -> None:
     assert candidate.stats.test_files == ()
     test_feature = candidate.features[1]
     assert test_feature.value == 0.0
-    assert test_feature.detail == (
-        "0 test lines added (full value at 40); #[test] functions added in 1 source file"
-    )
+    assert test_feature.detail == "0 test lines added (full at 40); new #[test] in 1 src file"
     two = (inline, FileChange("src/io.rs", 5, 0, signals=inline.signals))
     detail = as_candidate(evaluate(make(files=two), Settings())).features[1].detail
-    assert detail.endswith("added in 2 source files")
+    assert detail.endswith("new #[test] in 2 src files")
 
 
 def test_generated_header_signal_moves_a_file_out_of_source() -> None:

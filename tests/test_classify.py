@@ -248,6 +248,17 @@ EXAMPLES: dict[str, tuple[list[Example], list[Example]]] = {
             ex("app/parsertest.java", C.SOURCE, "java-source"),
         ],
     ),
+    "rust-test-file": (
+        [
+            ex("src/tests.rs", C.TEST, "rust-test-file"),
+            ex("src/parser/parse_tests.rs", C.TEST, "rust-test-file"),
+        ],
+        [
+            ex("src/testing.rs", C.SOURCE, "rust-source"),
+            ex("src/tests.py", C.TEST, "py-test-file"),
+            ex("src/tests_support.rs", C.SOURCE, "rust-source"),
+        ],
+    ),
     "java-main-dir": (
         [
             ex("src/main/java/com/example/Parser.java", C.SOURCE, "java-main-dir"),

@@ -62,6 +62,38 @@ Its output (JSONL) is the input for downstream environment builders.
   so `safe.directory` cannot be set there; in Docker on Linux, mine a bind-mounted clone
   with `-u "$(id -u):$(id -g)"` (CI does this on the repository itself).
 
+### Decisions made while building slice 1
+
+- Categories: `other` stays as the fallback and also holds tooling (benchmarks including
+  Rust `benches/`, scripts, examples, fuzzers): none of them are the tests a task runs, so
+  counting `benches/` as test would let benchmark edits pass the test filter.
+- Lockfiles moved from config to generated (tomli's `poetry.lock` is the only change in the
+  demo; its ranking is unchanged).
+- Rule order: vendored, test directories, generated, test file names, Java main source set,
+  config, docs, tooling, source, prose names. Test directories come before generated so
+  golden files under `testdata/` stay test data. The table test found two ordering bugs
+  that shaped this: `src/main/java/com/example/` matched the `examples`-style tooling rule
+  (fixed with a `java-main-dir` rule), and prose names such as `history*` and `license*`
+  ahead of source made `history.py` a docs file (fixed by splitting `docs-file`, by
+  extension, from `docs-name`, checked after source).
+- Globs are compiled by a small translator (`**`, `*`, `?`, `[...]`, `{a,b}`), because
+  `fnmatch` has neither `**` nor braces. `dir` rules match any path component.
+- Java test class names are matched case-sensitively (`*Test.java` must not match
+  `Latest.java`); every other rule is case-insensitive.
+- Content signals depend only on a file's bytes and language, so the walker computes them
+  once (one `git cat-file --batch` process, first 1 MiB of each changed code file) and
+  recordings store them per file, only when present: the bundled tomli recording stayed
+  byte-identical (checked with `cmp` against a fresh recording, and by CI).
+- Rust inline tests: a file with a `#[cfg(test)]` module gets `rust-tests-added` when its
+  `#[test]` attribute count grew against the parent version; that satisfies the filter's
+  test requirement. Its lines stay source lines until slice 2 splits hunks. Separate Rust
+  test-module files (`tests.rs`, `*_tests.rs`) are a test rule.
+- `commitminer.toml` holds only `[classify]` for now (`rules` checked first, `disable` by
+  id), with a strict schema: unknown tables, keys, categories, languages or signals are
+  errors. Slice 2 adds weights to the same file.
+- Real-history check (live clones, not bundled): dtolnay/semver (Rust) went from 0 to 50
+  candidates (18 with `--no-content`), spf13/pflag (Go) from 0 to 97.
+
 ## Core (deliverable)
 
 - [x] Core: done on 2026-09-30. 127 tests, 100% line and branch coverage, CI green
@@ -95,7 +127,10 @@ The smallest end-to-end path, from a git history to a ranked JSONL file:
 
 ## Slices
 
-- [ ] 1. Multi-language classifier with a tested rule table.
+- [x] 1. Multi-language classifier with a tested rule table. Done on 2026-09-30: 34 rules
+  in `docs/rules.md`, `classify` and `rules` commands, `commitminer.toml` overrides, content
+  signals read while mining; 440 tests, 100% coverage. See "Decisions made while building
+  slice 1".
   Extend classification to Python, Rust, JavaScript/TypeScript, Go and Java with categories
   source, test, docs, config, generated and vendored. Rules live in one ordered table (rule
   id, languages, path glob or content signal, category, rationale). Path conventions:

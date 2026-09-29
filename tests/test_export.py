@@ -107,3 +107,5 @@ def test_signals_and_inline_test_files_are_exported() -> None:
     assert record["test_files"] == []
     assert record["files"][0]["signals"] == ["rust-inline-tests", "rust-tests-added"]
     assert record["files"][0]["rule"] == "rust-inline-tests"
+    row = render_table(mine([commit]), top=1).splitlines()[1]
+    assert row.split()[4:7] == ["9", "1", "0+1"]

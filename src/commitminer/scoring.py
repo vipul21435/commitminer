@@ -214,12 +214,13 @@ def features(commit: Commit, stats: DiffStats, settings: Settings) -> tuple[Feat
     size = stats.changed_lines
     test_added = stats.added(Category.TEST)
     inline = len(stats.inline_test_files)
-    test_detail = f"{test_added} test lines added (full value at {settings.test_lines_cap})"
+    cap = settings.test_lines_cap
+    test_detail = f"{test_added} test lines added (full value at {cap})"
     if inline:
         # Lines of a file that mixes code and tests cannot be split without the patch.
-        test_detail += (
-            f"; #[test] functions added in {inline} source file{'s' if inline != 1 else ''}"
-        )
+        plural = "s" if inline != 1 else ""
+        test_detail = f"{test_added} test lines added (full at {cap}); new #[test] in {inline} "
+        test_detail += f"src file{plural}"
     sources = len(stats.source_files)
     ref_value, ref_detail = linked_reference(commit.message)
     fix_value, fix_detail = fix_keyword(commit.subject)
