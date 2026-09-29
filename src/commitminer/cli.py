@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Annotated
 
@@ -11,9 +12,29 @@ import typer
 from commitminer import __version__
 from commitminer.config import Config, ConfigError, find_config, load_config
 from commitminer.explain import ExplainError, explain_json, find_commit, render_commit
-from commitminer.export import render_explanation, render_summary, render_table, write_jsonl
+from commitminer.export import (
+    render_explanation,
+    render_ledger,
+    render_summary,
+    render_table,
+    write_jsonl,
+)
 from commitminer.gitlog import GitError, head_sha, resolve_commit, walk
 from commitminer.history import HistoryError, read_history, write_history
+from commitminer.ledger import (
+    DEFAULT_MIN_OVERLAP,
+    STATUSES,
+    Ledger,
+    LedgerError,
+    Proposal,
+    Status,
+    Verdict,
+    check_all,
+    entry_to_json,
+    ledger_verdict_to_json,
+    open_ledger,
+    read_candidates,
+)
 from commitminer.models import Commit
 from commitminer.ruletable import (
     classify_file,
@@ -22,7 +43,7 @@ from commitminer.ruletable import (
     render_verdicts,
     verdict_to_json,
 )
-from commitminer.scoring import evaluate, mine
+from commitminer.scoring import Candidate, MineResult, evaluate, mine
 
 app = typer.Typer(
     name="commitminer",
@@ -113,6 +134,37 @@ TestLinesCapOption = Annotated[
 ]
 
 
+LedgerOption = Annotated[
+    Path | None,
+    typer.Option(
+        "--ledger",
+        help="SQLite ledger to check candidates against (read only; created empty if missing).",
+        show_default=False,
+    ),
+]
+MinOverlapOption = Annotated[
+    float,
+    typer.Option(
+        "--min-overlap",
+        min=0.01,
+        max=1.0,
+        help="Share of the smaller hunk set that makes two fixes overlap.",
+    ),
+]
+
+
+def _open(path: Path) -> Ledger:
+    try:
+        return open_ledger(path)
+    except LedgerError as exc:
+        raise _fail(str(exc)) from exc
+
+
+def _proposal(candidate: Candidate, repo: str) -> Proposal:
+    commit = candidate.commit
+    return Proposal(repo, commit.sha, commit.subject, candidate.fingerprint)
+
+
 def _config(explicit: Path | None, root: Path | None) -> Config:
     """Load ``--config``, else ``root/commitminer.toml`` if present, else the defaults."""
     path = explicit if explicit is not None else (find_config(root) if root else None)
@@ -149,8 +201,18 @@ def mine_command(
     repo_name: RepoNameOption = None,
     config: ConfigOption = None,
     content: ContentOption = True,
+    ledger: LedgerOption = None,
+    min_overlap: MinOverlapOption = DEFAULT_MIN_OVERLAP,
+    new_only: Annotated[
+        bool,
+        typer.Option(
+            "--new-only", help="With --ledger, leave duplicates and overlaps out of the output."
+        ),
+    ] = False,
 ) -> None:
     """Filter and rank the commits of a clone or a recorded history."""
+    if new_only and ledger is None:
+        raise _fail("--new-only needs --ledger", code=2)
     if (repo is None) == (history is None):
         # Plain text on purpose: Typer's rich usage panel re-wraps messages by terminal width.
         raise _fail("give either a REPO path or --history FILE, not both or neither", code=2)
@@ -172,19 +234,44 @@ def mine_command(
         max_lines=max_lines, max_source_files=max_source_files, test_lines_cap=test_lines_cap
     )
     result = mine(commits, settings)
+    verdicts: list[Verdict] | None = None
+    if ledger is not None:
+        with _open(ledger) as opened:
+            proposals = [_proposal(c, label) for c in result.candidates]
+            verdicts = check_all(opened, proposals, min_overlap)
     if settings_config.path is not None:
         typer.echo(settings_config.describe())
     typer.echo(render_summary(result, label))
-    if top and result.candidates:
-        typer.echo("")
-        typer.echo(render_table(result, top))
-    for rank, candidate in enumerate(result.candidates[:explain], start=1):
-        typer.echo("")
-        typer.echo(render_explanation(candidate, rank))
+    shown, ranks = result, list(range(1, len(result.candidates) + 1))
+    if verdicts is not None:
+        typer.echo(render_ledger(result, verdicts, str(ledger)))
+        if new_only:
+            kept = [i for i, v in enumerate(verdicts) if v.status is Status.NEW]
+            shown = replace(result, candidates=tuple(result.candidates[i] for i in kept))
+            verdicts = [verdicts[i] for i in kept]
+            ranks = [i + 1 for i in kept]
+            typer.echo(f"showing the {len(kept)} new candidates (--new-only)")
+    _print_candidates(shown, ranks, top, explain, verdicts)
     if out is not None:
-        count = write_jsonl(out, result, label)
+        count = write_jsonl(out, shown, label, verdicts, ranks)
         typer.echo("")
         typer.echo(f"wrote {count} candidates to {out}")
+
+
+def _print_candidates(
+    result: MineResult,
+    ranks: list[int],
+    top: int,
+    explain: int,
+    verdicts: list[Verdict] | None,
+) -> None:
+    """The table (ranked among all candidates) and the best ``explain`` breakdowns."""
+    if top and result.candidates:
+        typer.echo("")
+        typer.echo(render_table(result, top, verdicts=verdicts, ranks=ranks))
+    for rank, candidate in zip(ranks[:explain], result.candidates[:explain], strict=True):
+        typer.echo("")
+        typer.echo(render_explanation(candidate, rank))
 
 
 @app.command()
@@ -332,6 +419,151 @@ def rules_command(
     if loaded.path is not None:
         typer.echo(loaded.describe())
     typer.echo(render_rules(loaded.rules, custom=len(loaded.custom_rules)))
+
+
+ledger_app = typer.Typer(
+    help="Record proposed fixes in a SQLite ledger and check candidates against it.",
+    no_args_is_help=True,
+    add_completion=False,
+)
+app.add_typer(ledger_app, name="ledger")
+
+LedgerArgument = Annotated[
+    Path, typer.Argument(help="Ledger file (SQLite; created if missing).", show_default=False)
+]
+CandidatesArgument = Annotated[
+    Path,
+    typer.Argument(help="Candidates exported by mine --out (JSON Lines).", show_default=False),
+]
+
+
+def _read_candidates(path: Path) -> list[tuple[int | None, Proposal]]:
+    try:
+        return [(item.rank, item.proposal) for item in read_candidates(path)]
+    except LedgerError as exc:
+        raise _fail(str(exc)) from exc
+
+
+def _label(rank: int | None, proposal: Proposal) -> str:
+    where = f"#{rank} " if rank is not None else ""
+    return f"{where}{proposal.repo} {proposal.sha[:10]}"
+
+
+@ledger_app.command(name="add")
+def ledger_add(
+    ledger: LedgerArgument,
+    candidates: CandidatesArgument,
+    sha: Annotated[
+        list[str] | None,
+        typer.Option("--sha", help="Add only this candidate (sha prefix; repeatable)."),
+    ] = None,
+    top: Annotated[
+        int | None, typer.Option("--top", min=1, help="Add only the first N candidates.")
+    ] = None,
+    status: Annotated[
+        str, typer.Option("--status", help=f"Entry status: {' or '.join(STATUSES)}.")
+    ] = "claimed",
+    owner: Annotated[
+        str | None, typer.Option("--owner", help="Who claims the fixes (free text).")
+    ] = None,
+    min_overlap: MinOverlapOption = DEFAULT_MIN_OVERLAP,
+    allow_overlap: Annotated[
+        bool,
+        typer.Option("--allow-overlap", help="Refuse only exact duplicates, not partial overlaps."),
+    ] = False,
+) -> None:
+    """Record candidates in the ledger, refusing any fix it already holds (exit 1 if refused)."""
+    if status not in STATUSES:
+        raise _fail(f"--status must be {' or '.join(STATUSES)}, not {status!r}", code=2)
+    chosen = _read_candidates(candidates)
+    if sha:
+        wanted = [prefix.lower() for prefix in sha]
+        chosen = [c for c in chosen if any(c[1].sha.startswith(p) for p in wanted)]
+        if not chosen:
+            raise _fail(f"no candidate in {candidates} matches --sha {' '.join(sha)}")
+    if top is not None:
+        chosen = chosen[:top]
+    added = refused = 0
+    with _open(ledger) as opened:
+        for rank, proposal in chosen:
+            entry, verdict = opened.add(
+                proposal,
+                status=status,
+                owner=owner,
+                min_overlap=None if allow_overlap else min_overlap,
+            )
+            label = _label(rank, proposal)
+            if entry is None:
+                refused += 1
+                typer.echo(f"refused  {label}  {verdict.describe(proposal.sha)}")
+            else:
+                added += 1
+                note = "" if verdict.status is Status.NEW else f" ({verdict.status.value})"
+                typer.echo(f"added    {label}  {entry.status}{note}")
+    typer.echo(f"{added} added, {refused} refused: {ledger}")
+    if refused:
+        raise typer.Exit(code=1)
+
+
+@ledger_app.command(name="check")
+def ledger_check(
+    ledger: LedgerArgument,
+    candidates: CandidatesArgument,
+    min_overlap: MinOverlapOption = DEFAULT_MIN_OVERLAP,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print one JSON object per candidate.")
+    ] = False,
+) -> None:
+    """Check candidates against the ledger without writing (exit 1 if any is not new)."""
+    chosen = _read_candidates(candidates)
+    with _open(ledger) as opened:
+        verdicts = check_all(opened, [proposal for _, proposal in chosen], min_overlap)
+    for (rank, proposal), verdict in zip(chosen, verdicts, strict=True):
+        if as_json:
+            record = {"rank": rank, "repo": proposal.repo, "sha": proposal.sha}
+            record.update(ledger_verdict_to_json(verdict))
+            typer.echo(json.dumps(record, sort_keys=True, ensure_ascii=True))
+        else:
+            typer.echo(f"{_label(rank, proposal)}  {verdict.describe(proposal.sha)}")
+    if any(verdict.status is not Status.NEW for verdict in verdicts):
+        raise typer.Exit(code=1)
+
+
+@ledger_app.command(name="list")
+def ledger_list(
+    ledger: LedgerArgument,
+    repo: Annotated[
+        str | None, typer.Option("--repo", help="Only entries of this repository label.")
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Print one JSON object per entry.")] = (
+        False
+    ),
+) -> None:
+    """List the recorded fixes, oldest first."""
+    with _open(ledger) as opened:
+        entries = opened.entries(repo)
+        version = opened.schema_version
+    if as_json:
+        for entry in entries:
+            typer.echo(json.dumps(entry_to_json(entry), sort_keys=True, ensure_ascii=True))
+        return
+    typer.echo(f"{ledger}: {len(entries)} entries (schema version {version})")
+    if not entries:
+        return
+    typer.echo(
+        f"{'first seen':<10}  {'status':<8}  {'owner':<10}  {'repo':<18}  {'sha':<10}  "
+        f"{'hunks':>5}  {'fingerprint':<16}  subject"
+    )
+    for entry in entries:
+        typer.echo(
+            f"{entry.first_seen[:10]:<10}  {entry.status:<8}  {_ascii(entry.owner or '-'):<10}  "
+            f"{_ascii(entry.repo):<18}  {entry.sha[:10]:<10}  {entry.hunk_count:>5}  "
+            f"{entry.fingerprint:<16}  {_ascii(entry.subject)[:50]}"
+        )
+
+
+def _ascii(text: str) -> str:
+    return text.encode("ascii", "replace").decode("ascii")
 
 
 def main() -> None:

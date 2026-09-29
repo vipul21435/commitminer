@@ -3,14 +3,18 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from commitminer.export import (
     SCHEMA_VERSION,
     candidate_to_json,
     render_explanation,
+    render_ledger,
     render_summary,
     render_table,
     write_jsonl,
 )
+from commitminer.ledger import Entry, Match, Status, Verdict
 from commitminer.models import Commit, FileChange, PatchStats
 from commitminer.scoring import mine
 
@@ -166,3 +170,25 @@ def test_patch_data_and_difficulty_are_exported() -> None:
     total = sum(f["contribution"] for f in difficulty["features"])
     assert round(total, 4) == difficulty["value"] == 1.71
     assert [f["name"] for f in record["features"]][2] == "added_assertions"
+
+
+def test_ledger_verdicts_in_the_table_the_report_and_the_export(tmp_path: Path) -> None:
+    result = mine([_commit("a" * 40, "Fix parser"), _commit("b" * 40, "Fix lexer")])
+    entry = Entry(1, "f", "demo/up", "c" * 40, "Fix parser", "claimed", "alice", "2026-01-02", 2)
+    verdicts = [Verdict(Status.NEW), Verdict(Status.DUPLICATE, (Match(entry, 2, 2, True),))]
+    header, *rows = render_table(result, top=5, verdicts=verdicts).splitlines()
+    assert header.endswith("  test  ledger   subject")
+    assert [row.split()[9] for row in rows] == ["new", "dup"]
+    assert render_ledger(result, verdicts, "team.sqlite3").splitlines() == [
+        "ledger team.sqlite3: 1 new, 1 duplicate",
+        f"  #2 {result.candidates[1].commit.sha[:10]} duplicate: same fix as demo/up "
+        "cccccccccc (claimed by alice on 2026-01-02)",
+    ]
+    assert render_ledger(mine([]), [], "x") == "ledger x: no candidates"
+    out = tmp_path / "c.jsonl"
+    write_jsonl(out, result, "r", verdicts, ranks=[3, 7])
+    first, second = (json.loads(line) for line in out.read_text().splitlines())
+    assert (first["rank"], first["ledger"]) == (3, {"matches": [], "status": "new"})
+    assert second["ledger"]["matches"][0]["sha"] == "c" * 40
+    with pytest.raises(ValueError, match="one ledger verdict per candidate"):
+        render_table(result, top=5, verdicts=verdicts[:1])

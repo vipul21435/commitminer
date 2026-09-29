@@ -37,6 +37,8 @@ jobs:
         run: make demo-explain
       - name: Classifier demo (multi-language sample tree)
         run: make demo-classify
+      - name: Ledger demo (cherry-picks, a re-indented and moved fork)
+        run: make demo-ledger
       - name: Recording still matches upstream tomli
         run: make verify-recording
 
@@ -61,6 +63,15 @@ jobs:
         run: |
           docker run --rm commitminer:ci explain 948211d852 \
             --history examples/tomli/history.jsonl.gz
+      - name: Ledger inside the image (demo repositories built in the container)
+        run: |
+          docker run --rm --entrypoint sh commitminer:ci -c '
+            set -e
+            python examples/ledger/build_repos.py /tmp/demo
+            commitminer mine /tmp/demo/upstream --top 0 --explain 0 --out /tmp/up.jsonl
+            commitminer ledger add /tmp/ledger.sqlite3 /tmp/up.jsonl --owner ci
+            commitminer mine /tmp/demo/fork --top 5 --explain 0 --ledger /tmp/ledger.sqlite3
+            commitminer ledger list /tmp/ledger.sqlite3'
       - name: Mine this repository's own history inside the image
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/repo:ro" commitminer:ci \

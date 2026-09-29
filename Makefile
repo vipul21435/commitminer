@@ -1,5 +1,5 @@
-.PHONY: help install lint fmt typecheck test cov check demo demo-explain demo-classify rules-doc \
-	docker verify-recording
+.PHONY: help install lint fmt typecheck test cov check demo demo-explain demo-classify \
+	demo-ledger rules-doc docker verify-recording
 
 UV ?= uv
 IMAGE ?= commitminer:local
@@ -50,6 +50,21 @@ CLASSIFY_PATHS := src/lib.rs internal/kind/kind_string.go web/static/bundle.js \
 
 demo-classify: ## Classify the multi-language sample tree (uses its commitminer.toml)
 	$(UV) run commitminer classify --root $(CLASSIFY_ROOT) $(CLASSIFY_PATHS)
+
+LEDGER_DEMO := $(WORK)/ledger-demo
+LEDGER := $(LEDGER_DEMO)/ledger.sqlite3
+
+demo-ledger: ## Claim upstream fixes, then mine a release branch and a fork against the ledger
+	rm -rf $(LEDGER_DEMO)
+	$(UV) run python examples/ledger/build_repos.py $(LEDGER_DEMO)
+	$(UV) run commitminer mine $(LEDGER_DEMO)/upstream --repo-name demo/durations --explain 0 \
+		--out $(LEDGER_DEMO)/upstream.jsonl
+	$(UV) run commitminer ledger add $(LEDGER) $(LEDGER_DEMO)/upstream.jsonl --owner alice
+	$(UV) run commitminer mine $(LEDGER_DEMO)/upstream --rev release --repo-name demo/durations \
+		--explain 0 --ledger $(LEDGER)
+	$(UV) run commitminer mine $(LEDGER_DEMO)/fork --repo-name demo/durations-fork --explain 0 \
+		--ledger $(LEDGER)
+	$(UV) run commitminer ledger list $(LEDGER)
 
 rules-doc: ## Regenerate the rule table in docs/rules.md
 	{ sed '/^| # | rule |/,$$d' docs/rules.md; $(UV) run commitminer rules --markdown; } \

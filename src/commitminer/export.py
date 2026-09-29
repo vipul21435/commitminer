@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
 from commitminer.classify import Category
 from commitminer.fingerprint import FINGERPRINT_VERSION, Fingerprint
+from commitminer.ledger import Status, Verdict, ledger_verdict_to_json
 from commitminer.models import PatchStats
 from commitminer.scoring import Candidate, Feature, MineResult
 from commitminer.stats import ClassifiedFile
@@ -72,8 +75,13 @@ def fingerprint_to_json(value: Fingerprint | None) -> dict[str, Any] | None:
     return {"version": FINGERPRINT_VERSION, "patch": value.patch, "hunks": list(value.hunks)}
 
 
-def candidate_to_json(candidate: Candidate, rank: int | None, repo: str) -> dict[str, Any]:
-    """The JSON object written for one candidate (``rank`` is ``None`` outside a ranking)."""
+def candidate_to_json(
+    candidate: Candidate, rank: int | None, repo: str, verdict: Verdict | None = None
+) -> dict[str, Any]:
+    """The JSON object written for one candidate (``rank`` is ``None`` outside a ranking).
+
+    ``verdict`` is the ledger's verdict when the candidates were checked against one.
+    """
     commit, stats = candidate.commit, candidate.stats
     return {
         "schema_version": SCHEMA_VERSION,
@@ -103,16 +111,39 @@ def candidate_to_json(candidate: Candidate, rank: int | None, repo: str) -> dict
         "inline_test_files": [f.change.path for f in stats.inline_test_files],
         "files": [file_to_json(item) for item in stats.files],
         "fingerprint": fingerprint_to_json(candidate.fingerprint),
-        "ledger": None,
+        "ledger": None if verdict is None else ledger_verdict_to_json(verdict),
     }
 
 
-def write_jsonl(path: Path, result: MineResult, repo: str) -> int:
-    """Write every candidate, best first, one JSON object per line; return the count."""
+def _verdicts(result: MineResult, verdicts: Sequence[Verdict] | None) -> list[Verdict | None]:
+    if verdicts is None:
+        return [None] * len(result.candidates)
+    if len(verdicts) != len(result.candidates):
+        raise ValueError("one ledger verdict per candidate is needed")
+    return list(verdicts)
+
+
+def _ranks(result: MineResult, ranks: Sequence[int] | None) -> Sequence[int]:
+    return range(1, len(result.candidates) + 1) if ranks is None else ranks
+
+
+def write_jsonl(
+    path: Path,
+    result: MineResult,
+    repo: str,
+    verdicts: Sequence[Verdict] | None = None,
+    ranks: Sequence[int] | None = None,
+) -> int:
+    """Write every candidate, best first, one JSON object per line; return the count.
+
+    ``ranks`` are the candidates' ranks when ``result`` holds only some of them.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
-        json.dumps(candidate_to_json(c, rank, repo), sort_keys=True, ensure_ascii=True)
-        for rank, c in enumerate(result.candidates, start=1)
+        json.dumps(candidate_to_json(c, rank, repo, verdict), sort_keys=True, ensure_ascii=True)
+        for rank, c, verdict in zip(
+            _ranks(result, ranks), result.candidates, _verdicts(result, verdicts), strict=True
+        )
     ]
     path.write_text("".join(line + "\n" for line in lines), encoding="ascii", newline="\n")
     return len(lines)
@@ -141,27 +172,71 @@ def render_summary(result: MineResult, repo: str) -> str:
     )
 
 
-def render_table(result: MineResult, top: int, subject_width: int = 44) -> str:
+_LEDGER_LABELS = {
+    Status.NEW: "new",
+    Status.DUPLICATE: "dup",
+    Status.OVERLAP: "overlap",
+    Status.UNKNOWN: "?",
+}
+
+
+def render_table(
+    result: MineResult,
+    top: int,
+    subject_width: int = 44,
+    verdicts: Sequence[Verdict] | None = None,
+    ranks: Sequence[int] | None = None,
+) -> str:
     """The ``top`` best candidates as a fixed-width table.
 
     ``diff`` is the difficulty value and its band. The ``test`` column counts
     test files, plus ``+N`` source files that gained inline tests (Rust
-    ``#[test]`` functions).
+    ``#[test]`` functions). With ``verdicts``, a ``ledger`` column shows each
+    candidate's ledger status.
     """
+    marks = _verdicts(result, verdicts)
     header = f"{'rank':>4}  {'score':>6}  {'diff':>11}  {'sha':<10}  {'date':<10}  "
-    header += f"{'lines':>5}  {'src':>3}  {'test':>4}  subject"
-    rows = [header]
-    for rank, c in enumerate(result.candidates[:top], start=1):
+    header += f"{'lines':>5}  {'src':>3}  {'test':>4}  "
+    if verdicts is not None:
+        header += f"{'ledger':<7}  "
+    rows = [header + "subject"]
+    rows_in = zip(_ranks(result, ranks), result.candidates, marks, strict=True)
+    for index, (rank, c, verdict) in enumerate(rows_in):
+        if index == top:
+            break
         tests = str(len(c.stats.test_files))
         if c.stats.inline_test_files:
             # "0+1": no test file, one source file that gained inline tests.
             tests += f"+{len(c.stats.inline_test_files)}"
         band = f"{c.difficulty.value:.2f} {c.difficulty.band}"
+        ledger = "" if verdict is None else f"{_LEDGER_LABELS[verdict.status]:<7}  "
         rows.append(
             f"{rank:>4}  {c.score:>6.2f}  {band:>11}  {c.commit.sha[:10]:<10}  "
             f"{c.commit.date[:10]:<10}  {c.stats.changed_lines:>5}  "
-            f"{len(c.stats.source_files):>3}  {tests:>4}  {_clip(c.commit.subject, subject_width)}"
+            f"{len(c.stats.source_files):>3}  {tests:>4}  {ledger}"
+            f"{_clip(c.commit.subject, subject_width)}"
         )
+    return "\n".join(rows)
+
+
+def render_ledger(
+    result: MineResult, verdicts: Sequence[Verdict], where: str, ranks: Sequence[int] | None = None
+) -> str:
+    """The ledger summary line, then one line per candidate that is not new.
+
+    ``ranks`` are the candidates' ranks when ``result`` holds only some of them.
+    """
+    counts = Counter(verdict.status for verdict in _verdicts(result, verdicts) if verdict)
+    summary = ", ".join(f"{counts[status]} {status.value}" for status in Status if counts[status])
+    rows = [f"ledger {_ascii(where)}: {summary or 'no candidates'}"]
+    for rank, candidate, verdict in zip(
+        _ranks(result, ranks), result.candidates, verdicts, strict=True
+    ):
+        if verdict.status is not Status.NEW:
+            rows.append(
+                f"  #{rank} {candidate.commit.sha[:10]} "
+                f"{_ascii(verdict.describe(candidate.commit.sha))}"
+            )
     return "\n".join(rows)
 
 
