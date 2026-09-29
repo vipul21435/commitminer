@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: lint, typecheck, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          version: "0.11.29"
+          python-version: "3.12"
+          enable-cache: true
+      - name: Install locked environment
+        run: uv sync --locked
+      - name: Lint
+        run: make lint
+      - name: Typecheck
+        run: make typecheck
+      - name: Tests with coverage gate
+        run: make cov
+      - name: Demo
+        run: make demo
+
+  docker:
+    name: docker build + demo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build image
+        run: docker build -t commitminer:ci .
+      - name: Run the CLI inside the image
+        run: |
+          docker run --rm commitminer:ci version
+          test "$(docker run --rm --entrypoint id commitminer:ci -u)" = "10001"
