@@ -1,5 +1,5 @@
-.PHONY: help install lint fmt typecheck test cov check demo demo-classify rules-doc docker \
-	verify-recording
+.PHONY: help install lint fmt typecheck test cov check demo demo-explain demo-classify rules-doc \
+	docker verify-recording
 
 UV ?= uv
 IMAGE ?= commitminer:local
@@ -37,6 +37,11 @@ check: lint typecheck cov ## Everything CI runs except Docker
 demo: ## Mine the recorded tomli history offline; writes out/tomli-candidates.jsonl
 	$(UV) run commitminer mine --history $(HISTORY) --top 10 --explain 1 \
 		--out out/tomli-candidates.jsonl
+
+demo-explain: ## Explain one candidate and one rejected commit of the recorded tomli history
+	$(UV) run commitminer explain 948211d852 --history $(HISTORY)
+	@echo
+	$(UV) run commitminer explain 27be26fa4d --history $(HISTORY)
 
 CLASSIFY_ROOT := examples/classify
 CLASSIFY_PATHS := src/lib.rs internal/kind/kind_string.go web/static/bundle.js \

@@ -1,0 +1,10 @@
+commit   c1bacd720f307b630fd0c08d839ae2a2c0c844ac
+base     0b26c27ff9e05d9ebe798b814ce9628073359708
+date     2024-01-01T04:00:00+00:00
+subject  Reword the greeting comments
+verdict  rejected (source-cosmetic): source changes touch only comments, blank lines or (outside Python) indentation
+
+  files
+    category  rule               added   del hunks  code tests asserts  path
+    source    js-source              2     2     2     0     0       0  lib/index.js
+    test      js-test-file           1     0     1     0     0       0  lib/index.test.js

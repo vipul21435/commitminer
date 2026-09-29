@@ -9,6 +9,7 @@ from typing import Any
 from commitminer.classify import Category
 from commitminer.models import PatchStats
 from commitminer.scoring import Candidate, Feature, MineResult
+from commitminer.stats import ClassifiedFile
 
 SCHEMA_VERSION = 2
 """Version of the per-candidate JSON object; bumped on incompatible changes.
@@ -42,25 +43,27 @@ def patch_to_json(patch: PatchStats) -> dict[str, Any]:
     }
 
 
-def candidate_to_json(candidate: Candidate, rank: int, repo: str) -> dict[str, Any]:
-    """The JSON object written for one candidate."""
+def file_to_json(item: ClassifiedFile) -> dict[str, Any]:
+    """One changed file: path, category, rule, line counts, signals and patch measurements."""
+    record: dict[str, Any] = {
+        "path": item.change.path,
+        "category": item.category.value,
+        "rule": item.classification.rule_id,
+        "added": item.change.added,
+        "deleted": item.change.deleted,
+    }
+    if item.change.old_path is not None:
+        record["old_path"] = item.change.old_path
+    if item.change.signals:
+        record["signals"] = list(item.change.signals)
+    if item.change.patch is not None:
+        record["patch"] = patch_to_json(item.change.patch)
+    return record
+
+
+def candidate_to_json(candidate: Candidate, rank: int | None, repo: str) -> dict[str, Any]:
+    """The JSON object written for one candidate (``rank`` is ``None`` outside a ranking)."""
     commit, stats = candidate.commit, candidate.stats
-    files: list[dict[str, Any]] = []
-    for item in stats.files:
-        record: dict[str, Any] = {
-            "path": item.change.path,
-            "category": item.category.value,
-            "rule": item.classification.rule_id,
-            "added": item.change.added,
-            "deleted": item.change.deleted,
-        }
-        if item.change.old_path is not None:
-            record["old_path"] = item.change.old_path
-        if item.change.signals:
-            record["signals"] = list(item.change.signals)
-        if item.change.patch is not None:
-            record["patch"] = patch_to_json(item.change.patch)
-        files.append(record)
     return {
         "schema_version": SCHEMA_VERSION,
         "rank": rank,
@@ -87,7 +90,7 @@ def candidate_to_json(candidate: Candidate, rank: int, repo: str) -> dict[str, A
         "source_files": [f.change.path for f in stats.source_files],
         "test_files": [f.change.path for f in stats.test_files],
         "inline_test_files": [f.change.path for f in stats.inline_test_files],
-        "files": files,
+        "files": [file_to_json(item) for item in stats.files],
     }
 
 

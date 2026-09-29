@@ -33,6 +33,8 @@ jobs:
         run: make cov
       - name: Demo (recorded tomli history, offline)
         run: make demo
+      - name: Explain demo (one candidate, one rejected commit)
+        run: make demo-explain
       - name: Classifier demo (multi-language sample tree)
         run: make demo-classify
       - name: Recording still matches upstream tomli
@@ -55,6 +57,10 @@ jobs:
         run: |
           docker run --rm commitminer:ci classify --root examples/classify \
             src/lib.rs internal/kind/kind_string.go web/static/bundle.js fixtures/percent.json
+      - name: Explain a recorded commit inside the image
+        run: |
+          docker run --rm commitminer:ci explain 948211d852 \
+            --history examples/tomli/history.jsonl.gz
       - name: Mine this repository's own history inside the image
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/repo:ro" commitminer:ci \

@@ -1,0 +1,153 @@
+{
+  "base": "96df2a060f979f8e892862c0963f1901e1d036cd",
+  "date": "2024-01-01T01:00:00+00:00",
+  "difficulty": {
+    "band": "easy",
+    "features": [
+      {
+        "contribution": 0.2,
+        "detail": "2 source+test files changed (full value at 10)",
+        "name": "files",
+        "value": 0.2,
+        "weight": 1.0
+      },
+      {
+        "contribution": 0.3,
+        "detail": "1 source code hunk (full value at 10)",
+        "name": "hunks",
+        "value": 0.1,
+        "weight": 3.0
+      },
+      {
+        "contribution": 0.12,
+        "detail": "4 source code lines changed (full value at 100)",
+        "name": "lines",
+        "value": 0.04,
+        "weight": 3.0
+      },
+      {
+        "contribution": 0.0,
+        "detail": "1 source file with code changes (full value at 5)",
+        "name": "cross_file",
+        "value": 0.0,
+        "weight": 2.0
+      },
+      {
+        "contribution": 1.0,
+        "detail": "def divide",
+        "name": "public_api",
+        "value": 1.0,
+        "weight": 1.0
+      }
+    ],
+    "value": 1.62
+  },
+  "features": [
+    {
+      "contribution": 2.9325,
+      "detail": "9 of at most 400 source+test lines changed",
+      "name": "small_diff",
+      "value": 0.9775,
+      "weight": 3.0
+    },
+    {
+      "contribution": 0.25,
+      "detail": "5 test lines added (full value at 40)",
+      "name": "test_lines_added",
+      "value": 0.125,
+      "weight": 2.0
+    },
+    {
+      "contribution": 0.4,
+      "detail": "2 assertion lines added in tests (full value at 5)",
+      "name": "added_assertions",
+      "value": 0.4,
+      "weight": 1.0
+    },
+    {
+      "contribution": 2.0,
+      "detail": "fixes #12",
+      "name": "linked_reference",
+      "value": 1.0,
+      "weight": 2.0
+    },
+    {
+      "contribution": 1.0,
+      "detail": "Fix",
+      "name": "fix_keyword",
+      "value": 1.0,
+      "weight": 1.0
+    },
+    {
+      "contribution": 1.0,
+      "detail": "1 source file changed",
+      "name": "focused_source",
+      "value": 1.0,
+      "weight": 1.0
+    }
+  ],
+  "files": [
+    {
+      "added": 3,
+      "category": "source",
+      "deleted": 1,
+      "patch": {
+        "api": [
+          "def divide"
+        ],
+        "asserts": 0,
+        "code_added": 3,
+        "code_deleted": 1,
+        "code_hunks": 1,
+        "hunks": 1,
+        "test_added": 0,
+        "test_deleted": 0
+      },
+      "path": "src/calc/ops.py",
+      "rule": "py-source"
+    },
+    {
+      "added": 5,
+      "category": "test",
+      "deleted": 0,
+      "patch": {
+        "api": [
+          "def test_divide_by_zero"
+        ],
+        "asserts": 2,
+        "code_added": 3,
+        "code_deleted": 0,
+        "code_hunks": 1,
+        "hunks": 1,
+        "test_added": 0,
+        "test_deleted": 0
+      },
+      "path": "tests/test_ops.py",
+      "rule": "test-dir"
+    }
+  ],
+  "inline_test_files": [],
+  "lines": {
+    "changed": 9,
+    "source_added": 3,
+    "source_deleted": 1,
+    "test_added": 5,
+    "test_deleted": 0
+  },
+  "public_api": [
+    "def divide"
+  ],
+  "rank": null,
+  "repo": "calc",
+  "schema_version": 2,
+  "score": 7.5825,
+  "sha": "ee901400752f14af77c85e0ddf24b3a0f2ae3b3e",
+  "source_files": [
+    "src/calc/ops.py"
+  ],
+  "subject": "Fix divide by zero handling (fixes #12)",
+  "test_files": [
+    "tests/test_ops.py"
+  ],
+  "verdict": "candidate"
+}

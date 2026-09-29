@@ -1,0 +1,12 @@
+commit   02fc86b14a4a407aa4969edb267e05898b9cf13f
+base     7ea993856f9f94bc03e2ff1cc76a140e11b69004
+date     2024-01-01T06:00:00+00:00
+subject  Add the report generator
+verdict  rejected (oversize): more source+test lines or source files than the limits allow
+         429 source+test lines (max 400)
+
+  files
+    category  rule               added   del hunks  code tests asserts  path
+    source    java-main-dir        424     0     1     1     0       0  src/main/java/com/acme/Report.java
+    test      java-test-dir          5     0     1     1     0       1  src/test/java/com/acme/ReportTest.java
+    public API touched: public class Report

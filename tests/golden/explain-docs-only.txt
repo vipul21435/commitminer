@@ -1,0 +1,10 @@
+commit   7ea993856f9f94bc03e2ff1cc76a140e11b69004
+base     c1bacd720f307b630fd0c08d839ae2a2c0c844ac
+date     2024-01-01T05:00:00+00:00
+subject  Document usage
+verdict  rejected (docs-only): every changed file is documentation
+
+  files
+    category  rule               added   del hunks  code tests asserts  path
+    docs      docs-file              2     0     1     1     0       0  README.md
+    docs      docs-dir               1     0     1     1     0       0  docs/usage.md

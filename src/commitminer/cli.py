@@ -10,8 +10,9 @@ import typer
 
 from commitminer import __version__
 from commitminer.config import Config, ConfigError, find_config, load_config
+from commitminer.explain import ExplainError, explain_json, find_commit, render_commit
 from commitminer.export import render_explanation, render_summary, render_table, write_jsonl
-from commitminer.gitlog import GitError, head_sha, walk
+from commitminer.gitlog import GitError, head_sha, resolve_commit, walk
 from commitminer.history import HistoryError, read_history, write_history
 from commitminer.models import Commit
 from commitminer.ruletable import (
@@ -21,7 +22,7 @@ from commitminer.ruletable import (
     render_verdicts,
     verdict_to_json,
 )
-from commitminer.scoring import mine
+from commitminer.scoring import evaluate, mine
 
 app = typer.Typer(
     name="commitminer",
@@ -82,6 +83,35 @@ RootOption = Annotated[
 ]
 
 
+MaxLinesOption = Annotated[
+    int | None,
+    typer.Option(
+        "--max-lines",
+        min=1,
+        help="Largest source+test diff to accept [default: commitminer.toml, else 400].",
+        show_default=False,
+    ),
+]
+MaxSourceFilesOption = Annotated[
+    int | None,
+    typer.Option(
+        "--max-source-files",
+        min=1,
+        help="Most source files a commit may change [default: commitminer.toml, else 10].",
+        show_default=False,
+    ),
+]
+TestLinesCapOption = Annotated[
+    int | None,
+    typer.Option(
+        "--test-lines-cap",
+        min=1,
+        help="Added test lines for a full test score [default: commitminer.toml, else 40].",
+        show_default=False,
+    ),
+]
+
+
 def _config(explicit: Path | None, root: Path | None) -> Config:
     """Load ``--config``, else ``root/commitminer.toml`` if present, else the defaults."""
     path = explicit if explicit is not None else (find_config(root) if root else None)
@@ -105,33 +135,9 @@ def mine_command(
     ] = None,
     rev: RevOption = "HEAD",
     max_count: MaxCountOption = None,
-    max_lines: Annotated[
-        int | None,
-        typer.Option(
-            "--max-lines",
-            min=1,
-            help="Largest source+test diff to accept [default: commitminer.toml, else 400].",
-            show_default=False,
-        ),
-    ] = None,
-    max_source_files: Annotated[
-        int | None,
-        typer.Option(
-            "--max-source-files",
-            min=1,
-            help="Most source files a commit may change [default: commitminer.toml, else 10].",
-            show_default=False,
-        ),
-    ] = None,
-    test_lines_cap: Annotated[
-        int | None,
-        typer.Option(
-            "--test-lines-cap",
-            min=1,
-            help="Added test lines for a full test score [default: commitminer.toml, else 40].",
-            show_default=False,
-        ),
-    ] = None,
+    max_lines: MaxLinesOption = None,
+    max_source_files: MaxSourceFilesOption = None,
+    test_lines_cap: TestLinesCapOption = None,
     top: Annotated[int, typer.Option("--top", min=0, help="Rows to print in the table.")] = 10,
     explain: Annotated[
         int, typer.Option("--explain", min=0, help="Print the score breakdown of the best N.")
@@ -202,6 +208,69 @@ def record(
         raise _fail(str(exc)) from exc
     header = write_history(out, commits, repo=repo_name or repo.resolve().name, url=url, head=head)
     typer.echo(f"recorded {header.commits} commits of {header.repo} at {head[:12]} to {out}")
+
+
+def _explained_commit(
+    sha: str, repo: Path | None, history: Path | None, content: bool
+) -> tuple[Commit, str]:
+    """Find the commit to explain in a recording or walk it in a clone; return it and a label."""
+    try:
+        if history is not None:
+            header, commits = read_history(history)
+            return find_commit(commits, sha), header.repo
+        root = repo if repo is not None else Path()
+        resolved = resolve_commit(root, sha)
+        walked = walk(root, resolved, max_count=1, content=content)
+    except (GitError, HistoryError, ExplainError, OSError) as exc:
+        raise _fail(str(exc)) from exc
+    if not walked or walked[0].sha != resolved:
+        raise _fail(f"{sha} is a merge commit; merges are not candidates")
+    return walked[0], root.resolve().name
+
+
+@app.command(name="explain")
+def explain_command(
+    sha: Annotated[
+        str,
+        typer.Argument(
+            help="Commit to explain: a sha (prefix) or, in a clone, any revision.",
+            show_default=False,
+        ),
+    ],
+    repo: Annotated[
+        Path | None,
+        typer.Option("--repo", help="Local clone [default: the current directory]."),
+    ] = None,
+    history: Annotated[
+        Path | None,
+        typer.Option("--history", help="Look the commit up in a recorded history instead."),
+    ] = None,
+    max_lines: MaxLinesOption = None,
+    max_source_files: MaxSourceFilesOption = None,
+    test_lines_cap: TestLinesCapOption = None,
+    repo_name: RepoNameOption = None,
+    config: ConfigOption = None,
+    content: ContentOption = True,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print the explanation as one JSON object.")
+    ] = False,
+) -> None:
+    """Explain one commit: its files, the filter verdict, score and difficulty contributions."""
+    if repo is not None and history is not None:
+        raise _fail("give --repo or --history, not both", code=2)
+    loaded = _config(config, (repo or Path()) if history is None else None)
+    settings = loaded.settings(
+        max_lines=max_lines, max_source_files=max_source_files, test_lines_cap=test_lines_cap
+    )
+    commit, label = _explained_commit(sha, repo, history, content)
+    outcome = evaluate(commit, settings)
+    if as_json:
+        record = explain_json(outcome, settings, repo_name or label)
+        typer.echo(json.dumps(record, sort_keys=True, ensure_ascii=True))
+        return
+    if loaded.path is not None:
+        typer.echo(loaded.describe())
+    typer.echo(render_commit(outcome, settings))
 
 
 def _relative(root: Path, raw: str) -> str:

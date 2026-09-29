@@ -1,0 +1,31 @@
+commit   0b26c27ff9e05d9ebe798b814ce9628073359708
+base     48a5388aae7a1d49f3a7b87240c01f69346fb0a6
+date     2024-01-01T03:00:00+00:00
+subject  Parse negative numbers in any base (#31)
+verdict  candidate: score 5.13 of 10, difficulty 2.94 of 10 (medium)
+
+  files
+    category  rule               added   del hunks  code tests asserts  path
+    source    go-source              3     0     1     1     0       0  parse/lex.go
+    source    go-source              3     2     2     2     0       0  parse/parse.go
+    test      go-test-file           7     1     2     2     0       2  parse/parse_test.go
+    public API touched: func Int
+
+  score (ranks candidates)
+    feature            value weight contrib  detail
+    small_diff         0.960   3.00   2.880  16 of at most 400 source+test lines changed
+    test_lines_added   0.175   2.00   0.350  7 test lines added (full value at 40)
+    added_assertions   0.400   1.00   0.400  2 assertion lines added in tests (full value at 5)
+    linked_reference   0.500   2.00   1.000  #31
+    fix_keyword        0.000   1.00   0.000  no fix keyword in the subject
+    focused_source     0.500   1.00   0.500  2 source files changed
+    total                     10.00   5.130
+
+  difficulty (easy < 2 <= medium < 4.5 <= hard)
+    feature            value weight contrib  detail
+    files              0.300   1.00   0.300  3 source+test files changed (full value at 10)
+    hunks              0.300   3.00   0.900  3 source code hunks (full value at 10)
+    lines              0.080   3.00   0.240  8 source code lines changed (full value at 100)
+    cross_file         0.250   2.00   0.500  2 source files with code changes (full value at 5)
+    public_api         1.000   1.00   1.000  func Int
+    total                     10.00   2.940

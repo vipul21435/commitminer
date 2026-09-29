@@ -396,6 +396,11 @@ def head_sha(repo: Path, rev: str = "HEAD") -> str:
     return out.decode(_ENCODING).strip()
 
 
+def resolve_commit(repo: Path, rev: str) -> str:
+    """Resolve ``rev`` to the full sha of the commit it names (tags are peeled)."""
+    return head_sha(repo, f"{rev}^{{commit}}")
+
+
 def normalize_date(date: str) -> str:
     """Spell UTC as ``+00:00``: some git versions print ``Z`` for ``%aI``, others do not."""
     return date[:-1] + "+00:00" if date.endswith("Z") else date
