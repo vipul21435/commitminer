@@ -26,6 +26,7 @@ SAMPLE = Commit(
         FileChange("new.py", 1, 0, old_path="old.py"),
         FileChange("img.png", None, None),
         FileChange("caf\udce9.py", 1, 1),
+        FileChange("src/lib.rs", 9, 2, signals=("rust-inline-tests", "rust-tests-added")),
     ),
 )
 
@@ -132,6 +133,26 @@ def test_blank_lines_after_the_header_are_ignored() -> None:
             },
             "old_path: expected a string",
         ),
+        (
+            {
+                "sha": "s",
+                "parents": [],
+                "date": "d",
+                "message": "",
+                "files": [{"path": "p", "signals": "minified"}],
+            },
+            r"files\[0\].signals: expected a list",
+        ),
+        (
+            {
+                "sha": "s",
+                "parents": [],
+                "date": "d",
+                "message": "",
+                "files": [{"path": "p", "signals": [1]}],
+            },
+            "signals: expected a string",
+        ),
     ],
 )
 def test_commit_from_json_validates_fields(record: object, message: str | None) -> None:
@@ -146,3 +167,16 @@ def test_commit_from_json_validates_fields(record: object, message: str | None) 
 def test_normalize_date_spells_utc_one_way() -> None:
     assert normalize_date("2024-01-01T00:00:00Z") == "2024-01-01T00:00:00+00:00"
     assert normalize_date("2024-01-01T00:00:00+02:00") == "2024-01-01T00:00:00+02:00"
+
+
+def test_signals_are_recorded_only_when_present(tmp_path: Path) -> None:
+    path = tmp_path / "h.jsonl"
+    write_history(path, [SAMPLE], repo="r")
+    record = json.loads(path.read_text(encoding="ascii").splitlines()[1])
+    assert [f.get("signals") for f in record["files"]] == [
+        None,
+        None,
+        None,
+        None,
+        ["rust-inline-tests", "rust-tests-added"],
+    ]

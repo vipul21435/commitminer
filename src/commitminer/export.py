@@ -27,6 +27,8 @@ def candidate_to_json(candidate: Candidate, rank: int, repo: str) -> dict[str, A
         }
         if item.change.old_path is not None:
             record["old_path"] = item.change.old_path
+        if item.change.signals:
+            record["signals"] = list(item.change.signals)
         files.append(record)
     return {
         "schema_version": SCHEMA_VERSION,
@@ -56,6 +58,7 @@ def candidate_to_json(candidate: Candidate, rank: int, repo: str) -> dict[str, A
         },
         "source_files": [f.change.path for f in stats.source_files],
         "test_files": [f.change.path for f in stats.test_files],
+        "inline_test_files": [f.change.path for f in stats.inline_test_files],
         "files": files,
     }
 

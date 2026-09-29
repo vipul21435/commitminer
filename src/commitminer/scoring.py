@@ -1,7 +1,8 @@
 """Candidate filter and a transparent linear scorer.
 
 A commit is a candidate when it changes at least one source file and at least
-one test file and stays under a size limit. Generated and vendored files never
+one test file (or adds ``#[test]`` functions inside a Rust source file) and
+stays under a size limit. Generated and vendored files never
 count as source or test, and do not count toward the size. Candidates are scored with
 ``score = sum(weight * value)`` over a few features whose values lie in
 ``[0, 1]``; every feature keeps its raw detail, value, weight and contribution,
@@ -19,6 +20,7 @@ from enum import StrEnum
 
 from commitminer.classify import RULES, Category, Classification, Rule, classify
 from commitminer.models import Commit, FileChange
+from commitminer.signals import RUST_TESTS_ADDED
 
 
 class RejectReason(StrEnum):
@@ -91,6 +93,11 @@ class DiffStats:
         """Changed test files (test code and test data)."""
         return self._of(Category.TEST)
 
+    @property
+    def inline_test_files(self) -> tuple[ClassifiedFile, ...]:
+        """Source files that gained in-file tests (Rust ``#[test]`` functions) in this commit."""
+        return tuple(f for f in self.source_files if RUST_TESTS_ADDED in f.change.signals)
+
     def added(self, category: Category) -> int:
         """Lines added in files of ``category``."""
         return sum(f.change.added or 0 for f in self._of(category))
@@ -111,7 +118,9 @@ class DiffStats:
 
 def diff_stats(commit: Commit, rules: tuple[Rule, ...] = RULES) -> DiffStats:
     """Classify every file a commit changed (renames by their new path)."""
-    return DiffStats(tuple(ClassifiedFile(f, classify(f.path, rules)) for f in commit.files))
+    return DiffStats(
+        tuple(ClassifiedFile(f, classify(f.path, rules, f.signals)) for f in commit.files)
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -187,7 +196,7 @@ def check(stats: DiffStats, settings: Settings) -> RejectReason | None:
     if not stats.added(Category.SOURCE) and not stats.deleted(Category.SOURCE):
         # Pure renames, mode changes or binary files: nothing for a test to catch.
         return RejectReason.SOURCE_UNCHANGED
-    if not stats.test_files:
+    if not stats.test_files and not stats.inline_test_files:
         return RejectReason.NO_TEST
     if stats.changed_lines > settings.max_lines:
         return RejectReason.TOO_LARGE
@@ -204,6 +213,13 @@ def features(commit: Commit, stats: DiffStats, settings: Settings) -> tuple[Feat
     weights = settings.weights
     size = stats.changed_lines
     test_added = stats.added(Category.TEST)
+    inline = len(stats.inline_test_files)
+    test_detail = f"{test_added} test lines added (full value at {settings.test_lines_cap})"
+    if inline:
+        # Lines of a file that mixes code and tests cannot be split without the patch.
+        test_detail += (
+            f"; #[test] functions added in {inline} source file{'s' if inline != 1 else ''}"
+        )
     sources = len(stats.source_files)
     ref_value, ref_detail = linked_reference(commit.message)
     fix_value, fix_detail = fix_keyword(commit.subject)
@@ -218,7 +234,7 @@ def features(commit: Commit, stats: DiffStats, settings: Settings) -> tuple[Feat
             "test_lines_added",
             min(test_added, settings.test_lines_cap) / settings.test_lines_cap,
             weights.test_lines_added,
-            f"{test_added} test lines added (full value at {settings.test_lines_cap})",
+            test_detail,
         ),
         _feature("linked_reference", ref_value, weights.linked_reference, ref_detail),
         _feature("fix_keyword", fix_value, weights.fix_keyword, fix_detail),

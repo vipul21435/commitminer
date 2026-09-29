@@ -185,3 +185,29 @@ def test_settings_carry_the_rule_table() -> None:
     assert isinstance(evaluate(commit, Settings()), Rejection)
     candidate = as_candidate(evaluate(commit, Settings(rules=(fixtures, *RULES))))
     assert candidate.stats.test_files[0].classification.rule_id == "fixtures"
+
+
+def test_rust_inline_tests_count_as_tests() -> None:
+    inline = FileChange("src/lib.rs", 12, 1, signals=("rust-inline-tests", "rust-tests-added"))
+    only_code = FileChange("src/lib.rs", 3, 1, signals=("rust-inline-tests",))
+    rejected = evaluate(make(files=(only_code,)), Settings())
+    assert isinstance(rejected, Rejection)
+    assert rejected.reason is RejectReason.NO_TEST
+    candidate = as_candidate(evaluate(make("Fix overflow in add", (inline,)), Settings()))
+    assert candidate.stats.inline_test_files[0].classification.rule_id == "rust-inline-tests"
+    assert candidate.stats.test_files == ()
+    test_feature = candidate.features[1]
+    assert test_feature.value == 0.0
+    assert test_feature.detail == (
+        "0 test lines added (full value at 40); #[test] functions added in 1 source file"
+    )
+    two = (inline, FileChange("src/io.rs", 5, 0, signals=inline.signals))
+    detail = as_candidate(evaluate(make(files=two), Settings())).features[1].detail
+    assert detail.endswith("added in 2 source files")
+
+
+def test_generated_header_signal_moves_a_file_out_of_source() -> None:
+    generated = FileChange("internal/kind/kind_string.go", 30, 5, signals=("generated-header",))
+    outcome = evaluate(make(files=(generated, FileChange("kind_test.go", 5, 0))), Settings())
+    assert isinstance(outcome, Rejection)
+    assert outcome.reason is RejectReason.NO_SOURCE

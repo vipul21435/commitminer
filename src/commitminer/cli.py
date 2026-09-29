@@ -57,6 +57,13 @@ RepoNameOption = Annotated[
     str | None,
     typer.Option("--repo-name", help="Label for the repository in the output."),
 ]
+ContentOption = Annotated[
+    bool,
+    typer.Option(
+        "--content/--no-content",
+        help="Read changed code files with git cat-file for content signals.",
+    ),
+]
 ConfigOption = Annotated[
     Path | None,
     typer.Option(
@@ -114,6 +121,7 @@ def mine_command(
     ] = None,
     repo_name: RepoNameOption = None,
     config: ConfigOption = None,
+    content: ContentOption = True,
 ) -> None:
     """Filter and rank the commits of a clone or a recorded history."""
     if (repo is None) == (history is None):
@@ -127,7 +135,7 @@ def mine_command(
             label = repo_name or header.repo
         else:
             assert repo is not None
-            commits = walk(repo, rev, max_count)
+            commits = walk(repo, rev, max_count, content)
             label = repo_name or repo.resolve().name
     except (GitError, HistoryError, OSError) as exc:
         raise _fail(str(exc)) from exc
@@ -164,11 +172,12 @@ def record(
     url: Annotated[
         str | None, typer.Option("--url", help="Source URL stored in the header.")
     ] = None,
+    content: ContentOption = True,
 ) -> None:
     """Walk a clone once and save its history for offline replay with mine --history."""
     try:
         head = head_sha(repo, rev)
-        commits = walk(repo, head, max_count)
+        commits = walk(repo, head, max_count, content)
     except GitError as exc:
         raise _fail(str(exc)) from exc
     header = write_history(out, commits, repo=repo_name or repo.resolve().name, url=url, head=head)

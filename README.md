@@ -215,9 +215,10 @@ flowchart LR
   pass on the parent: a false positive. #7 `149547d2ec` is mostly a build change
   (`git show --numstat`: 103 of its 219 added lines are in the CI workflow). Hunk counts,
   comment-only detection and added-assertion counts are slice 2 in PLAN.md.
-- **Content signals are not read while mining yet.** The classifier's content rules
-  (generated headers, minified JavaScript, Rust inline tests) only fire when signals are
-  passed in; the walker does not read file contents yet, so mining uses path rules only.
+- **Inline Rust tests have no line count.** A Rust source file that gained `#[test]`
+  functions satisfies the "changes tests" filter, but its lines count as source: without
+  the patch, CommitMiner cannot split test lines from code lines, so `test_lines_added`
+  stays 0 for such commits (slice 2 adds hunks).
 - **Test data counts as test lines.** tomli keeps its cases as `.toml`/`.json` files under
   `tests/`; they count toward `test_lines_added`, which suits tomli but may overrate
   fixture-heavy commits elsewhere.

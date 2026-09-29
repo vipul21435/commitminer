@@ -211,3 +211,24 @@ def test_mine_reports_a_bad_config(fixtures_repo: GitRepo) -> None:
     result = runner.invoke(app, ["mine", str(fixtures_repo.root)])
     assert result.exit_code == 1
     assert "invalid TOML" in result.stderr
+
+
+def test_mine_a_rust_repository_with_inline_tests(git_repo: GitRepo, tmp_path: Path) -> None:
+    body = "pub fn half(n: u32) -> u32 {\n    n / 2\n}\n"
+    tests = (
+        "\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn halves() {\n"
+        "        assert_eq!(super::half(4), 2);\n    }\n"
+    )
+    git_repo.commit("Add half", {"Cargo.toml": "[package]\n", "src/lib.rs": body + tests + "}\n"})
+    fixed = body.replace("n / 2", "n.div_ceil(2)")
+    extra = "\n    #[test]\n    fn rounds_up() {\n        assert_eq!(super::half(3), 2);\n    }\n"
+    git_repo.commit("Round half up (fixes #7)", {"src/lib.rs": fixed + tests + extra + "}\n"})
+    out = tmp_path / "rust.jsonl"
+    result = runner.invoke(app, ["mine", str(git_repo.root), "--out", str(out), "--explain", "0"])
+    assert result.exit_code == 0, result.output
+    assert "2 candidates" in result.stdout.splitlines()[0]
+    best = json.loads(out.read_text(encoding="ascii").splitlines()[0])
+    assert best["subject"] == "Round half up (fixes #7)"
+    assert best["inline_test_files"] == ["src/lib.rs"]
+    paths = runner.invoke(app, ["mine", str(git_repo.root), "--no-content", "--explain", "0"])
+    assert paths.stdout.splitlines()[0].endswith("0 candidates, 2 rejected (no-test 2)")

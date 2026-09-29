@@ -7,6 +7,9 @@ commit, newest first, exactly as the walker produced it::
      "commits": 312}
     {"sha": ..., "parents": [...], "date": ..., "message": ..., "files": [...]}
 
+A file entry has ``path``, ``added``, ``deleted`` and, only when set,
+``old_path`` (renames) and ``signals`` (content signals read at walk time).
+
 Replaying a recording yields the same :class:`~commitminer.models.Commit` objects
 as walking the clone, so everything after parsing runs the same code path.
 Output is deterministic (sorted keys, no timestamps), so re-recording the same
@@ -52,6 +55,8 @@ def _file_to_json(change: FileChange) -> dict[str, Any]:
     }
     if change.old_path is not None:
         record["old_path"] = change.old_path
+    if change.signals:
+        record["signals"] = list(change.signals)
     return record
 
 
@@ -100,12 +105,16 @@ def commit_from_json(record: Any, where: str = "commit") -> Commit:
         if not isinstance(raw, dict) or "path" not in raw:
             raise HistoryError(f"{at}: expected an object with a path")
         old_path = raw.get("old_path")
+        signals = raw.get("signals", [])
+        if not isinstance(signals, list):
+            raise HistoryError(f"{at}.signals: expected a list")
         files.append(
             FileChange(
                 path=_string(raw["path"], f"{at}.path"),
                 added=_optional_int(raw.get("added"), f"{at}.added"),
                 deleted=_optional_int(raw.get("deleted"), f"{at}.deleted"),
                 old_path=None if old_path is None else _string(old_path, f"{at}.old_path"),
+                signals=tuple(_string(s, f"{at}.signals") for s in signals),
             )
         )
     return Commit(

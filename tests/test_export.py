@@ -52,6 +52,8 @@ def test_candidate_json_has_everything_a_builder_needs() -> None:
         "deleted": 0,
     }
     assert "old_path" not in record["files"][0]
+    assert "signals" not in record["files"][0]
+    assert record["inline_test_files"] == []
     total = sum(f["contribution"] for f in record["features"])
     assert round(total, 4) == record["score"]
 
@@ -95,3 +97,13 @@ def test_render_summary_table_and_explanation() -> None:
 
 def test_render_summary_without_rejections() -> None:
     assert render_summary(mine([]), "r") == "r: walked 0 commits, 0 candidates, 0 rejected"
+
+
+def test_signals_and_inline_test_files_are_exported() -> None:
+    lib = FileChange("src/lib.rs", 8, 1, signals=("rust-inline-tests", "rust-tests-added"))
+    commit = Commit("c" * 40, ("f" * 40,), "2024-02-03T04:05:06+00:00", "Fix add\n", (lib,))
+    record = candidate_to_json(mine([commit]).candidates[0], 1, "demo/rust")
+    assert record["inline_test_files"] == ["src/lib.rs"]
+    assert record["test_files"] == []
+    assert record["files"][0]["signals"] == ["rust-inline-tests", "rust-tests-added"]
+    assert record["files"][0]["rule"] == "rust-inline-tests"

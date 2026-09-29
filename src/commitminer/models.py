@@ -11,12 +11,15 @@ class FileChange:
 
     ``old_path`` is set only for renames (detected with ``-M``). ``added`` and
     ``deleted`` are ``None`` for binary files, which git reports as ``-``.
+    ``signals`` are the sorted content signals of the file at this commit (see
+    :mod:`commitminer.signals`); empty when content was not read.
     """
 
     path: str
     added: int | None
     deleted: int | None
     old_path: str | None = None
+    signals: tuple[str, ...] = ()
 
     @property
     def binary(self) -> bool:
