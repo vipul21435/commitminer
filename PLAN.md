@@ -39,7 +39,34 @@ Its output (JSONL) is the input for downstream environment builders.
 - Confidentiality: all demo data comes from the public MIT repository above or from
   synthetic git repositories built by the tests. The name guard is a local pre-push hook only.
 
+### Decisions made while building the core
+
+- "Source and tests together" is a hard filter, not a score feature: every candidate has
+  it, so as a feature it would add the same constant to every score. The score instead has
+  five features (`small_diff` 3, `test_lines_added` 3, `linked_reference` 2, `fix_keyword`
+  1, `focused_source` 1; the weights sum to 10).
+- A new reason code `source-unchanged` rejects commits whose source files were only
+  renamed (or changed mode, or are binary): the demo's "move to src layout" commit ranked
+  6th before this.
+- `--max-lines` counts source and test lines only; docs, changelog and CI churn does not
+  make a task harder.
+- The tomli recording is 746733 bytes as JSONL (5292 file entries, mostly TOML test data),
+  over the 512 KB pre-commit limit, so recordings ending in `.gz` are gzipped with
+  `mtime=0` (63697 bytes). No patch text is recorded yet.
+- Recordings drop the author and committer fields; messages stay verbatim so the file can
+  be re-verified against upstream (`make verify-recording`, also run in CI; it matched on
+  macOS git 2.50 and on the Ubuntu runner).
+- git 2.50 prints UTC author dates as `Z`; the parser normalises them to `+00:00` so
+  recordings do not depend on the git version.
+- The walker ignores global git config (`GIT_CONFIG_GLOBAL=/dev/null`) for determinism,
+  so `safe.directory` cannot be set there; in Docker on Linux, mine a bind-mounted clone
+  with `-u "$(id -u):$(id -g)"` (CI does this on the repository itself).
+
 ## Core (deliverable)
+
+- [x] Core: done on 2026-09-30. 127 tests, 100% line and branch coverage, CI green
+  (checks, recording re-verified from GitHub, docker build + demo). Deviations from the
+  outline below are listed under "Decisions made while building the core".
 
 The smallest end-to-end path, from a git history to a ranked JSONL file:
 
