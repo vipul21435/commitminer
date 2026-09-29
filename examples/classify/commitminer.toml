@@ -1,0 +1,12 @@
+# Per-repository classifier overrides for this sample tree.
+
+[classify]
+# tools/ holds the CLI this project ships, not helper scripts.
+disable = ["tooling-dir"]
+
+# Custom rules are checked before the built-in table, in this order.
+[[classify.rules]]
+id = "fixtures-dir"
+category = "test"
+dirs = ["fixtures"]
+rationale = "this project keeps test inputs and expected outputs in fixtures/"

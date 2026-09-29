@@ -67,7 +67,10 @@ Verified in a fresh clone: `make install` took 1.38 s and the first `make demo` 
 ```text
 commitminer mine [REPO] [--history FILE] [--rev REV] [--max-count N] [--max-lines 400]
                  [--test-lines-cap 40] [--top 10] [--explain 1] [--out FILE] [--repo-name NAME]
+                 [--config FILE]
 commitminer record REPO --out FILE [--rev REV] [--max-count N] [--repo-name NAME] [--url URL]
+commitminer classify PATH... [--root DIR] [--config FILE] [--no-content] [--json]
+commitminer rules [--root DIR] [--config FILE] [--markdown]
 commitminer version
 ```
 

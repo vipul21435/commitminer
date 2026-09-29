@@ -33,6 +33,8 @@ jobs:
         run: make cov
       - name: Demo (recorded tomli history, offline)
         run: make demo
+      - name: Classifier demo (multi-language sample tree)
+        run: make demo-classify
       - name: Recording still matches upstream tomli
         run: make verify-recording
 
@@ -49,6 +51,10 @@ jobs:
         run: test "$(docker run --rm --entrypoint id commitminer:ci -u)" = "10001"
       - name: Demo inside the image (recorded tomli history)
         run: docker run --rm commitminer:ci mine --history examples/tomli/history.jsonl.gz --top 5
+      - name: Classifier inside the image (sample tree and its commitminer.toml)
+        run: |
+          docker run --rm commitminer:ci classify --root examples/classify \
+            src/lib.rs internal/kind/kind_string.go web/static/bundle.js fixtures/percent.json
       - name: Mine this repository's own history inside the image
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/repo:ro" commitminer:ci \
