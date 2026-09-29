@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from commitminer.gitlog import BlobReader, GitError, attach_signals, file_signals, walk
+from commitminer.gitlog import BlobReader, GitError, file_details, walk
 from commitminer.models import Commit, FileChange
 from gitrepo import GitRepo
 
@@ -159,13 +159,12 @@ def test_blob_reader_reports_missing_git(monkeypatch: pytest.MonkeyPatch, tmp_pa
         BlobReader(tmp_path)
 
 
-def test_file_signals_for_root_commits_and_deletions(git_repo: GitRepo) -> None:
+def test_file_details_for_root_commits_and_deletions(git_repo: GitRepo) -> None:
     sha = git_repo.commit("root", {"src/lib.rs": LIB_V1})
     root = Commit(sha, (), "2024-01-01T00:00:00+00:00", "root", ())
     gone = Commit("0" * 40, (), "2024-01-01T00:00:00+00:00", "gone", ())
     with BlobReader(git_repo.root) as blobs:
-        change = file_signals(root, FileChange("src/lib.rs", 11, 0), blobs)
+        change = file_details(root, FileChange("src/lib.rs", 11, 0), None, blobs)
         assert change.signals == ("rust-inline-tests", "rust-tests-added")
         # Missing at the commit and no parent to fall back to: no signals.
-        assert file_signals(gone, FileChange("src/lib.rs", 0, 11), blobs).signals == ()
-    assert attach_signals(git_repo.root, []) == []
+        assert file_details(gone, FileChange("src/lib.rs", 0, 11), None, blobs).signals == ()

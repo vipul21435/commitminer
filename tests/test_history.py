@@ -13,7 +13,7 @@ from commitminer.history import (
     read_history,
     write_history,
 )
-from commitminer.models import Commit, FileChange
+from commitminer.models import Commit, FileChange, PatchStats
 from gitrepo import GitRepo, lines
 
 SAMPLE = Commit(
@@ -27,6 +27,13 @@ SAMPLE = Commit(
         FileChange("img.png", None, None),
         FileChange("caf\udce9.py", 1, 1),
         FileChange("src/lib.rs", 9, 2, signals=("rust-inline-tests", "rust-tests-added")),
+        FileChange(
+            "src/pkg/api.py",
+            7,
+            3,
+            patch=PatchStats(3, 2, 5, 3, test_added=1, test_deleted=1, asserts=2, api=("def a",)),
+        ),
+        FileChange("tests/data/case.toml", 4, 0, patch=PatchStats(1, 1, 4, 0)),
     ),
 )
 
@@ -179,4 +186,53 @@ def test_signals_are_recorded_only_when_present(tmp_path: Path) -> None:
         None,
         None,
         ["rust-inline-tests", "rust-tests-added"],
+        None,
+        None,
     ]
+
+
+def test_patch_fields_are_recorded_only_when_they_differ_from_the_defaults(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "h.jsonl"
+    write_history(path, [SAMPLE], repo="r")
+    record = json.loads(path.read_text(encoding="ascii").splitlines()[1])
+    assert [f.get("patch") for f in record["files"][-2:]] == [
+        {
+            "hunks": 3,
+            "code_hunks": 2,
+            "code_added": 5,
+            "test_added": 1,
+            "test_deleted": 1,
+            "asserts": 2,
+            "api": ["def a"],
+        },
+        {"hunks": 1},
+    ]
+
+
+def _with_patch(patch: object, added: int | None = 1) -> dict[str, object]:
+    return {
+        "sha": "s",
+        "parents": [],
+        "date": "d",
+        "message": "",
+        "files": [{"path": "p", "added": added, "deleted": 0, "patch": patch}],
+    }
+
+
+@pytest.mark.parametrize(
+    ("record", "message"),
+    [
+        (_with_patch([]), r"files\[0\].patch: expected an object"),
+        (_with_patch({"hunks": 1, "lines": 2}), "unknown key 'lines'"),
+        (_with_patch({"hunks": 1}, added=None), "a binary file has no patch"),
+        (_with_patch({"hunks": 1, "api": "def a"}), r"patch.api: expected a list"),
+        (_with_patch({"hunks": 1, "api": [1]}), r"patch.api: expected a string"),
+        (_with_patch({}), r"patch.hunks: required"),
+        (_with_patch({"hunks": 1, "asserts": -1}), r"patch.asserts: expected a non-negative"),
+    ],
+)
+def test_patch_records_are_validated(record: object, message: str) -> None:
+    with pytest.raises(HistoryError, match=message):
+        commit_from_json(record)

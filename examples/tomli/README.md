@@ -16,9 +16,11 @@ commitminer record tomli --rev 5a77b12a7a9f052ce5a20c335d2825658f6aea52 \
 this file line for line.
 
 What it contains: for each commit the sha, parents, author date, commit message, and per
-changed file the path (both paths for renames) with added and deleted line counts. It does
-not store the author and committer fields, file contents or patch text. Messages are kept
-verbatim as published upstream, including any `Co-authored-by` trailers.
+changed file the path (both paths for renames) with added and deleted line counts, content
+signals, and measurements of the file's `--unified=0` patch (hunks, code hunks and lines,
+added assertion lines, public declarations touched). It does not store the author and
+committer fields, file contents or patch text. Messages are kept verbatim as published
+upstream, including any `Co-authored-by` trailers.
 
 tomli is Copyright (c) 2021 Taneli Hukkinen and distributed under the MIT license; the
 license text is in [LICENSE](LICENSE) next to this file. The commit messages in the

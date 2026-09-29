@@ -8,7 +8,13 @@ commit, newest first, exactly as the walker produced it::
     {"sha": ..., "parents": [...], "date": ..., "message": ..., "files": [...]}
 
 A file entry has ``path``, ``added``, ``deleted`` and, only when set,
-``old_path`` (renames) and ``signals`` (content signals read at walk time).
+``old_path`` (renames), ``signals`` (content signals read at walk time) and
+``patch`` (patch measurements, see :class:`~commitminer.models.PatchStats`).
+To keep recordings small, ``patch`` always has ``hunks`` but leaves out every
+other field that has its default: ``code_hunks`` equal to ``hunks``,
+``code_added`` and ``code_deleted`` equal to the file's ``added`` and
+``deleted``, zero counts and an empty ``api``. Recordings made before patches
+were read have no ``patch`` and still load.
 
 Replaying a recording yields the same :class:`~commitminer.models.Commit` objects
 as walking the clone, so everything after parsing runs the same code path.
@@ -27,7 +33,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from commitminer.models import Commit, FileChange
+from commitminer.models import Commit, FileChange, PatchStats
 
 FORMAT = "commitminer-history"
 VERSION = 1
@@ -47,6 +53,30 @@ class HistoryHeader:
     commits: int
 
 
+def _patch_to_json(change: FileChange, patch: PatchStats) -> dict[str, Any]:
+    defaults: dict[str, Any] = {
+        "code_hunks": patch.hunks,
+        "code_added": change.added,
+        "code_deleted": change.deleted,
+        "test_added": 0,
+        "test_deleted": 0,
+        "asserts": 0,
+        "api": [],
+    }
+    values: dict[str, Any] = {
+        "code_hunks": patch.code_hunks,
+        "code_added": patch.code_added,
+        "code_deleted": patch.code_deleted,
+        "test_added": patch.test_added,
+        "test_deleted": patch.test_deleted,
+        "asserts": patch.asserts,
+        "api": list(patch.api),
+    }
+    record: dict[str, Any] = {"hunks": patch.hunks}
+    record.update((key, value) for key, value in values.items() if value != defaults[key])
+    return record
+
+
 def _file_to_json(change: FileChange) -> dict[str, Any]:
     record: dict[str, Any] = {
         "path": change.path,
@@ -57,6 +87,8 @@ def _file_to_json(change: FileChange) -> dict[str, Any]:
         record["old_path"] = change.old_path
     if change.signals:
         record["signals"] = list(change.signals)
+    if change.patch is not None:
+        record["patch"] = _patch_to_json(change, change.patch)
     return record
 
 
@@ -85,6 +117,43 @@ def _string(value: Any, where: str) -> str:
     return value
 
 
+_PATCH_KEYS = frozenset(
+    {"hunks", "code_hunks", "code_added", "code_deleted", "test_added", "test_deleted"}
+    | {"asserts", "api"}
+)
+
+
+def _count(raw: dict[str, Any], key: str, default: int | None, where: str) -> int:
+    value = _optional_int(raw.get(key, default), f"{where}.{key}")
+    if value is None:
+        raise HistoryError(f"{where}.{key}: required")
+    return value
+
+
+def _patch_from_json(raw: Any, added: int | None, deleted: int | None, where: str) -> PatchStats:
+    if not isinstance(raw, dict):
+        raise HistoryError(f"{where}: expected an object")
+    unknown = sorted(set(raw) - _PATCH_KEYS)
+    if unknown:
+        raise HistoryError(f"{where}: unknown key {unknown[0]!r}")
+    if added is None or deleted is None:
+        raise HistoryError(f"{where}: a binary file has no patch")
+    api = raw.get("api", [])
+    if not isinstance(api, list):
+        raise HistoryError(f"{where}.api: expected a list")
+    hunks = _count(raw, "hunks", None, where)
+    return PatchStats(
+        hunks=hunks,
+        code_hunks=_count(raw, "code_hunks", hunks, where),
+        code_added=_count(raw, "code_added", added, where),
+        code_deleted=_count(raw, "code_deleted", deleted, where),
+        test_added=_count(raw, "test_added", 0, where),
+        test_deleted=_count(raw, "test_deleted", 0, where),
+        asserts=_count(raw, "asserts", 0, where),
+        api=tuple(_string(name, f"{where}.api") for name in api),
+    )
+
+
 def commit_from_json(record: Any, where: str = "commit") -> Commit:
     """Validate and convert one recording line back into a :class:`Commit`."""
     if not isinstance(record, dict):
@@ -108,13 +177,19 @@ def commit_from_json(record: Any, where: str = "commit") -> Commit:
         signals = raw.get("signals", [])
         if not isinstance(signals, list):
             raise HistoryError(f"{at}.signals: expected a list")
+        added = _optional_int(raw.get("added"), f"{at}.added")
+        deleted = _optional_int(raw.get("deleted"), f"{at}.deleted")
+        patch = raw.get("patch")
         files.append(
             FileChange(
                 path=_string(raw["path"], f"{at}.path"),
-                added=_optional_int(raw.get("added"), f"{at}.added"),
-                deleted=_optional_int(raw.get("deleted"), f"{at}.deleted"),
+                added=added,
+                deleted=deleted,
                 old_path=None if old_path is None else _string(old_path, f"{at}.old_path"),
                 signals=tuple(_string(s, f"{at}.signals") for s in signals),
+                patch=None
+                if patch is None
+                else _patch_from_json(patch, added, deleted, f"{at}.patch"),
             )
         )
     return Commit(

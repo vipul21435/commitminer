@@ -1,25 +1,34 @@
-"""History walker over a local clone: one ``git log`` call, parsed exactly.
+"""History walker over a local clone: one streamed ``git log`` call, parsed exactly.
 
 git is run with a fixed environment and configuration so that user or repository
-settings (pagers, colors, external diff drivers, signature display, fsmonitor
-hooks) cannot change the output. The output is NUL-separated (``-z``), so paths
-with spaces, quotes, newlines or non-UTF-8 bytes are parsed without unquoting.
+settings (pagers, colors, external diff drivers, diff algorithms, signature
+display, fsmonitor hooks) cannot change the output. The output is NUL-separated
+(``-z``), so paths with spaces, quotes, newlines or non-UTF-8 bytes are parsed
+without unquoting.
 
 Layout of the output, one block per commit, with ``\\0`` shown as ``|``::
 
     |<MARKER>|<sha>|<parents>|<author date>|<message>|
     \\n<added>\\t<deleted>\\t<path>|                       (plain change)
     <added>\\t<deleted>\\t|<old path>|<new path>|         (rename)
+    |diff --git ...<patch text>                       (all files, --unified=0)
 
 Commit messages cannot contain NUL, so every header field is exactly one token,
 and numstat entries are self-delimiting (``^(\\d+|-)\\t(\\d+|-)\\t``), so the
 parser always knows how many path tokens follow. A path that happens to equal
-the marker is consumed positionally and cannot start a new commit.
+the marker is consumed positionally and cannot start a new commit. Patch text
+contains no NUL (git treats such files as binary), so the whole patch of a
+commit is one token; its file blocks come in numstat order, and each block's
+line counts are checked against its numstat entry.
+
+The output is read as a stream, one commit at a time, so memory stays flat on
+long histories.
 
 Content signals (generated headers, minified JavaScript, Rust inline tests)
-need file contents, which ``git log`` does not print. :func:`attach_signals`
+need file contents, which ``git log`` does not print. :func:`file_details`
 reads each changed code file at its commit through one long-running
-``git cat-file --batch`` process, one request at a time.
+``git cat-file --batch`` process, one request at a time, and measures the
+file's patch with :func:`commitminer.patch.analyze`.
 """
 
 from __future__ import annotations
@@ -28,14 +37,25 @@ import contextlib
 import os
 import re
 import subprocess
-from collections.abc import Iterator, Sequence
+import tempfile
+import threading
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import replace
 from pathlib import Path
 from types import TracebackType
 from typing import IO
 
-from commitminer.languages import language_of
+from commitminer.languages import Language, language_of
 from commitminer.models import Commit, FileChange
+from commitminer.patch import (
+    DIFF_HEADER,
+    FilePatch,
+    PatchError,
+    Region,
+    analyze,
+    parse_patch,
+    rust_test_regions,
+)
 from commitminer.signals import (
     MAX_CONTENT,
     RUST_INLINE_TESTS,
@@ -75,10 +95,20 @@ class GitError(RuntimeError):
     """git failed or produced output the parser does not understand."""
 
 
+PATCH_OPTIONS = (
+    "-p",
+    "--unified=0",
+    "--inter-hunk-context=0",
+    "--diff-algorithm=myers",
+    "--indent-heuristic",
+)
+"""Patch shape: no context lines, and settings a repository config could otherwise change."""
+
+
 def log_command(repo: Path, rev: str = "HEAD", max_count: int | None = None) -> list[str]:
     """Build the ``git log`` argument list used by :func:`walk`."""
     cmd = ["git", "-C", str(repo), *GIT_CONFIG, "log", "--no-merges", "-M", "-z", "--numstat"]
-    cmd += ["--no-ext-diff", "--no-textconv", "--no-color", _FORMAT]
+    cmd += [*PATCH_OPTIONS, "--no-ext-diff", "--no-textconv", "--no-color", _FORMAT]
     if max_count is not None:
         if max_count < 1:
             raise ValueError("max_count must be at least 1")
@@ -105,20 +135,90 @@ def run_git(args: Sequence[str], timeout: float = 600.0) -> bytes:
     return proc.stdout
 
 
+_CHUNK = 1 << 16
+
+
+def _pipe(stream: IO[bytes] | None) -> IO[bytes]:
+    assert stream is not None  # Popen was created with PIPE
+    return stream
+
+
+def split_stream(stream: IO[bytes], chunk: int = _CHUNK) -> Iterator[bytes]:
+    """Yield the NUL-separated tokens of ``stream``, as ``bytes.split(b"\\0")`` would."""
+    parts: list[bytes] = []
+    while data := stream.read(chunk):
+        pieces = data.split(b"\0")
+        parts.append(pieces[0])
+        if len(pieces) == 1:
+            continue
+        yield b"".join(parts)
+        yield from pieces[1:-1]
+        parts = [pieces[-1]]
+    yield b"".join(parts)
+
+
+@contextlib.contextmanager
+def stream_git(args: Sequence[str], timeout: float = 600.0) -> Iterator[Iterator[bytes]]:
+    """Run git and yield its stdout as NUL-separated tokens, read as they arrive.
+
+    The caller reads every token; git is killed only if the caller raises.
+    stderr goes to a temporary file, so a chatty git cannot block on a full
+    pipe. git is killed after ``timeout`` seconds; a non-zero exit or a timeout
+    raises :class:`GitError` once the caller is done reading.
+    """
+    env = {**os.environ, **GIT_ENV}
+    with tempfile.TemporaryFile() as errors:
+        try:
+            proc = subprocess.Popen(list(args), stdout=subprocess.PIPE, stderr=errors, env=env)
+        except FileNotFoundError as exc:
+            raise GitError("git executable not found on PATH") from exc
+        expired = threading.Event()
+
+        def expire() -> None:
+            expired.set()
+            proc.kill()
+
+        timer = threading.Timer(timeout, expire)
+        timer.start()
+        stdout = _pipe(proc.stdout)
+        try:
+            yield split_stream(stdout)
+        except BaseException as exc:
+            proc.kill()  # the caller gave up; git may be blocked on a full pipe
+            if expired.is_set():
+                raise GitError(f"git timed out after {timeout:g} s") from exc
+            raise
+        finally:
+            timer.cancel()
+            stdout.close()
+            proc.wait()
+        if expired.is_set():
+            raise GitError(f"git timed out after {timeout:g} s")
+        if proc.returncode != 0:
+            errors.seek(0)
+            stderr = errors.read().decode(_ENCODING, "replace").strip()
+            raise GitError(f"git exited with {proc.returncode}: {stderr}")
+
+
 def walk(
     repo: Path, rev: str = "HEAD", max_count: int | None = None, content: bool = True
 ) -> list[Commit]:
     """Walk the non-merge history of ``rev`` in the clone at ``repo``, newest first.
 
-    With ``content`` (the default) every changed code file also gets its content
-    signals; without it, classification uses path rules only.
+    Every file gets its patch measured. With ``content`` (the default) every
+    changed code file also gets its content signals, and Rust files their
+    inline test modules; without it, classification uses path rules only.
     """
-    commits = list(parse_log(run_git(log_command(repo, rev, max_count))))
-    return attach_signals(repo, commits) if content else commits
+    with stream_git(log_command(repo, rev, max_count)) as tokens:
+        blobs = BlobReader(repo) if content else None
+        try:
+            return [complete(c, p, blobs) for c, p in parse_log_tokens(tokens)]
+        finally:
+            if blobs is not None:
+                blobs.close()
 
 
 _BATCH_HEADER = re.compile(rb"^[0-9a-f]{40,64} ([a-z]+) (\d+)\n$")
-_CHUNK = 1 << 16
 
 
 class BlobReader:
@@ -155,10 +255,7 @@ class BlobReader:
     ) -> None:
         self.close()
 
-    @staticmethod
-    def _stream(stream: IO[bytes] | None) -> IO[bytes]:
-        assert stream is not None  # Popen was created with PIPE for all three
-        return stream
+    _stream = staticmethod(_pipe)
 
     def _stopped(self) -> GitError:
         self._proc.kill()
@@ -212,38 +309,83 @@ class BlobReader:
         self._stream(self._proc.stderr).close()
 
 
-def file_signals(commit: Commit, change: FileChange, blobs: BlobReader) -> FileChange:
-    """``change`` with the content signals of the file at ``commit`` filled in.
-
-    A file deleted by the commit is judged as it was in the parent. A Rust file
-    with inline tests is also compared with its parent version: if it gained
-    ``#[test]`` functions, it gets ``rust-tests-added``.
-    """
-    language = language_of(change.path)
-    if language is None or change.binary:
-        return change
+def _signals(
+    commit: Commit, change: FileChange, language: Language, blobs: BlobReader
+) -> tuple[tuple[str, ...], bytes | None, bytes | None]:
+    """Signals of a changed code file, and the new and parent contents that were read."""
     parent = commit.base
     before = change.old_path or change.path
     content = blobs.read(commit.sha, change.path)
     if content is None:
         old = blobs.read(parent, before) if parent else None
-        signals = detect(language, old) if old is not None else ()
-    else:
-        signals = detect(language, content)
-        if RUST_INLINE_TESTS in signals:
-            previous = blobs.read(parent, before) if parent else None
-            if rust_tests_added(content, previous or b""):
-                signals = tuple(sorted((*signals, RUST_TESTS_ADDED)))
-    return replace(change, signals=signals) if signals else change
+        return (detect(language, old) if old is not None else ()), None, old
+    signals = detect(language, content)
+    old = None
+    if RUST_INLINE_TESTS in signals:
+        old = blobs.read(parent, before) if parent else None
+        if rust_tests_added(content, old or b""):
+            signals = tuple(sorted((*signals, RUST_TESTS_ADDED)))
+    return signals, content, old
 
 
-def attach_signals(repo: Path, commits: Sequence[Commit]) -> list[Commit]:
-    """Fill in content signals for every changed code file of ``commits``."""
-    with BlobReader(repo) as blobs:
-        return [
-            replace(commit, files=tuple(file_signals(commit, f, blobs) for f in commit.files))
-            for commit in commits
-        ]
+def _regions(content: bytes | None) -> tuple[Region, ...]:
+    return rust_test_regions(content) if content else ()
+
+
+def file_details(
+    commit: Commit,
+    change: FileChange,
+    patch: FilePatch | None = None,
+    blobs: BlobReader | None = None,
+) -> FileChange:
+    """``change`` with its content signals and patch measurements filled in.
+
+    A file deleted by the commit is judged as it was in the parent. A Rust file
+    with inline tests is also compared with its parent version: if it gained
+    ``#[test]`` functions, it gets ``rust-tests-added``, and lines inside its
+    ``#[cfg(test)]`` modules are measured as test lines.
+    """
+    language = language_of(change.path)
+    signals: tuple[str, ...] = ()
+    new = old = None
+    if blobs is not None and language is not None and not change.binary:
+        signals, new, old = _signals(commit, change, language, blobs)
+    stats = None
+    if patch is not None and not change.binary:
+        new_regions: tuple[Region, ...] = ()
+        old_regions: tuple[Region, ...] = ()
+        if language is Language.RUST and blobs is not None:
+            new_regions = _regions(new)
+            if old is None and patch.deleted and commit.base:
+                old = blobs.read(commit.base, change.old_path or change.path)
+            old_regions = _regions(old)
+        stats = analyze(patch, language, new_regions, old_regions)
+    return replace(change, signals=signals, patch=stats)
+
+
+def complete(
+    commit: Commit, patches: Sequence[FilePatch] | None, blobs: BlobReader | None = None
+) -> Commit:
+    """Attach signals and patch measurements to every file of a parsed commit.
+
+    ``patches`` must line up with ``commit.files``: one block per numstat entry,
+    with the same line counts. A mismatch means the output was misread.
+    """
+    if patches is not None and len(patches) != len(commit.files):
+        raise GitError(
+            f"{commit.sha}: {len(commit.files)} numstat entries but {len(patches)} file patches"
+        )
+    files: list[FileChange] = []
+    for index, change in enumerate(commit.files):
+        patch = patches[index] if patches is not None else None
+        counts = (change.added, change.deleted)
+        if patch is not None and not change.binary and (patch.added, patch.deleted) != counts:
+            raise GitError(
+                f"{commit.sha}: {change.path}: numstat says +{change.added} "
+                f"-{change.deleted}, the patch has +{patch.added} -{patch.deleted}"
+            )
+        files.append(file_details(commit, change, patch, blobs))
+    return replace(commit, files=tuple(files))
 
 
 def head_sha(repo: Path, rev: str = "HEAD") -> str:
@@ -267,45 +409,94 @@ def _count(field: str) -> int | None:
     return None if field == "-" else int(field)
 
 
-def parse_log(data: bytes) -> Iterator[Commit]:
-    """Parse the output of :func:`log_command` into commits, in output order."""
-    tokens = data.split(b"\0")
+class _Tokens:
+    """A token iterator with lookahead and a position for error messages."""
+
+    def __init__(self, tokens: Iterable[bytes]) -> None:
+        self._source = iter(tokens)
+        self._ahead: list[bytes] = []
+        self.position = 0
+
+    def peek(self, offset: int = 0) -> bytes | None:
+        while len(self._ahead) <= offset:
+            token = next(self._source, None)
+            if token is None:
+                return None
+            self._ahead.append(token)
+        return self._ahead[offset]
+
+    def take(self) -> bytes | None:
+        token = self.peek()
+        if token is not None:
+            self._ahead.pop(0)
+            self.position += 1
+        return token
+
+
+def _numstat(tokens: _Tokens, sha: str) -> list[FileChange]:
+    files: list[FileChange] = []
+    while (token := tokens.peek()) is not None and token != b"":
+        tokens.take()
+        entry = _decode(token)
+        if not files:
+            # git separates the message from the first numstat entry with one newline.
+            entry = entry.removeprefix("\n")
+        match = _NUMSTAT.match(entry)
+        if match is None:
+            raise GitError(f"bad numstat entry in {sha}: {entry[:60]!r}")
+        added, deleted, path = match.group(1), match.group(2), match.group(3)
+        if path:
+            files.append(FileChange(path, _count(added), _count(deleted)))
+            continue
+        old_path, new_path = tokens.take(), tokens.take()
+        if not old_path or not new_path:
+            raise GitError(f"truncated rename entry in {sha}")
+        files.append(
+            FileChange(_decode(new_path), _count(added), _count(deleted), _decode(old_path))
+        )
+    return files
+
+
+def parse_log_tokens(
+    tokens: Iterable[bytes],
+) -> Iterator[tuple[Commit, list[FilePatch] | None]]:
+    """Parse the tokens of :func:`log_command` output into commits and their file patches.
+
+    The patches are ``None`` when the output has no patch section (``-p`` not given).
+    """
+    stream = _Tokens(tokens)
     marker = MARKER.encode()
-    i = 0
-    while i < len(tokens):
-        token = tokens[i]
+    while (token := stream.peek()) is not None:
         if token == b"":
-            i += 1
+            stream.take()
             continue
         if token != marker:
-            raise GitError(f"unexpected token at position {i}: {token[:60]!r}")
-        if i + 4 >= len(tokens):
+            raise GitError(f"unexpected token at position {stream.position}: {token[:60]!r}")
+        stream.take()
+        header = [stream.take() for _ in range(4)]
+        if stream.peek() is None or any(field is None for field in header):
             raise GitError("truncated commit header")
-        sha, parents, date, message = (_decode(t) for t in tokens[i + 1 : i + 5])
-        i += 5
-        files: list[FileChange] = []
-        while i < len(tokens) and tokens[i] != b"":
-            entry = _decode(tokens[i])
-            if not files:
-                # git separates the message from the first numstat entry with one newline.
-                entry = entry.removeprefix("\n")
-            match = _NUMSTAT.match(entry)
-            if match is None:
-                raise GitError(f"bad numstat entry in {sha}: {entry[:60]!r}")
-            added, deleted, path = match.group(1), match.group(2), match.group(3)
-            if path:
-                files.append(FileChange(path, _count(added), _count(deleted)))
-                i += 1
-                continue
-            if i + 2 >= len(tokens) or not tokens[i + 1] or not tokens[i + 2]:
-                raise GitError(f"truncated rename entry in {sha}")
-            old_path, new_path = _decode(tokens[i + 1]), _decode(tokens[i + 2])
-            files.append(FileChange(new_path, _count(added), _count(deleted), old_path))
-            i += 3
-        yield Commit(
+        sha, parents, date, message = (_decode(field or b"") for field in header)
+        files = _numstat(stream, sha)
+        patches = None
+        after = stream.peek(1)
+        if stream.peek() == b"" and after is not None and after.startswith(DIFF_HEADER):
+            stream.take()
+            try:
+                patches = parse_patch(stream.take() or b"")
+            except PatchError as exc:
+                raise GitError(f"bad patch in {sha}: {exc}") from exc
+        commit = Commit(
             sha=sha,
             parents=tuple(parents.split()),
             date=normalize_date(date),
             message=message,
             files=tuple(files),
         )
+        yield commit, patches
+
+
+def parse_log(data: bytes) -> Iterator[Commit]:
+    """Parse complete :func:`log_command` output; patches are measured without file contents."""
+    for commit, patches in parse_log_tokens(data.split(b"\0")):
+        yield complete(commit, patches)

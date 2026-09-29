@@ -6,13 +6,49 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
+class PatchStats:
+    """What the ``--unified=0`` patch of one file says, beyond its line counts.
+
+    ``hunks`` counts every hunk. The ``code_*`` fields leave out blank lines,
+    comment-only lines, hunks that only change comments or whitespace (see
+    :mod:`commitminer.patch`) and lines inside inline test modules; for a file
+    in no known language they equal the raw counts. ``test_added`` and
+    ``test_deleted`` are lines inside Rust ``#[cfg(test)]`` modules. ``asserts``
+    counts added assertion lines (only inside the inline test modules when the
+    file has any). ``api`` names public declarations that the code hunks add,
+    remove or change, such as ``def load`` or ``pub fn parse``.
+    """
+
+    hunks: int
+    code_hunks: int
+    code_added: int
+    code_deleted: int
+    test_added: int = 0
+    test_deleted: int = 0
+    asserts: int = 0
+    api: tuple[str, ...] = ()
+
+    @property
+    def code_lines(self) -> int:
+        """Code lines added plus deleted."""
+        return self.code_added + self.code_deleted
+
+    @property
+    def test_lines(self) -> int:
+        """Inline test lines added plus deleted."""
+        return self.test_added + self.test_deleted
+
+
+@dataclass(frozen=True, slots=True)
 class FileChange:
     """One file changed by a commit, as reported by ``git log --numstat``.
 
     ``old_path`` is set only for renames (detected with ``-M``). ``added`` and
     ``deleted`` are ``None`` for binary files, which git reports as ``-``.
     ``signals`` are the sorted content signals of the file at this commit (see
-    :mod:`commitminer.signals`); empty when content was not read.
+    :mod:`commitminer.signals`); empty when content was not read. ``patch`` is
+    ``None`` when the patch was not read (hand-built records, old recordings)
+    and for binary files.
     """
 
     path: str
@@ -20,6 +56,7 @@ class FileChange:
     deleted: int | None
     old_path: str | None = None
     signals: tuple[str, ...] = ()
+    patch: PatchStats | None = None
 
     @property
     def binary(self) -> bool:

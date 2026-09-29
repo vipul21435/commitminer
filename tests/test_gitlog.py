@@ -1,12 +1,22 @@
 from __future__ import annotations
 
+import io
 from pathlib import Path
 
 import pytest
 
 from commitminer import gitlog
-from commitminer.gitlog import MARKER, GitError, head_sha, log_command, parse_log, walk
-from commitminer.models import Commit, FileChange
+from commitminer.gitlog import (
+    MARKER,
+    GitError,
+    head_sha,
+    log_command,
+    parse_log,
+    split_stream,
+    stream_git,
+    walk,
+)
+from commitminer.models import Commit, FileChange, PatchStats
 from gitrepo import GitRepo, lines
 
 
@@ -65,6 +75,82 @@ def test_parse_rejects_malformed_output(data: bytes, message: str) -> None:
         list(parse_log(data))
 
 
+PATCH = b"diff --git a/a.py b/a.py\n@@ -1 +1,2 @@\n-x = 1\n+x = 2\n+assert x\n"
+
+
+def test_parse_patch_section_is_matched_to_numstat() -> None:
+    data = _header("f" * 40, "", "fix\n") + b"\n2\t1\ta.py\0\0" + PATCH
+    (commit,) = parse_log(data)
+    assert commit.files == (FileChange("a.py", 2, 1, patch=PatchStats(1, 1, 2, 1, asserts=1)),)
+
+
+@pytest.mark.parametrize(
+    ("numstat", "patch", "message"),
+    [
+        (b"\n3\t1\ta.py\0", PATCH, "numstat says \\+3 -1, the patch has \\+2 -1"),
+        (b"\n2\t1\ta.py\0" + b"1\t0\tb.py\0", PATCH, "2 numstat entries but 1 file patches"),
+        (b"\n2\t1\ta.py\0", b"diff --git a/a.py b/a.py\n@@ nonsense\n", "bad patch in"),
+    ],
+)
+def test_parse_rejects_patches_that_do_not_match(
+    numstat: bytes, patch: bytes, message: str
+) -> None:
+    data = _header("f" * 40, "", "fix\n") + numstat + b"\0" + patch
+    with pytest.raises(GitError, match=message):
+        list(parse_log(data))
+
+
+def test_parse_two_commits_with_patches_and_an_empty_commit() -> None:
+    first = _header("a" * 40, "b" * 40, "one\n") + b"\n2\t1\ta.py\0\0" + PATCH
+    empty = _header("b" * 40, "", "empty\n")
+    shas = [c.sha[0] for c in parse_log(first + empty)]
+    assert shas == ["a", "b"]
+
+
+@pytest.mark.parametrize("chunk", [1, 2, 3, 7, 64])
+def test_split_stream_matches_bytes_split(chunk: int) -> None:
+    for data in (b"", b"\0", b"a\0\0bc\0", b"abc", b"\0x\0yz\0\0"):
+        assert list(split_stream(io.BytesIO(data), chunk)) == data.split(b"\0")
+
+
+def test_stream_git_reports_failures_after_reading() -> None:
+    with (
+        pytest.raises(GitError, match="git exited with 1: boom"),
+        stream_git(["sh", "-c", "printf 'a\\0b'; echo boom >&2; exit 1"]) as tokens,
+    ):
+        assert list(tokens) == [b"a", b"b"]
+
+
+def test_stream_git_times_out() -> None:
+    with pytest.raises(GitError, match="timed out"), stream_git(["sleep", "5"], 0.05) as tokens:
+        list(tokens)
+
+
+def _fail_while_reading(args: list[str], timeout: float, read_all: bool) -> None:
+    with stream_git(args, timeout) as tokens:
+        if read_all:
+            list(tokens)
+        else:
+            next(tokens)
+        raise ValueError("the parser gave up")
+
+
+def test_stream_git_times_out_while_the_caller_fails() -> None:
+    with pytest.raises(GitError, match="timed out"):
+        _fail_while_reading(["sleep", "5"], 0.05, read_all=True)
+
+
+def test_stream_git_kills_git_when_the_caller_stops_early() -> None:
+    with pytest.raises(ValueError, match="gave up"):
+        _fail_while_reading(["sh", "-c", "while :; do printf 'a\\0'; done"], 60, False)
+
+
+def test_stream_git_reports_missing_executable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PATH", "")
+    with pytest.raises(GitError, match="not found"), stream_git(["git", "--version"]):
+        pass
+
+
 def test_log_command_is_fixed_and_guards_the_revision() -> None:
     cmd = log_command(Path("/r"), "--output=/tmp/x", 5)
     assert cmd[:3] == ["git", "-C", "/r"]
@@ -104,12 +190,16 @@ def test_walk_edge_cases_in_a_real_repository(git_repo: GitRepo) -> None:
     assert commits[2].body == "With a body.\nSecond line."
     assert set(commits[2].files) == {
         FileChange("bin.dat", None, None),
-        FileChange("caf\u00e9.py", 1, 0),
-        FileChange("my file.py", 6, 0),
+        FileChange("caf\u00e9.py", 1, 0, patch=PatchStats(1, 1, 1, 0)),
+        FileChange("my file.py", 6, 0, patch=PatchStats(1, 1, 6, 0)),
     }
-    assert commits[1].files == (FileChange("new name.py", 1, 0, old_path="my file.py"),)
+    assert commits[1].files == (
+        FileChange("new name.py", 1, 0, old_path="my file.py", patch=PatchStats(1, 1, 1, 0)),
+    )
     assert commits[0].message == ""
-    assert commits[0].files == (FileChange("tests/test_x.py", 1, 0),)
+    assert commits[0].files == (
+        FileChange("tests/test_x.py", 1, 0, patch=PatchStats(1, 1, 1, 0, asserts=1)),
+    )
     assert commits[0].date == "2024-01-01T03:00:00+00:00"
 
 
