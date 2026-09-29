@@ -33,9 +33,9 @@ def version() -> None:
     typer.echo(f"commitminer {__version__}")
 
 
-def _fail(message: str) -> typer.Exit:
+def _fail(message: str, code: int = 1) -> typer.Exit:
     typer.echo(f"error: {message}", err=True)
-    return typer.Exit(code=1)
+    return typer.Exit(code=code)
 
 
 RevOption = Annotated[
@@ -80,7 +80,8 @@ def mine_command(
 ) -> None:
     """Filter and rank the commits of a clone or a recorded history."""
     if (repo is None) == (history is None):
-        raise typer.BadParameter("give either a REPO path or --history FILE, not both or neither")
+        # Plain text on purpose: Typer's rich usage panel re-wraps messages by terminal width.
+        raise _fail("give either a REPO path or --history FILE, not both or neither", code=2)
     commits: list[Commit]
     try:
         if history is not None:
