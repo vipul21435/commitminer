@@ -11,7 +11,7 @@ from commitminer.export import (
     render_table,
     write_jsonl,
 )
-from commitminer.models import Commit, FileChange
+from commitminer.models import Commit, FileChange, PatchStats
 from commitminer.scoring import mine
 
 FILES = (
@@ -80,19 +80,44 @@ def test_render_summary_table_and_explanation() -> None:
     rejected = Commit("c" * 40, (), "2024-01-01T00:00:00+00:00", "docs", (FILES[2],))
     result = mine([_commit("a" * 40, long_subject), _commit("b" * 40, "Caf\u00e9"), rejected])
     assert render_summary(result, "r") == (
-        "r: walked 3 commits, 2 candidates, 1 rejected (no-source 1)"
+        "r: walked 3 commits, 2 candidates (easy 2), 1 rejected (docs-only 1)"
     )
     table = render_table(result, top=1).splitlines()
-    assert table[0].split() == ["rank", "score", "sha", "date", "lines", "src", "test", "subject"]
+    assert table[0].split() == [
+        "rank",
+        "score",
+        "diff",
+        "sha",
+        "date",
+        "lines",
+        "src",
+        "test",
+        "subject",
+    ]
     assert len(table) == 2
-    assert table[1].split()[:7] == ["1", "7.77", "aaaaaaaaaa", "2024-02-03", "17", "1", "1"]
+    assert table[1].split()[:9] == [
+        "1",
+        "7.47",
+        "0.20",
+        "easy",
+        "aaaaaaaaaa",
+        "2024-02-03",
+        "17",
+        "1",
+        "1",
+    ]
     assert table[1].endswith("xxx...")
-    assert len(table[1].split("  ")[-1]) == 56
+    assert len(table[1].split("  ")[-1]) == 44
     explanation = render_explanation(result.candidates[1], 2).splitlines()
     # 17 of 400 lines: 1 - 17/400 = 0.9575, times 3 = 2.8725; no fix keyword in "Cafe".
-    assert explanation[0] == "#2 bbbbbbbbbb score 6.77: Caf?"
-    assert explanation[2].split()[:4] == ["small_diff", "0.958", "3.00", "2.873"]
-    assert len(explanation) == 7
+    assert explanation[0] == "#2 bbbbbbbbbb score 6.47, difficulty 0.20 (easy): Caf?"
+    assert explanation[1:3] == ["  score", "    feature            value weight contrib  detail"]
+    assert explanation[3].split()[:4] == ["small_diff", "0.958", "3.00", "2.873"]
+    assert explanation[9].split() == ["total", "10.00", "6.473"]
+    assert explanation[10] == "  difficulty"
+    assert explanation[-1].split() == ["total", "10.00", "0.200"]
+    assert len(explanation) == 18
+    assert render_explanation(result.candidates[1]).startswith("bbbbbbbbbb score 6.47")
 
 
 def test_render_summary_without_rejections() -> None:
@@ -108,4 +133,36 @@ def test_signals_and_inline_test_files_are_exported() -> None:
     assert record["files"][0]["signals"] == ["rust-inline-tests", "rust-tests-added"]
     assert record["files"][0]["rule"] == "rust-inline-tests"
     row = render_table(mine([commit]), top=1).splitlines()[1]
-    assert row.split()[4:7] == ["9", "1", "0+1"]
+    assert row.split()[6:9] == ["9", "1", "0+1"]
+
+
+def test_patch_data_and_difficulty_are_exported() -> None:
+    source = FileChange("src/pkg/api.py", 6, 2, patch=PatchStats(2, 1, 5, 2, api=("def load",)))
+    test = FileChange("tests/test_api.py", 9, 0, patch=PatchStats(1, 1, 8, 0, asserts=3))
+    commit = Commit(
+        "d" * 40, ("f" * 40,), "2024-02-03T04:05:06+00:00", "Fix load\n", (source, test)
+    )
+    record = candidate_to_json(mine([commit]).candidates[0], 1, "r")
+    assert record["files"][0]["patch"] == {
+        "hunks": 2,
+        "code_hunks": 1,
+        "code_added": 5,
+        "code_deleted": 2,
+        "test_added": 0,
+        "test_deleted": 0,
+        "asserts": 0,
+        "api": ["def load"],
+    }
+    assert record["public_api"] == ["def load"]
+    difficulty = record["difficulty"]
+    assert difficulty["band"] == "easy"
+    assert [f["name"] for f in difficulty["features"]] == [
+        "files",
+        "hunks",
+        "lines",
+        "cross_file",
+        "public_api",
+    ]
+    total = sum(f["contribution"] for f in difficulty["features"])
+    assert round(total, 4) == difficulty["value"] == 1.71
+    assert [f["name"] for f in record["features"]][2] == "added_assertions"

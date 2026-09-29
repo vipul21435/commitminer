@@ -1,12 +1,20 @@
-"""Candidate filter and a transparent linear scorer.
+"""Soft scoring and a difficulty estimate for the commits that pass the hard filters.
 
-A commit is a candidate when it changes at least one source file and at least
-one test file (or adds ``#[test]`` functions inside a Rust source file) and
-stays under a size limit. Generated and vendored files never
-count as source or test, and do not count toward the size. Candidates are scored with
-``score = sum(weight * value)`` over a few features whose values lie in
-``[0, 1]``; every feature keeps its raw detail, value, weight and contribution,
-so the ranking can always be explained line by line.
+Both are transparent linear models, ``total = sum(weight * value)`` over
+features whose values lie in ``[0, 1]``; every feature keeps its value, weight,
+contribution and a readable detail, so a ranking can always be explained line
+by line and recomputed by hand.
+
+- The **score** says how promising a commit is as a fail-to-pass task: a small
+  diff, tests that grew and assert something, a linked issue, a fix keyword, one
+  source file. Candidates are ranked by it.
+- The **difficulty** says how much work the fix is for whoever solves the task:
+  files touched, source hunks and code lines, edits spread over several source
+  files, public API changed. It is reported as a value and an easy, medium or
+  hard band; it does not change the ranking.
+
+The hard filters that decide which commits are candidates live in
+:mod:`commitminer.filters`.
 """
 
 from __future__ import annotations
@@ -14,118 +22,21 @@ from __future__ import annotations
 import re
 from collections import Counter
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from enum import StrEnum
 
-from commitminer.classify import RULES, Category, Classification, Rule, classify
-from commitminer.models import Commit, FileChange
-from commitminer.signals import RUST_TESTS_ADDED
+from commitminer.classify import Category
+from commitminer.filters import RejectReason, check
+from commitminer.models import Commit
+from commitminer.settings import Settings
+from commitminer.stats import DiffStats, diff_stats
 
-
-class RejectReason(StrEnum):
-    """Why a commit was not proposed, checked in this order."""
-
-    EMPTY = "empty"
-    NO_SOURCE = "no-source"
-    SOURCE_UNCHANGED = "source-unchanged"
-    NO_TEST = "no-test"
-    TOO_LARGE = "too-large"
-
-
-@dataclass(frozen=True, slots=True)
-class Weights:
-    """Feature weights; the defaults add up to 10, the best possible score."""
-
-    small_diff: float = 3.0
-    test_lines_added: float = 3.0
-    linked_reference: float = 2.0
-    fix_keyword: float = 1.0
-    focused_source: float = 1.0
-
-
-@dataclass(frozen=True, slots=True)
-class Settings:
-    """Filter limits and scorer weights."""
-
-    max_lines: int = 400
-    """Largest accepted diff: added plus deleted lines over source and test files."""
-    test_lines_cap: int = 40
-    """Added test lines at which ``test_lines_added`` reaches its full value."""
-    weights: Weights = field(default_factory=Weights)
-    rules: tuple[Rule, ...] = RULES
-    """Classifier table: the built-in rules, or a per-repository override."""
-
-    def __post_init__(self) -> None:
-        if self.max_lines < 1 or self.test_lines_cap < 1:
-            raise ValueError("max_lines and test_lines_cap must be at least 1")
-
-
-@dataclass(frozen=True, slots=True)
-class ClassifiedFile:
-    """A changed file with the classifier's verdict."""
-
-    change: FileChange
-    classification: Classification
-
-    @property
-    def category(self) -> Category:
-        """Shortcut for ``classification.category``."""
-        return self.classification.category
-
-
-@dataclass(frozen=True, slots=True)
-class DiffStats:
-    """Per-category view of one commit's changed files."""
-
-    files: tuple[ClassifiedFile, ...]
-
-    def _of(self, category: Category) -> tuple[ClassifiedFile, ...]:
-        return tuple(f for f in self.files if f.category is category)
-
-    @property
-    def source_files(self) -> tuple[ClassifiedFile, ...]:
-        """Changed source files."""
-        return self._of(Category.SOURCE)
-
-    @property
-    def test_files(self) -> tuple[ClassifiedFile, ...]:
-        """Changed test files (test code and test data)."""
-        return self._of(Category.TEST)
-
-    @property
-    def inline_test_files(self) -> tuple[ClassifiedFile, ...]:
-        """Source files that gained in-file tests (Rust ``#[test]`` functions) in this commit."""
-        return tuple(f for f in self.source_files if RUST_TESTS_ADDED in f.change.signals)
-
-    def added(self, category: Category) -> int:
-        """Lines added in files of ``category``."""
-        return sum(f.change.added or 0 for f in self._of(category))
-
-    def deleted(self, category: Category) -> int:
-        """Lines deleted in files of ``category``."""
-        return sum(f.change.deleted or 0 for f in self._of(category))
-
-    @property
-    def changed_lines(self) -> int:
-        """Added plus deleted lines over source and test files: the size the filter checks."""
-        return sum(
-            f.change.changed_lines
-            for f in self.files
-            if f.category in (Category.SOURCE, Category.TEST)
-        )
-
-
-def diff_stats(commit: Commit, rules: tuple[Rule, ...] = RULES) -> DiffStats:
-    """Classify every file a commit changed (renames by their new path)."""
-    return DiffStats(
-        tuple(ClassifiedFile(f, classify(f.path, rules, f.signals)) for f in commit.files)
-    )
+NO_PATCH = "unknown: no patch data"
 
 
 @dataclass(frozen=True, slots=True)
 class Feature:
-    """One scorer feature: ``contribution = weight * value``."""
+    """One feature of a linear model: ``contribution = weight * value``."""
 
     name: str
     value: float
@@ -135,13 +46,23 @@ class Feature:
 
 
 @dataclass(frozen=True, slots=True)
+class Difficulty:
+    """The difficulty estimate of one candidate."""
+
+    features: tuple[Feature, ...]
+    value: float
+    band: str
+
+
+@dataclass(frozen=True, slots=True)
 class Candidate:
-    """A commit that passed the filter, with its score breakdown."""
+    """A commit that passed the filter, with its score and difficulty breakdowns."""
 
     commit: Commit
     stats: DiffStats
     features: tuple[Feature, ...]
     score: float
+    difficulty: Difficulty
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +71,7 @@ class Rejection:
 
     commit: Commit
     reason: RejectReason
+    stats: DiffStats
 
 
 _CLOSING_REF = re.compile(
@@ -187,55 +109,56 @@ def fix_keyword(subject: str) -> tuple[float, str]:
     return (1.0, match.group(0)) if match else (0.0, "no fix keyword in the subject")
 
 
-def check(stats: DiffStats, settings: Settings) -> RejectReason | None:
-    """Return the first reason to drop the commit, or ``None`` if it is a candidate."""
-    if not stats.files:
-        return RejectReason.EMPTY
-    if not stats.source_files:
-        return RejectReason.NO_SOURCE
-    if not stats.added(Category.SOURCE) and not stats.deleted(Category.SOURCE):
-        # Pure renames, mode changes or binary files: nothing for a test to catch.
-        return RejectReason.SOURCE_UNCHANGED
-    if not stats.test_files and not stats.inline_test_files:
-        return RejectReason.NO_TEST
-    if stats.changed_lines > settings.max_lines:
-        return RejectReason.TOO_LARGE
-    return None
-
-
 def _feature(name: str, value: float, weight: float, detail: str) -> Feature:
     value = round(value, 4)
     return Feature(name, value, weight, round(weight * value, 4), detail)
 
 
+def _capped(count: int, cap: int) -> float:
+    return min(count, cap) / cap
+
+
+def _plural(count: int, word: str) -> str:
+    return f"{count} {word}{'' if count == 1 else 's'}"
+
+
 def features(commit: Commit, stats: DiffStats, settings: Settings) -> tuple[Feature, ...]:
-    """Compute every feature for a commit that passed :func:`check`."""
+    """The score features of a commit that passed :func:`~commitminer.filters.check`."""
     weights = settings.weights
     size = stats.changed_lines
     test_added = stats.added(Category.TEST)
     inline = len(stats.inline_test_files)
-    cap = settings.test_lines_cap
-    test_detail = f"{test_added} test lines added (full value at {cap})"
+    test_detail = f"{test_added} test lines added (full value at {settings.test_lines_cap})"
     if inline:
-        # Lines of a file that mixes code and tests cannot be split without the patch.
-        plural = "s" if inline != 1 else ""
-        test_detail = f"{test_added} test lines added (full at {cap}); new #[test] in {inline} "
-        test_detail += f"src file{plural}"
+        test_detail += f", in #[cfg(test)] of {_plural(inline, 'src file')}"
+    asserts = stats.assertions
+    assert_detail = (
+        NO_PATCH
+        if asserts is None
+        else f"{_plural(asserts, 'assertion line')} added in tests "
+        f"(full value at {settings.assertions_cap})"
+    )
     sources = len(stats.source_files)
     ref_value, ref_detail = linked_reference(commit.message)
     fix_value, fix_detail = fix_keyword(commit.subject)
     return (
         _feature(
             "small_diff",
-            1 - min(size, settings.max_lines) / settings.max_lines,
+            1 - _capped(size, settings.max_lines),
             weights.small_diff,
             f"{size} of at most {settings.max_lines} source+test lines changed",
         ),
         _feature(
             "test_lines_added",
-            min(test_added, settings.test_lines_cap) / settings.test_lines_cap,
+            _capped(test_added, settings.test_lines_cap),
             weights.test_lines_added,
             test_detail,
+        ),
+        _feature(
+            "added_assertions",
+            _capped(asserts or 0, settings.assertions_cap),
+            weights.added_assertions,
+            assert_detail,
         ),
         _feature("linked_reference", ref_value, weights.linked_reference, ref_detail),
         _feature("fix_keyword", fix_value, weights.fix_keyword, fix_detail),
@@ -243,19 +166,75 @@ def features(commit: Commit, stats: DiffStats, settings: Settings) -> tuple[Feat
             "focused_source",
             1 / sources,
             weights.focused_source,
-            f"{sources} source file{'s' if sources != 1 else ''} changed",
+            f"{_plural(sources, 'source file')} changed",
         ),
     )
 
 
+def _names(names: tuple[str, ...], shown: int = 3) -> str:
+    text = ", ".join(names[:shown])
+    return text + (f" (+{len(names) - shown} more)" if len(names) > shown else "")
+
+
+def difficulty(stats: DiffStats, settings: Settings) -> Difficulty:
+    """The difficulty features of a candidate, their sum and its band."""
+    weights = settings.difficulty_weights
+    files = len(stats.of(Category.SOURCE, Category.TEST))
+    hunks = stats.code_hunks
+    lines = stats.code_lines
+    spread = max(len(stats.code_files) - 1, 0)
+    api = stats.public_api
+    feats = (
+        _feature(
+            "files",
+            _capped(files, settings.files_cap),
+            weights.files,
+            f"{_plural(files, 'source+test file')} changed (full value at {settings.files_cap})",
+        ),
+        _feature(
+            "hunks",
+            _capped(hunks or 0, settings.hunks_cap),
+            weights.hunks,
+            NO_PATCH
+            if hunks is None
+            else f"{_plural(hunks, 'source code hunk')} (full value at {settings.hunks_cap})",
+        ),
+        _feature(
+            "lines",
+            _capped(lines or 0, settings.lines_cap),
+            weights.lines,
+            NO_PATCH
+            if lines is None
+            else f"{_plural(lines, 'source code line')} changed "
+            f"(full value at {settings.lines_cap})",
+        ),
+        _feature(
+            "cross_file",
+            _capped(spread, settings.cross_file_cap),
+            weights.cross_file,
+            f"{_plural(len(stats.code_files), 'source file')} with code changes "
+            f"(full value at {settings.cross_file_cap + 1})",
+        ),
+        _feature(
+            "public_api",
+            1.0 if api else 0.0,
+            weights.public_api,
+            NO_PATCH if api is None else _names(api) if api else "no public declaration changed",
+        ),
+    )
+    value = round(sum(f.contribution for f in feats), 4)
+    return Difficulty(feats, value, settings.band(value))
+
+
 def evaluate(commit: Commit, settings: Settings) -> Candidate | Rejection:
-    """Filter one commit and, if it passes, score it."""
+    """Filter one commit and, if it passes, score it and estimate its difficulty."""
     stats = diff_stats(commit, settings.rules)
     reason = check(stats, settings)
     if reason is not None:
-        return Rejection(commit, reason)
+        return Rejection(commit, reason, stats)
     feats = features(commit, stats, settings)
-    return Candidate(commit, stats, feats, round(sum(f.contribution for f in feats), 4))
+    score = round(sum(f.contribution for f in feats), 4)
+    return Candidate(commit, stats, feats, score, difficulty(stats, settings))
 
 
 def _rank_key(candidate: Candidate) -> tuple[float, float, str]:
@@ -275,6 +254,11 @@ class MineResult:
         """Rejection counts per reason, in the order the filter checks them."""
         counts = Counter(r.reason for r in self.rejections)
         return {reason.value: counts[reason] for reason in RejectReason if counts[reason]}
+
+    def bands(self) -> dict[str, int]:
+        """Candidate counts per difficulty band, easy to hard, bands with none left out."""
+        counts = Counter(c.difficulty.band for c in self.candidates)
+        return {band: counts[band] for band in ("easy", "medium", "hard") if counts[band]}
 
 
 def mine(commits: Iterable[Commit], settings: Settings | None = None) -> MineResult:

@@ -7,10 +7,39 @@ from pathlib import Path
 from typing import Any
 
 from commitminer.classify import Category
-from commitminer.scoring import Candidate, MineResult
+from commitminer.models import PatchStats
+from commitminer.scoring import Candidate, Feature, MineResult
 
-SCHEMA_VERSION = 1
-"""Version of the per-candidate JSON object; bumped on incompatible changes."""
+SCHEMA_VERSION = 2
+"""Version of the per-candidate JSON object; bumped on incompatible changes.
+
+2: ``added_assertions`` score feature, ``difficulty``, per-file ``patch``, and
+inline Rust test lines counted as test lines in ``lines``.
+"""
+
+
+def _feature_to_json(feature: Feature) -> dict[str, Any]:
+    return {
+        "name": feature.name,
+        "value": feature.value,
+        "weight": feature.weight,
+        "contribution": feature.contribution,
+        "detail": feature.detail,
+    }
+
+
+def patch_to_json(patch: PatchStats) -> dict[str, Any]:
+    """Every patch measurement of one file, with nothing left out."""
+    return {
+        "hunks": patch.hunks,
+        "code_hunks": patch.code_hunks,
+        "code_added": patch.code_added,
+        "code_deleted": patch.code_deleted,
+        "test_added": patch.test_added,
+        "test_deleted": patch.test_deleted,
+        "asserts": patch.asserts,
+        "api": list(patch.api),
+    }
 
 
 def candidate_to_json(candidate: Candidate, rank: int, repo: str) -> dict[str, Any]:
@@ -29,6 +58,8 @@ def candidate_to_json(candidate: Candidate, rank: int, repo: str) -> dict[str, A
             record["old_path"] = item.change.old_path
         if item.change.signals:
             record["signals"] = list(item.change.signals)
+        if item.change.patch is not None:
+            record["patch"] = patch_to_json(item.change.patch)
         files.append(record)
     return {
         "schema_version": SCHEMA_VERSION,
@@ -39,16 +70,13 @@ def candidate_to_json(candidate: Candidate, rank: int, repo: str) -> dict[str, A
         "date": commit.date,
         "subject": commit.subject,
         "score": candidate.score,
-        "features": [
-            {
-                "name": f.name,
-                "value": f.value,
-                "weight": f.weight,
-                "contribution": f.contribution,
-                "detail": f.detail,
-            }
-            for f in candidate.features
-        ],
+        "features": [_feature_to_json(f) for f in candidate.features],
+        "difficulty": {
+            "value": candidate.difficulty.value,
+            "band": candidate.difficulty.band,
+            "features": [_feature_to_json(f) for f in candidate.difficulty.features],
+        },
+        "public_api": list(stats.public_api or ()),
         "lines": {
             "changed": stats.changed_lines,
             "source_added": stats.added(Category.SOURCE),
@@ -83,49 +111,68 @@ def _clip(text: str, width: int) -> str:
     return text if len(text) <= width else text[: width - 3] + "..."
 
 
+def _counts(counts: dict[str, int]) -> str:
+    text = ", ".join(f"{name} {count}" for name, count in counts.items())
+    return f" ({text})" if text else ""
+
+
 def render_summary(result: MineResult, repo: str) -> str:
-    """One line: how many commits were walked, proposed and rejected (and why)."""
-    reasons = ", ".join(f"{name} {count}" for name, count in result.rejected_by_reason().items())
-    rejected = len(result.rejections)
-    detail = f" ({reasons})" if reasons else ""
+    """One line: commits walked, candidates (by band) and rejections (by reason)."""
     return (
         f"{_ascii(repo)}: walked {result.walked} commits, "
-        f"{len(result.candidates)} candidates, {rejected} rejected{detail}"
+        f"{len(result.candidates)} candidates{_counts(result.bands())}, "
+        f"{len(result.rejections)} rejected{_counts(result.rejected_by_reason())}"
     )
 
 
-def render_table(result: MineResult, top: int, subject_width: int = 56) -> str:
+def render_table(result: MineResult, top: int, subject_width: int = 44) -> str:
     """The ``top`` best candidates as a fixed-width table.
 
-    The ``test`` column counts test files, plus ``+N`` source files that gained
-    inline tests (Rust ``#[test]`` functions).
+    ``diff`` is the difficulty value and its band. The ``test`` column counts
+    test files, plus ``+N`` source files that gained inline tests (Rust
+    ``#[test]`` functions).
     """
-    header = f"{'rank':>4}  {'score':>6}  {'sha':<10}  {'date':<10}  {'lines':>5}  "
-    header += f"{'src':>3}  {'test':>4}  subject"
+    header = f"{'rank':>4}  {'score':>6}  {'diff':>11}  {'sha':<10}  {'date':<10}  "
+    header += f"{'lines':>5}  {'src':>3}  {'test':>4}  subject"
     rows = [header]
     for rank, c in enumerate(result.candidates[:top], start=1):
         tests = str(len(c.stats.test_files))
         if c.stats.inline_test_files:
             # "0+1": no test file, one source file that gained inline tests.
             tests += f"+{len(c.stats.inline_test_files)}"
+        band = f"{c.difficulty.value:.2f} {c.difficulty.band}"
         rows.append(
-            f"{rank:>4}  {c.score:>6.2f}  {c.commit.sha[:10]:<10}  {c.commit.date[:10]:<10}  "
-            f"{c.stats.changed_lines:>5}  {len(c.stats.source_files):>3}  "
-            f"{tests:>4}  {_clip(c.commit.subject, subject_width)}"
+            f"{rank:>4}  {c.score:>6.2f}  {band:>11}  {c.commit.sha[:10]:<10}  "
+            f"{c.commit.date[:10]:<10}  {c.stats.changed_lines:>5}  "
+            f"{len(c.stats.source_files):>3}  {tests:>4}  {_clip(c.commit.subject, subject_width)}"
         )
     return "\n".join(rows)
 
 
-def render_explanation(candidate: Candidate, rank: int) -> str:
-    """The per-feature contribution table for one candidate."""
+def render_features(title: str, feats: tuple[Feature, ...], total: float) -> list[str]:
+    """A contribution table: one row per feature, then the total."""
     rows = [
-        f"#{rank} {candidate.commit.sha[:10]} score {candidate.score:.2f}: "
-        f"{_clip(candidate.commit.subject, 60)}",
-        f"  {'feature':<17} {'value':>6} {'weight':>6} {'contrib':>7}  detail",
+        f"  {title}",
+        f"    {'feature':<17} {'value':>6} {'weight':>6} {'contrib':>7}  detail",
     ]
-    for f in candidate.features:
+    for f in feats:
         rows.append(
-            f"  {f.name:<17} {f.value:>6.3f} {f.weight:>6.2f} {f.contribution:>7.3f}"
-            f"  {_clip(f.detail, 60)}"
+            f"    {f.name:<17} {f.value:>6.3f} {f.weight:>6.2f} {f.contribution:>7.3f}"
+            f"  {_clip(f.detail, 72)}"
         )
+    weight = sum(f.weight for f in feats)
+    rows.append(f"    {'total':<17} {'':>6} {weight:>6.2f} {total:>7.3f}")
+    return rows
+
+
+def render_explanation(candidate: Candidate, rank: int | None = None) -> str:
+    """The score and difficulty contribution tables of one candidate."""
+    where = f"#{rank} " if rank is not None else ""
+    level = candidate.difficulty
+    rows = [
+        f"{where}{candidate.commit.sha[:10]} score {candidate.score:.2f}, "
+        f"difficulty {level.value:.2f} ({level.band}): {_clip(candidate.commit.subject, 60)}",
+        *render_features("score", candidate.features, candidate.score),
+        *render_features("difficulty", level.features, level.value),
+    ]
     return "\n".join(rows)

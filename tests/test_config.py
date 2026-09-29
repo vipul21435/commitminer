@@ -14,6 +14,7 @@ from commitminer.config import (
     load_config,
     parse_config,
 )
+from commitminer.settings import DifficultyWeights, Settings, Weights
 
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "classify" / CONFIG_NAME
 
@@ -140,3 +141,58 @@ def test_find_config(tmp_path: Path) -> None:
     other.mkdir()
     (other / CONFIG_NAME).write_text("", encoding="utf-8")
     assert find_config(other) == other / CONFIG_NAME
+
+
+# --- scoring settings ---------------------------------------------------------------
+
+
+def test_scoring_settings_are_read_and_command_line_values_win() -> None:
+    config = parse_config(
+        {
+            "filter": {"max_lines": 250, "max_source_files": 3},
+            "score": {"assertions_cap": 2, "weights": {"linked_reference": 3, "fix_keyword": 0}},
+            "difficulty": {"hunks_cap": 6, "medium_at": 1.5, "hard_at": 4, "weights": {}},
+        },
+        Path("c.toml"),
+    )
+    settings = config.settings()
+    assert (settings.max_lines, settings.max_source_files, settings.assertions_cap) == (250, 3, 2)
+    assert (settings.hunks_cap, settings.medium_at, settings.hard_at) == (6, 1.5, 4)
+    assert settings.weights == Weights(linked_reference=3.0, fix_keyword=0.0)
+    assert settings.difficulty_weights == DifficultyWeights()
+    assert settings.test_lines_cap == Settings().test_lines_cap
+    assert config.describe().endswith(", 8 scoring settings")
+    assert config.tuned[:2] == ("filter.max_lines", "filter.max_source_files")
+    overridden = config.settings(max_lines=90, max_source_files=None, test_lines_cap=7)
+    assert (overridden.max_lines, overridden.max_source_files) == (90, 3)
+    assert overridden.test_lines_cap == 7
+
+
+def test_settings_carry_the_config_rules() -> None:
+    config = parse_config({"classify": {"rules": [rule()]}, "difficulty": {"lines_cap": 50}})
+    assert config.settings().rules[0].rule_id == "fixtures-dir"
+    assert config.describe().endswith(", 1 scoring setting")
+    assert Config().settings() == Settings()
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        ({"filter": []}, r"\[filter\] must be a table"),
+        ({"filter": {"max_line": 3}}, r"\[filter\]: unknown key 'max_line'"),
+        ({"filter": {"weights": {}}}, "unknown key 'weights'"),
+        ({"filter": {"max_lines": 2.5}}, "filter.max_lines: expected an integer"),
+        ({"filter": {"max_lines": True}}, "filter.max_lines: expected a number"),
+        ({"filter": {"max_lines": 0}}, "max_lines must be at least 1"),
+        ({"score": {"weights": []}}, r"\[score.weights\] must be a table"),
+        ({"score": {"weights": {"small": 1}}}, r"\[score.weights\]: unknown key 'small'"),
+        ({"score": {"weights": {"small_diff": "3"}}}, "small_diff: expected a number"),
+        ({"score": {"weights": {"small_diff": -1}}}, "weight small_diff must be"),
+        ({"difficulty": {"medium_at": 5, "hard_at": 3}}, "0 <= medium_at <= hard_at"),
+        ({"difficulty": {"hard_at": float("inf")}}, "hard_at: expected a finite number"),
+        ({"difficulty": {"weights": {"api": 1}}}, "unknown key 'api'"),
+    ],
+)
+def test_invalid_scoring_settings_are_rejected(data: dict[str, Any], message: str) -> None:
+    with pytest.raises(ConfigError, match=message):
+        parse_config(data)

@@ -34,12 +34,25 @@ def test_demo_ranking_is_pinned() -> None:
     _, commits = read_history(EXAMPLE / "history.jsonl.gz")
     result = mine(commits)
     assert result.walked == 312
-    assert len(result.candidates) == 47
+    assert len(result.candidates) == 44
     assert result.rejected_by_reason() == {
-        "no-source": 142,
+        "docs-only": 42,
+        "no-source": 100,
         "source-unchanged": 1,
-        "no-test": 118,
-        "too-large": 4,
+        "source-cosmetic": 6,
+        "no-test": 115,
+        "oversize": 4,
     }
-    top = [(c.commit.sha[:10], c.score) for c in result.candidates[:3]]
-    assert top == [("2a2aa62f1b", 7.55), ("948211d852", 7.4375), ("5ab9ec926d", 7.16)]
+    assert result.bands() == {"easy": 15, "medium": 17, "hard": 12}
+    top = [
+        (c.commit.sha[:10], c.score, c.difficulty.value, c.difficulty.band)
+        for c in result.candidates[:3]
+    ]
+    assert top == [
+        ("5ab9ec926d", 6.885, 4.74, "hard"),
+        ("948211d852", 6.6375, 3.42, "medium"),
+        ("8b962e1349", 6.565, 0.74, "easy"),
+    ]
+    # Ranked 5th before patches were read: it only adds "# pragma: no cover" comments.
+    cosmetic = {r.commit.sha[:10] for r in result.rejections if r.reason == "source-cosmetic"}
+    assert "27be26fa4d" in cosmetic

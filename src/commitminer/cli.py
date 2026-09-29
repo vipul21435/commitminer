@@ -21,7 +21,7 @@ from commitminer.ruletable import (
     render_verdicts,
     verdict_to_json,
 )
-from commitminer.scoring import Settings, mine
+from commitminer.scoring import mine
 
 app = typer.Typer(
     name="commitminer",
@@ -106,12 +106,32 @@ def mine_command(
     rev: RevOption = "HEAD",
     max_count: MaxCountOption = None,
     max_lines: Annotated[
-        int, typer.Option("--max-lines", min=1, help="Largest source+test diff to accept.")
-    ] = 400,
+        int | None,
+        typer.Option(
+            "--max-lines",
+            min=1,
+            help="Largest source+test diff to accept [default: commitminer.toml, else 400].",
+            show_default=False,
+        ),
+    ] = None,
+    max_source_files: Annotated[
+        int | None,
+        typer.Option(
+            "--max-source-files",
+            min=1,
+            help="Most source files a commit may change [default: commitminer.toml, else 10].",
+            show_default=False,
+        ),
+    ] = None,
     test_lines_cap: Annotated[
-        int,
-        typer.Option("--test-lines-cap", min=1, help="Added test lines for a full test score."),
-    ] = 40,
+        int | None,
+        typer.Option(
+            "--test-lines-cap",
+            min=1,
+            help="Added test lines for a full test score [default: commitminer.toml, else 40].",
+            show_default=False,
+        ),
+    ] = None,
     top: Annotated[int, typer.Option("--top", min=0, help="Rows to print in the table.")] = 10,
     explain: Annotated[
         int, typer.Option("--explain", min=0, help="Print the score breakdown of the best N.")
@@ -141,8 +161,8 @@ def mine_command(
         raise _fail(str(exc)) from exc
     if history is not None and max_count is not None:
         commits = commits[:max_count]
-    settings = Settings(
-        max_lines=max_lines, test_lines_cap=test_lines_cap, rules=settings_config.rules
+    settings = settings_config.settings(
+        max_lines=max_lines, max_source_files=max_source_files, test_lines_cap=test_lines_cap
     )
     result = mine(commits, settings)
     if settings_config.path is not None:

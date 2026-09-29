@@ -62,7 +62,8 @@ def test_mine_a_clone_prints_summary_table_and_breakdown(
     assert result.exit_code == 0, result.output
     text = result.stdout
     assert text.startswith(
-        "repo: walked 4 commits, 1 candidates, 3 rejected (no-source 1, no-test 1, too-large 1)"
+        "repo: walked 4 commits, 1 candidates (easy 1), 3 rejected "
+        "(docs-only 1, no-test 1, oversize 1)"
     )
     assert "Fix off-by-one in core (fixes #4)" in text
     assert "linked_reference" in text
@@ -136,3 +137,17 @@ def test_record_reports_bad_revisions(small_repo: GitRepo, tmp_path: Path) -> No
     assert result.exit_code == 1
     assert "error: git exited with" in result.output
     assert not (tmp_path / "x.jsonl").exists()
+
+
+def test_mine_reads_limits_from_the_config_and_the_command_line_wins(small_repo: GitRepo) -> None:
+    (small_repo.root / "commitminer.toml").write_text("[filter]\nmax_lines = 1000\n")
+    result = runner.invoke(app, ["mine", str(small_repo.root), "--explain", "0"])
+    assert result.exit_code == 0, result.output
+    lines_out = result.stdout.splitlines()
+    assert lines_out[0].endswith("0 built-in rules disabled, 1 scoring setting")
+    assert "2 candidates" in lines_out[1]
+    flag = runner.invoke(
+        app,
+        ["mine", str(small_repo.root), "--max-lines", "400", "--max-source-files", "1"],
+    )
+    assert "1 candidates" in flag.stdout.splitlines()[1]
