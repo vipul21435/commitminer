@@ -25,6 +25,8 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-install-project
 COPY README.md LICENSE ./
 COPY src ./src
+# The recorded demo history, so the image can run the demo offline.
+COPY examples ./examples
 RUN uv sync --locked --no-dev --no-editable \
  && useradd --create-home --uid 10001 commitminer
 
