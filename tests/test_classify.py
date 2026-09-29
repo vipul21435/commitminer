@@ -20,7 +20,6 @@ from commitminer.classify import (
     Rule,
     Target,
     classify,
-    glob_regex,
     match,
 )
 from commitminer.signals import detect_path
@@ -562,44 +561,11 @@ def test_signals_only_count_for_their_languages() -> None:
 def test_target_normalises_paths() -> None:
     target = Target.of(".\\src/./pkg\\mod.py", ["x"])
     assert target.path == "src/./pkg/mod.py"
+    assert target.parts == ("src", ".", "pkg", "mod.py")
     assert target.directories == ("src", ".", "pkg")
     assert target.name == "mod.py"
     assert target.signals == frozenset({"x"})
     assert Target.of("././a.go").path == "a.go"
-
-
-@pytest.mark.parametrize(
-    ("pattern", "text", "expected"),
-    [
-        ("**/src/test/**", "src/test/java/A.java", True),
-        ("**/src/test/**", "mod/src/test/r.json", True),
-        ("**/src/test/**", "src/tests/A.java", False),
-        ("*.py", "pkg/a.py", False),
-        ("*.py", "a.py", True),
-        ("a?c", "abc", True),
-        ("a?c", "a/c", False),
-        ("*.{js,ts}", "a.ts", True),
-        ("*.{js,ts}", "a.tsx", False),
-        ("deno.json{,c}", "deno.json", True),
-        ("deno.json{,c}", "deno.jsonc", True),
-        ("Test[A-Z]*", "TestX", True),
-        ("Test[!A-Z]*", "TestX", False),
-        ("Test[!A-Z]*", "Test_x", True),
-        ("[^a]", "^", True),
-        ("[^a]", "b", False),
-        ("[a\\]", "\\", True),
-        ("a[", "a[", True),
-        ("a{b", "a{b", True),
-        ("a.b", "axb", False),
-    ],
-)
-def test_glob_regex(pattern: str, text: str, expected: bool) -> None:
-    assert (glob_regex(pattern, case_sensitive=True).fullmatch(text) is not None) is expected
-
-
-def test_glob_case_sensitivity() -> None:
-    assert glob_regex("*Test.java").fullmatch("latest.java") is not None
-    assert glob_regex("*Test.java", case_sensitive=True).fullmatch("latest.java") is None
 
 
 @pytest.mark.parametrize(
@@ -611,6 +577,12 @@ def test_glob_case_sensitivity() -> None:
         ({"patterns": ("",)}, "at least one"),
         ({"kind": "signal", "patterns": ("nope",)}, "unknown signal"),
         ({"rationale": " "}, "needs a rationale"),
+        ({"patterns": ("[z-a]*.json",)}, "rule ok: '.*': empty character range z-a"),
+        ({"patterns": ("src/fixtures",)}, "cannot contain '/'"),
+        ({"kind": "name", "patterns": ("data/*.json",)}, "cannot contain '/'"),
+        ({"kind": "path", "patterns": ("/src/**",)}, "relative to the root"),
+        ({"kind": "path", "patterns": ("src//x",)}, "empty path segment"),
+        ({"patterns": ("a\\b",)}, "backslash"),
     ],
 )
 def test_rule_validation(kwargs: dict[str, object], message: str) -> None:
@@ -624,3 +596,13 @@ def test_rule_validation(kwargs: dict[str, object], message: str) -> None:
     fields.update(kwargs)
     with pytest.raises(ValueError, match=message):
         Rule(**fields)  # type: ignore[arg-type]
+
+
+def test_path_rules_match_whole_components() -> None:
+    rule = Rule("gen", Category.GENERATED, "path", ("gen/**", "**/api/*.json"), "why")
+    assert rule.matches(Target.of("gen/a/b.go"))
+    assert rule.matches(Target.of("x/y/api/v1.json"))
+    assert rule.matches(Target.of("api/v1.json"))
+    assert not rule.matches(Target.of("gen"))
+    assert not rule.matches(Target.of("generated/a.go"))
+    assert not rule.matches(Target.of("api/v1/x.json"))

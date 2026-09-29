@@ -151,3 +151,16 @@ def test_mine_reads_limits_from_the_config_and_the_command_line_wins(small_repo:
         ["mine", str(small_repo.root), "--max-lines", "400", "--max-source-files", "1"],
     )
     assert "1 candidates" in flag.stdout.splitlines()[1]
+
+
+def test_a_bad_glob_in_the_mined_clone_config_stops_before_walking(small_repo: GitRepo) -> None:
+    # A regex compiled lazily used to crash with a traceback after the whole walk.
+    (small_repo.root / "commitminer.toml").write_text(
+        '[[classify.rules]]\nid = "fx"\ncategory = "test"\npaths = ["**/**/**/**/x", "a//b"]\n'
+        'rationale = "r"\n'
+    )
+    result = runner.invoke(app, ["mine", str(small_repo.root)])
+    assert result.exit_code == 1
+    assert "Traceback" not in result.output
+    assert "rule fx: 'a//b': empty path segment" in result.stderr
+    assert result.stdout == ""

@@ -107,6 +107,15 @@ def test_describe() -> None:
         ({"classify": {"rules": [rule(case_sensitive="yes")]}}, "must be true or false"),
         ({"classify": {"rules": [rule(glob=["x"])]}}, "unknown key 'glob'"),
         ({"classify": {"rules": [rule(), rule()]}}, "duplicate rule id 'fixtures-dir'"),
+        # Globs are checked when the file loads, not when a path is first matched.
+        ({"classify": {"rules": [rule(dirs=["[z-a]*"])]}}, "empty character range z-a"),
+        ({"classify": {"rules": [rule(dirs=["src/fixtures"])]}}, "cannot contain '/'"),
+        (
+            {"classify": {"rules": [rule(dirs=None, names=["data/*.json"])]}},
+            "cannot contain '/'",
+        ),
+        ({"classify": {"rules": [rule(dirs=None, paths=["/gen/**"])]}}, "leading or trailing"),
+        ({"classify": {"rules": [rule(dirs=["{" + "a," * 300 + "b}"])]}}, "alternatives"),
     ],
 )
 def test_invalid_configs_are_rejected(data: dict[str, Any], message: str) -> None:

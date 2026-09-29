@@ -232,3 +232,18 @@ def test_mine_a_rust_repository_with_inline_tests(git_repo: GitRepo, tmp_path: P
     assert best["inline_test_files"] == ["src/lib.rs"]
     paths = runner.invoke(app, ["mine", str(git_repo.root), "--no-content", "--explain", "0"])
     assert paths.stdout.splitlines()[0].endswith("0 candidates, 2 rejected (no-test 2)")
+
+
+def test_a_bad_glob_in_the_config_is_a_plain_error(tmp_path: Path) -> None:
+    (tmp_path / "commitminer.toml").write_text(
+        '[[classify.rules]]\nid = "fx"\ncategory = "test"\nnames = ["[z-a]*.json"]\n'
+        'rationale = "typo"\n',
+        encoding="utf-8",
+    )
+    for args in (["classify", "a.json"], ["rules"]):
+        result = runner.invoke(app, [*args, "--root", str(tmp_path)])
+        assert result.exit_code == 1
+        assert "Traceback" not in result.output
+        assert "classify.rules[0]: rule fx: '[z-a]*.json': empty character range z-a" in (
+            result.stderr
+        )

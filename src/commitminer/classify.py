@@ -14,8 +14,10 @@ Matchers (``kind``):
 - ``signal``: the file carries one of the named content signals
   (see :mod:`commitminer.signals`).
 
-Globs support ``*``, ``?``, ``[...]`` and ``{a,b}``; ``*`` never crosses a
-``/``. Matching is case-insensitive unless a rule sets ``case_sensitive``.
+Globs support ``*``, ``?``, ``[...]``, ``{a,b}`` and whole-segment ``**``
+(see :mod:`commitminer.globs`); ``*`` never crosses a ``/``. Patterns are
+checked when a rule is built, so one that could never match is an error.
+Matching is case-insensitive unless a rule sets ``case_sensitive``.
 ``languages`` restricts a rule to files of those languages (by extension); an
 empty tuple means every file. Paths use ``/``; a ``\\`` is read as ``/``.
 
@@ -29,13 +31,13 @@ file names such as README or LICENSE (after source, so a module named
 
 from __future__ import annotations
 
-import functools
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Final, Literal, get_args
 
+from commitminer.globs import GlobError, check_pattern, component_regex, path_glob
 from commitminer.languages import Language, language_of
 from commitminer.signals import GENERATED_HEADER, MINIFIED, RUST_INLINE_TESTS, SIGNALS
 
@@ -58,52 +60,12 @@ RULE_KINDS: Final[tuple[str, ...]] = get_args(RuleKind)
 _RULE_ID = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 
 
-def _translate(pattern: str) -> str:
-    out: list[str] = []
-    i = 0
-    while i < len(pattern):
-        char = pattern[i]
-        if pattern.startswith("**/", i):
-            out.append("(?:.*/)?")
-            i += 3
-        elif pattern.startswith("**", i):
-            out.append(".*")
-            i += 2
-        elif char == "*":
-            out.append("[^/]*")
-            i += 1
-        elif char == "?":
-            out.append("[^/]")
-            i += 1
-        elif char == "[" and (end := pattern.find("]", i + 2)) != -1:
-            body = pattern[i + 1 : end]
-            negate = body.startswith("!")
-            body = (body[1:] if negate else body).replace("\\", "\\\\")
-            if body.startswith("^"):
-                body = "\\" + body  # a literal caret, as in fnmatch
-            out.append(("[^" if negate else "[") + body + "]")
-            i = end + 1
-        elif char == "{" and (end := pattern.find("}", i + 1)) != -1:
-            options = pattern[i + 1 : end].split(",")
-            out.append("(?:" + "|".join(_translate(option) for option in options) + ")")
-            i = end + 1
-        else:
-            out.append(re.escape(char))
-            i += 1
-    return "".join(out)
-
-
-@functools.cache
-def glob_regex(pattern: str, case_sensitive: bool = False) -> re.Pattern[str]:
-    """Compile a glob (``*``, ``**``, ``?``, ``[...]``, ``{a,b}``) to a full-match regex."""
-    return re.compile(_translate(pattern), 0 if case_sensitive else re.IGNORECASE)
-
-
 @dataclass(frozen=True, slots=True)
 class Target:
     """A path prepared for matching: its parts, language and content signals."""
 
     path: str
+    parts: tuple[str, ...]
     directories: tuple[str, ...]
     name: str
     language: Language | None
@@ -115,8 +77,8 @@ class Target:
         normal = path.replace("\\", "/")
         while normal.startswith("./"):
             normal = normal[2:]
-        parts = normal.split("/")
-        return cls(normal, tuple(parts[:-1]), parts[-1], language_of(normal), frozenset(signals))
+        parts = tuple(normal.split("/"))
+        return cls(normal, parts, parts[:-1], parts[-1], language_of(normal), frozenset(signals))
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,12 +104,18 @@ class Rule:
             unknown = sorted(set(self.patterns) - SIGNALS.keys())
             if unknown:
                 raise ValueError(f"rule {self.rule_id}: unknown signal {unknown[0]!r}")
+        else:
+            try:
+                for pattern in self.patterns:
+                    check_pattern(pattern, "path" if self.kind == "path" else "component")
+            except GlobError as exc:
+                raise ValueError(f"rule {self.rule_id}: {exc}") from None
         if not self.rationale.strip():
             raise ValueError(f"rule {self.rule_id}: needs a rationale")
 
-    def _glob(self, text: str) -> bool:
+    def _component(self, text: str) -> bool:
         return any(
-            glob_regex(pattern, self.case_sensitive).fullmatch(text) for pattern in self.patterns
+            component_regex(pattern, self.case_sensitive).match(text) for pattern in self.patterns
         )
 
     def matches(self, target: Target) -> bool:
@@ -155,11 +123,14 @@ class Rule:
         if self.languages and target.language not in self.languages:
             return False
         if self.kind == "dir":
-            return any(self._glob(part) for part in target.directories)
+            return any(self._component(part) for part in target.directories)
         if self.kind == "name":
-            return self._glob(target.name)
+            return self._component(target.name)
         if self.kind == "path":
-            return self._glob(target.path)
+            return any(
+                path_glob(pattern, self.case_sensitive).match(target.parts)
+                for pattern in self.patterns
+            )
         return any(signal in target.signals for signal in self.patterns)
 
     @property

@@ -38,7 +38,9 @@ optional; see :class:`~commitminer.settings.Settings` for the defaults)::
     [difficulty.weights]               # files, hunks, lines, cross_file, public_api
     public_api = 2.0
 
-Unknown tables and keys are errors, so a typo cannot silently do nothing.
+Unknown tables and keys are errors, and so are glob patterns that could never
+match (see :func:`commitminer.globs.check_pattern`), so a typo cannot silently
+do nothing and a bad pattern fails when the file loads, not in the middle of a walk.
 """
 
 from __future__ import annotations
