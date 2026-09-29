@@ -3,6 +3,7 @@ base     48a5388aae7a1d49f3a7b87240c01f69346fb0a6
 date     2024-01-01T03:00:00+00:00
 subject  Parse negative numbers in any base (#31)
 verdict  candidate: score 5.13 of 10, difficulty 2.94 of 10 (medium)
+patch    fingerprint 908dcabdfff239c9 (5 source and test hunks)
 
   files
     category  rule               added   del hunks  code tests asserts  path

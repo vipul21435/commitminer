@@ -103,6 +103,13 @@ def render_commit(outcome: Candidate | Rejection, settings: Settings) -> str:
         f"verdict  candidate: score {outcome.score:.2f} of 10, "
         f"difficulty {level.value:.2f} of 10 ({level.band})"
     )
+    printed = outcome.fingerprint
+    rows.append(
+        "patch    fingerprint unknown (no hunk hashes)"
+        if printed is None
+        else f"patch    fingerprint {printed.patch} ({len(printed.hunks)} source and test "
+        f"hunk{'' if len(printed.hunks) == 1 else 's'})"
+    )
     rows += ["", *render_files(outcome.stats), ""]
     rows += render_features("score (ranks candidates)", outcome.features, outcome.score)
     rows.append("")

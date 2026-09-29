@@ -7,15 +7,19 @@ from pathlib import Path
 from typing import Any
 
 from commitminer.classify import Category
+from commitminer.fingerprint import FINGERPRINT_VERSION, Fingerprint
 from commitminer.models import PatchStats
 from commitminer.scoring import Candidate, Feature, MineResult
 from commitminer.stats import ClassifiedFile
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 """Version of the per-candidate JSON object; bumped on incompatible changes.
 
 2: ``added_assertions`` score feature, ``difficulty``, per-file ``patch``, and
 inline Rust test lines counted as test lines in ``lines``.
+3: ``fingerprint`` (version, patch hash and sorted hunk hashes of the source
+and test changes, or ``null``) and ``ledger`` (the dedupe verdict when mined
+with ``--ledger``, else ``null``).
 """
 
 
@@ -30,7 +34,7 @@ def _feature_to_json(feature: Feature) -> dict[str, Any]:
 
 
 def patch_to_json(patch: PatchStats) -> dict[str, Any]:
-    """Every patch measurement of one file, with nothing left out."""
+    """Every patch measurement of one file (its hunk hashes are in the fingerprint)."""
     return {
         "hunks": patch.hunks,
         "code_hunks": patch.code_hunks,
@@ -59,6 +63,13 @@ def file_to_json(item: ClassifiedFile) -> dict[str, Any]:
     if item.change.patch is not None:
         record["patch"] = patch_to_json(item.change.patch)
     return record
+
+
+def fingerprint_to_json(value: Fingerprint | None) -> dict[str, Any] | None:
+    """The fingerprint object of the export, or ``None``."""
+    if value is None:
+        return None
+    return {"version": FINGERPRINT_VERSION, "patch": value.patch, "hunks": list(value.hunks)}
 
 
 def candidate_to_json(candidate: Candidate, rank: int | None, repo: str) -> dict[str, Any]:
@@ -91,6 +102,8 @@ def candidate_to_json(candidate: Candidate, rank: int | None, repo: str) -> dict
         "test_files": [f.change.path for f in stats.test_files],
         "inline_test_files": [f.change.path for f in stats.inline_test_files],
         "files": [file_to_json(item) for item in stats.files],
+        "fingerprint": fingerprint_to_json(candidate.fingerprint),
+        "ledger": None,
     }
 
 

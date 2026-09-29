@@ -126,7 +126,16 @@
       "rule": "test-dir"
     }
   ],
+  "fingerprint": {
+    "hunks": [
+      "30832d8c0db72176",
+      "7e9169fabb29f193"
+    ],
+    "patch": "7e2edf63c86e5d05",
+    "version": 1
+  },
   "inline_test_files": [],
+  "ledger": null,
   "lines": {
     "changed": 9,
     "source_added": 3,
@@ -139,7 +148,7 @@
   ],
   "rank": null,
   "repo": "calc",
-  "schema_version": 2,
+  "schema_version": 3,
   "score": 7.5825,
   "sha": "ee901400752f14af77c85e0ddf24b3a0f2ae3b3e",
   "source_files": [

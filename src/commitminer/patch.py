@@ -22,6 +22,8 @@ for a header.
 - **Public API**: declarations in changed code lines that are visible outside
   the module: top-level ``def``/``class`` without a leading underscore, ``pub``
   items, exported Go identifiers, ``export``, ``public``.
+- **Hunk hashes**: one whitespace- and position-insensitive hash per hunk that
+  changes more than whitespace, for dedupe (see :mod:`commitminer.fingerprint`).
 
 Everything is line based; nothing is parsed into a syntax tree, so the rules
 are heuristics with known gaps (see the README's Known issues).
@@ -35,6 +37,7 @@ from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from typing import Final
 
+from commitminer.fingerprint import hunk_hash
 from commitminer.languages import Language
 from commitminer.models import PatchStats
 
@@ -330,10 +333,11 @@ def analyze(
     old_regions: Sequence[Region] = (),
 ) -> PatchStats:
     """Measure one file's patch; ``*_regions`` are inline test modules in each version."""
+    hashes = tuple(h for hunk in patch.hunks if (h := hunk_hash(hunk.deleted, hunk.added)))
     syntax = SYNTAX.get(language) if language is not None else None
     if syntax is None:
         count = len(patch.hunks)
-        return PatchStats(count, count, patch.added, patch.deleted)
+        return PatchStats(count, count, patch.added, patch.deleted, hunk_hashes=hashes)
     code_hunks = code_added = code_deleted = test_added = test_deleted = asserts = 0
     api: set[str] = set()
     tests_only = bool(new_regions or old_regions)
@@ -368,6 +372,7 @@ def analyze(
         test_deleted=test_deleted,
         asserts=asserts,
         api=tuple(sorted(api)[:MAX_API_NAMES]),
+        hunk_hashes=hashes,
     )
 
 

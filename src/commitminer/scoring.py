@@ -27,6 +27,7 @@ from datetime import datetime
 
 from commitminer.classify import Category
 from commitminer.filters import RejectReason, check
+from commitminer.fingerprint import Fingerprint, fingerprint
 from commitminer.models import Commit
 from commitminer.settings import Settings
 from commitminer.stats import DiffStats, diff_stats
@@ -56,13 +57,17 @@ class Difficulty:
 
 @dataclass(frozen=True, slots=True)
 class Candidate:
-    """A commit that passed the filter, with its score and difficulty breakdowns."""
+    """A commit that passed the filter, with its score and difficulty breakdowns.
+
+    ``fingerprint`` identifies the fix for dedupe (``None`` without hunk hashes).
+    """
 
     commit: Commit
     stats: DiffStats
     features: tuple[Feature, ...]
     score: float
     difficulty: Difficulty
+    fingerprint: Fingerprint | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -234,7 +239,7 @@ def evaluate(commit: Commit, settings: Settings) -> Candidate | Rejection:
         return Rejection(commit, reason, stats)
     feats = features(commit, stats, settings)
     score = round(sum(f.contribution for f in feats), 4)
-    return Candidate(commit, stats, feats, score, difficulty(stats, settings))
+    return Candidate(commit, stats, feats, score, difficulty(stats, settings), fingerprint(stats))
 
 
 def _rank_key(candidate: Candidate) -> tuple[float, float, str]:

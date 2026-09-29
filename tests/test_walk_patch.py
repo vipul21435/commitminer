@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from commitminer.gitlog import walk
 from commitminer.models import PatchStats
-from gitrepo import GitRepo, lines
+from gitrepo import GitRepo, lines, unhashed
 from test_blobs import LIB_V1, LIB_V2
 
 CORE = "import re\n\n\ndef load(fp):\n    return fp.read()\n"
@@ -17,12 +17,12 @@ def test_walk_measures_code_comments_api_and_inline_tests(git_repo: GitRepo) -> 
     git_repo.commit("api", {"src/pkg/core.py": pragma_core.replace("(fp)", "(fp, strict=False)")})
     git_repo.commit("rust fix with a test", {"src/lib.rs": LIB_V2})
     rust, api, pragma, _ = walk(git_repo.root)
-    assert pragma.files[0].patch == PatchStats(1, 0, 0, 0)
-    assert api.files[0].patch == PatchStats(1, 1, 1, 1, api=("def load",))
-    assert rust.files[0].patch == PatchStats(2, 1, 1, 1, test_added=5, asserts=1)
+    assert unhashed(pragma.files[0].patch) == PatchStats(1, 0, 0, 0)
+    assert unhashed(api.files[0].patch) == PatchStats(1, 1, 1, 1, api=("def load",))
+    assert unhashed(rust.files[0].patch) == PatchStats(2, 1, 1, 1, test_added=5, asserts=1)
     # Without file contents the test module cannot be found: every line is code.
     (rust_no_content, *_) = walk(git_repo.root, content=False)
-    assert rust_no_content.files[0].patch == PatchStats(2, 2, 5, 1, asserts=1)
+    assert unhashed(rust_no_content.files[0].patch) == PatchStats(2, 2, 5, 1, asserts=1)
 
 
 def test_walk_ignores_repository_diff_settings(git_repo: GitRepo) -> None:
@@ -37,7 +37,7 @@ def test_walk_ignores_repository_diff_settings(git_repo: GitRepo) -> None:
     ]:
         git_repo.git("config", key, value)
     edit, _ = walk(git_repo.root)
-    assert edit.files[0].patch == PatchStats(2, 2, 2, 2)
+    assert unhashed(edit.files[0].patch) == PatchStats(2, 2, 2, 2)
 
 
 def test_walk_measures_deleted_rust_test_modules(git_repo: GitRepo) -> None:
@@ -45,4 +45,4 @@ def test_walk_measures_deleted_rust_test_modules(git_repo: GitRepo) -> None:
     without_tests = LIB_V1.split("#[cfg(test)]")[0]
     git_repo.commit("drop the tests", {"src/lib.rs": without_tests})
     drop, _ = walk(git_repo.root)
-    assert drop.files[0].patch == PatchStats(1, 0, 0, 0, test_deleted=7)
+    assert unhashed(drop.files[0].patch) == PatchStats(1, 0, 0, 0, test_deleted=7)

@@ -34,6 +34,8 @@ SAMPLE = Commit(
             patch=PatchStats(3, 2, 5, 3, test_added=1, test_deleted=1, asserts=2, api=("def a",)),
         ),
         FileChange("tests/data/case.toml", 4, 0, patch=PatchStats(1, 1, 4, 0)),
+        FileChange("tests/test_api.py", 2, 0, patch=PatchStats(1, 1, 2, 0, hunk_hashes=("f1",))),
+        FileChange("src/pkg/ws.py", 1, 1, patch=PatchStats(1, 0, 0, 0, hunk_hashes=())),
     ),
 )
 
@@ -188,6 +190,8 @@ def test_signals_are_recorded_only_when_present(tmp_path: Path) -> None:
         ["rust-inline-tests", "rust-tests-added"],
         None,
         None,
+        None,
+        None,
     ]
 
 
@@ -197,7 +201,7 @@ def test_patch_fields_are_recorded_only_when_they_differ_from_the_defaults(
     path = tmp_path / "h.jsonl"
     write_history(path, [SAMPLE], repo="r")
     record = json.loads(path.read_text(encoding="ascii").splitlines()[1])
-    assert [f.get("patch") for f in record["files"][-2:]] == [
+    assert [f.get("patch") for f in record["files"][-4:-2]] == [
         {
             "hunks": 3,
             "code_hunks": 2,
@@ -208,6 +212,13 @@ def test_patch_fields_are_recorded_only_when_they_differ_from_the_defaults(
             "api": ["def a"],
         },
         {"hunks": 1},
+    ]
+    # Hunk hashes are always written once computed: absent means "not computed".
+    assert [f["patch"].get("hunk_hashes") for f in record["files"][-4:]] == [
+        None,
+        None,
+        ["f1"],
+        [],
     ]
 
 
@@ -231,6 +242,8 @@ def _with_patch(patch: object, added: int | None = 1) -> dict[str, object]:
         (_with_patch({"hunks": 1, "api": [1]}), r"patch.api: expected a string"),
         (_with_patch({}), r"patch.hunks: required"),
         (_with_patch({"hunks": 1, "asserts": -1}), r"patch.asserts: expected a non-negative"),
+        (_with_patch({"hunks": 1, "hunk_hashes": "ab"}), r"patch.hunk_hashes: expected a list"),
+        (_with_patch({"hunks": 1, "hunk_hashes": [1]}), r"hunk_hashes: expected a string"),
     ],
 )
 def test_patch_records_are_validated(record: object, message: str) -> None:

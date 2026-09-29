@@ -316,7 +316,8 @@ def test_render_commit_without_patch_data_with_binaries_and_renames() -> None:
     settings = Settings()
     rows = render_commit(evaluate(commit, settings), settings).splitlines()
     assert rows[1] == "base     (root commit)"
-    assert rows[8].split() == [
+    assert rows[5] == "patch    fingerprint unknown (no hunk hashes)"
+    assert rows[9].split() == [
         "source",
         "py-source",
         "3",
@@ -329,9 +330,9 @@ def test_render_commit_without_patch_data_with_binaries_and_renames() -> None:
         "->",
         "src/pkg/img.py",
     ]
-    assert rows[9].split()[2:8] == ["-", "-", "-", "-", "-", "-"]
+    assert rows[10].split()[2:8] == ["-", "-", "-", "-", "-", "-"]
     docs = Commit("b" * 40, (), commit.date, "Docs\n", (FileChange("README.md", 1, 0),))
     record = explain_json(evaluate(docs, settings), settings, "r")
     assert record["reason"] == "docs-only"
     assert "reason_detail" not in record
-    assert record["schema_version"] == 2
+    assert record["schema_version"] == 3

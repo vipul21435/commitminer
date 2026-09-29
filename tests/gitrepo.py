@@ -5,7 +5,10 @@ from __future__ import annotations
 import os
 import subprocess
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
+
+from commitminer.models import FileChange, PatchStats
 
 
 class GitRepo:
@@ -74,3 +77,12 @@ class GitRepo:
 def lines(count: int, prefix: str = "line") -> str:
     """``count`` distinct lines of text."""
     return "".join(f"{prefix} {n}\n" for n in range(count))
+
+
+def unhashed[T: (PatchStats, FileChange, None)](value: T) -> T:
+    """``value`` with its hunk hashes cleared, to compare the other measurements."""
+    if isinstance(value, PatchStats):
+        return replace(value, hunk_hashes=None)
+    if isinstance(value, FileChange) and value.patch is not None:
+        return replace(value, patch=replace(value.patch, hunk_hashes=None))
+    return value

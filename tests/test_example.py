@@ -56,3 +56,12 @@ def test_demo_ranking_is_pinned() -> None:
     # Ranked 5th before patches were read: it only adds "# pragma: no cover" comments.
     cosmetic = {r.commit.sha[:10] for r in result.rejections if r.reason == "source-cosmetic"}
     assert "27be26fa4d" in cosmetic
+
+
+def test_every_demo_candidate_has_a_fingerprint() -> None:
+    _, commits = read_history(EXAMPLE / "history.jsonl.gz")
+    result = mine(commits)
+    prints = [c.fingerprint for c in result.candidates]
+    assert all(value is not None for value in prints)
+    # No two tomli candidates are the same fix.
+    assert len({value.patch for value in prints if value is not None}) == len(prints)

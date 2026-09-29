@@ -13,8 +13,10 @@ A file entry has ``path``, ``added``, ``deleted`` and, only when set,
 To keep recordings small, ``patch`` always has ``hunks`` but leaves out every
 other field that has its default: ``code_hunks`` equal to ``hunks``,
 ``code_added`` and ``code_deleted`` equal to the file's ``added`` and
-``deleted``, zero counts and an empty ``api``. Recordings made before patches
-were read have no ``patch`` and still load.
+``deleted``, zero counts and an empty ``api``. ``hunk_hashes`` is written
+whenever it was computed, even when empty, because its absence means "not
+computed". Recordings made before patches were read have no ``patch``, and
+those made before fingerprints have no ``hunk_hashes``; both still load.
 
 Replaying a recording yields the same :class:`~commitminer.models.Commit` objects
 as walking the clone, so everything after parsing runs the same code path.
@@ -74,6 +76,8 @@ def _patch_to_json(change: FileChange, patch: PatchStats) -> dict[str, Any]:
     }
     record: dict[str, Any] = {"hunks": patch.hunks}
     record.update((key, value) for key, value in values.items() if value != defaults[key])
+    if patch.hunk_hashes is not None:
+        record["hunk_hashes"] = list(patch.hunk_hashes)
     return record
 
 
@@ -119,7 +123,7 @@ def _string(value: Any, where: str) -> str:
 
 _PATCH_KEYS = frozenset(
     {"hunks", "code_hunks", "code_added", "code_deleted", "test_added", "test_deleted"}
-    | {"asserts", "api"}
+    | {"asserts", "api", "hunk_hashes"}
 )
 
 
@@ -141,6 +145,9 @@ def _patch_from_json(raw: Any, added: int | None, deleted: int | None, where: st
     api = raw.get("api", [])
     if not isinstance(api, list):
         raise HistoryError(f"{where}.api: expected a list")
+    hashes = raw.get("hunk_hashes")
+    if hashes is not None and not isinstance(hashes, list):
+        raise HistoryError(f"{where}.hunk_hashes: expected a list")
     hunks = _count(raw, "hunks", None, where)
     return PatchStats(
         hunks=hunks,
@@ -151,6 +158,9 @@ def _patch_from_json(raw: Any, added: int | None, deleted: int | None, where: st
         test_deleted=_count(raw, "test_deleted", 0, where),
         asserts=_count(raw, "asserts", 0, where),
         api=tuple(_string(name, f"{where}.api") for name in api),
+        hunk_hashes=None
+        if hashes is None
+        else tuple(_string(item, f"{where}.hunk_hashes") for item in hashes),
     )
 
 

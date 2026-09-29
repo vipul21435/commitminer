@@ -18,6 +18,7 @@ from commitminer.patch import (
     rust_test_regions,
     strip_comment,
 )
+from gitrepo import unhashed
 
 PY = SYNTAX[Language.PYTHON]
 RS = SYNTAX[Language.RUST]
@@ -200,14 +201,18 @@ def test_comment_only_hunks_are_not_code() -> None:
         Hunk(10, 10, ("    import re",), ("    import re  # pragma: no cover",)),
         Hunk(20, 20, (), ("    # explain the next line", "")),
     )
-    assert analyze(pragma, Language.PYTHON) == PatchStats(2, 0, 0, 0)
+    stats = analyze(pragma, Language.PYTHON)
+    assert unhashed(stats) == PatchStats(2, 0, 0, 0)
+    # A comment is not code, but it is text: a fingerprint still sees it.
+    assert stats.hunk_hashes is not None
+    assert len(stats.hunk_hashes) == 2
 
 
 def test_python_indentation_is_code_but_go_indentation_is_not() -> None:
     moved = patch(Hunk(5, 5, ("        return x",), ("    return x",)))
     assert analyze(moved, Language.PYTHON).code_hunks == 1
     reindented = patch(Hunk(5, 5, ("\treturn x",), ("\t\treturn x",)))
-    assert analyze(reindented, Language.GO) == PatchStats(1, 0, 0, 0)
+    assert analyze(reindented, Language.GO) == PatchStats(1, 0, 0, 0, hunk_hashes=())
 
 
 def test_code_lines_skip_blanks_and_comments_and_collect_api() -> None:
@@ -216,7 +221,7 @@ def test_code_lines_skip_blanks_and_comments_and_collect_api() -> None:
         Hunk(40, 42, (), ("def _helper():", "    return 1")),
     )
     stats = analyze(fix, Language.PYTHON)
-    assert stats == PatchStats(2, 2, 3, 1, api=("def load",))
+    assert unhashed(stats) == PatchStats(2, 2, 3, 1, api=("def load",))
     assert (stats.code_lines, stats.test_lines) == (4, 0)
 
 
@@ -265,7 +270,10 @@ def test_assertion_patterns(language: Language, line: str) -> None:
 
 def test_unknown_languages_count_every_line_as_code() -> None:
     data = patch(Hunk(0, 1, (), ("# heading", "")), Hunk(5, 7, ("x",), ()))
-    assert analyze(data, None) == PatchStats(2, 2, 2, 1)
+    stats = analyze(data, None)
+    assert unhashed(stats) == PatchStats(2, 2, 2, 1)
+    assert stats.hunk_hashes is not None
+    assert len(stats.hunk_hashes) == 2
 
 
 # --- Rust inline test modules -------------------------------------------------------
@@ -328,7 +336,7 @@ def test_inline_test_lines_are_split_from_code() -> None:
     )
     regions = rust_test_regions(LIB.encode())
     stats = analyze(fix, Language.RUST, regions, ((12, 17),))
-    assert stats == PatchStats(3, 2, 2, 1, test_added=4, asserts=1)
+    assert unhashed(stats) == PatchStats(3, 2, 2, 1, test_added=4, asserts=1)
 
 
 def test_assertions_outside_inline_test_modules_do_not_count_when_there_are_some() -> None:

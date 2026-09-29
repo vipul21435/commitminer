@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from commitminer import gitlog
+from commitminer.fingerprint import hunk_hash
 from commitminer.gitlog import (
     MARKER,
     GitError,
@@ -17,7 +18,7 @@ from commitminer.gitlog import (
     walk,
 )
 from commitminer.models import Commit, FileChange, PatchStats
-from gitrepo import GitRepo, lines
+from gitrepo import GitRepo, lines, unhashed
 
 
 def _header(sha: str, parents: str, message: str) -> bytes:
@@ -81,7 +82,10 @@ PATCH = b"diff --git a/a.py b/a.py\n@@ -1 +1,2 @@\n-x = 1\n+x = 2\n+assert x\n"
 def test_parse_patch_section_is_matched_to_numstat() -> None:
     data = _header("f" * 40, "", "fix\n") + b"\n2\t1\ta.py\0\0" + PATCH
     (commit,) = parse_log(data)
-    assert commit.files == (FileChange("a.py", 2, 1, patch=PatchStats(1, 1, 2, 1, asserts=1)),)
+    (change,) = commit.files
+    assert unhashed(change) == FileChange("a.py", 2, 1, patch=PatchStats(1, 1, 2, 1, asserts=1))
+    assert change.patch is not None
+    assert change.patch.hunk_hashes == (hunk_hash(["x = 1"], ["x = 2", "assert x"]),)
 
 
 @pytest.mark.parametrize(
@@ -188,16 +192,16 @@ def test_walk_edge_cases_in_a_real_repository(git_repo: GitRepo) -> None:
     assert commits[2].parents == (root,)
     assert commits[2].subject == "add files"
     assert commits[2].body == "With a body.\nSecond line."
-    assert set(commits[2].files) == {
+    assert {unhashed(f) for f in commits[2].files} == {
         FileChange("bin.dat", None, None),
         FileChange("caf\u00e9.py", 1, 0, patch=PatchStats(1, 1, 1, 0)),
         FileChange("my file.py", 6, 0, patch=PatchStats(1, 1, 6, 0)),
     }
-    assert commits[1].files == (
+    assert tuple(map(unhashed, commits[1].files)) == (
         FileChange("new name.py", 1, 0, old_path="my file.py", patch=PatchStats(1, 1, 1, 0)),
     )
     assert commits[0].message == ""
-    assert commits[0].files == (
+    assert tuple(map(unhashed, commits[0].files)) == (
         FileChange("tests/test_x.py", 1, 0, patch=PatchStats(1, 1, 1, 0, asserts=1)),
     )
     assert commits[0].date == "2024-01-01T03:00:00+00:00"

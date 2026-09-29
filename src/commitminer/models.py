@@ -17,6 +17,10 @@ class PatchStats:
     counts added assertion lines (only inside the inline test modules when the
     file has any). ``api`` names public declarations that the code hunks add,
     remove or change, such as ``def load`` or ``pub fn parse``.
+    ``hunk_hashes`` are the whitespace-, path- and line-number-insensitive
+    hashes of the hunks that change more than whitespace, in patch order (see
+    :mod:`commitminer.fingerprint`); ``None`` when they were not computed
+    (recordings made before fingerprints).
     """
 
     hunks: int
@@ -27,6 +31,7 @@ class PatchStats:
     test_deleted: int = 0
     asserts: int = 0
     api: tuple[str, ...] = ()
+    hunk_hashes: tuple[str, ...] | None = None
 
     @property
     def code_lines(self) -> int:
