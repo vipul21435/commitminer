@@ -144,3 +144,13 @@ def test_many_stars_in_one_component_match_in_linear_time() -> None:
     assert _elapsed(lambda: regex.match("a" * 5000)) < 0.5
     assert regex.match("a" * 5000) is None
     assert regex.match("a" * 30 + "b") is not None
+
+
+def test_plain_components_are_checked_first_in_the_right_case() -> None:
+    loose, strict = path_glob("**/SRC/test/**"), path_glob("**/SRC/test/**", case_sensitive=True)
+    assert loose.match_path("mod/src/TEST/a.java")
+    assert not strict.match_path("mod/src/test/a.java")
+    assert strict.match_path("mod/SRC/test/a.java")
+    # The precheck may be given the component set; a missing plain component skips matching.
+    assert not loose.match(("mod", "src", "a.java"), frozenset({"mod", "src", "a.java"}))
+    assert path_glob("café/**").match_path("CAFÉ/x")  # non-ASCII: no precheck

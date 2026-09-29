@@ -84,6 +84,8 @@ class Target:
 
     path: str
     parts: tuple[str, ...]
+    exact_parts: frozenset[str]
+    folded_parts: frozenset[str]
     directories: tuple[str, ...]
     name: str
     language: Language | None
@@ -99,6 +101,8 @@ class Target:
         return cls(
             normal,
             parts,
+            frozenset(parts),
+            frozenset(part.lower() for part in parts),
             layout_directories(parts),
             parts[-1],
             language_of(normal),
@@ -151,8 +155,10 @@ class Rule:
         )
 
     def _path(self, patterns: Iterable[str], target: Target) -> bool:
+        present = target.exact_parts if self.case_sensitive else target.folded_parts
         return any(
-            path_glob(pattern, self.case_sensitive).match(target.parts) for pattern in patterns
+            path_glob(pattern, self.case_sensitive).match(target.parts, present)
+            for pattern in patterns
         )
 
     def _positive(self, target: Target) -> bool:

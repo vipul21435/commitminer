@@ -140,6 +140,15 @@ _ANY: Final = re.compile(r"(?s:.*)\Z")
 Block = tuple[re.Pattern[str], ...]
 
 
+def _required(alternative: str, case_sensitive: bool) -> frozenset[str]:
+    """Plain ASCII components that any matching path must contain (a cheap first check)."""
+    return frozenset(
+        segment if case_sensitive else segment.lower()
+        for segment in alternative.split("/")
+        if segment != GLOBSTAR and segment.isascii() and not any(c in segment for c in "*?[")
+    )
+
+
 def _blocks(alternative: str, case_sensitive: bool) -> tuple[Block, ...]:
     """Split one brace-free pattern into blocks of component matchers between ``**``s."""
     segments: list[str] = []
@@ -181,14 +190,24 @@ def _match_blocks(blocks: tuple[Block, ...], parts: Sequence[str]) -> bool:
 
 @dataclass(frozen=True, slots=True)
 class PathGlob:
-    """A compiled path pattern: one tuple of blocks per ``{a,b}`` alternative."""
+    """A compiled path pattern: per ``{a,b}`` alternative, its blocks and plain components."""
 
     pattern: str
-    alternatives: tuple[tuple[Block, ...], ...]
+    case_sensitive: bool
+    alternatives: tuple[tuple[tuple[Block, ...], frozenset[str]], ...]
 
-    def match(self, parts: Sequence[str]) -> bool:
-        """True when the path split into ``parts`` (its ``/``-separated components) matches."""
-        return any(_match_blocks(blocks, parts) for blocks in self.alternatives)
+    def match(self, parts: Sequence[str], present: frozenset[str] | None = None) -> bool:
+        """True when the path split into ``parts`` (its ``/``-separated components) matches.
+
+        ``present`` may pass the set of components (lower-cased unless the
+        glob is case-sensitive) to skip alternatives that cannot match.
+        """
+        if present is None:
+            present = frozenset(parts if self.case_sensitive else (p.lower() for p in parts))
+        return any(
+            required <= present and _match_blocks(blocks, parts)
+            for blocks, required in self.alternatives
+        )
 
     def match_path(self, path: str) -> bool:
         """:meth:`match` for a ``/``-separated path."""
@@ -201,5 +220,9 @@ def path_glob(pattern: str, case_sensitive: bool = False) -> PathGlob:
     check_pattern(pattern, "path")
     return PathGlob(
         pattern,
-        tuple(_blocks(alternative, case_sensitive) for alternative in expand_braces(pattern)),
+        case_sensitive,
+        tuple(
+            (_blocks(alternative, case_sensitive), _required(alternative, case_sensitive))
+            for alternative in expand_braces(pattern)
+        ),
     )
