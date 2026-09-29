@@ -39,6 +39,8 @@ def as_candidate(outcome: Candidate | Rejection) -> Candidate:
     [
         ((), RejectReason.EMPTY),
         ((FileChange("README.md", 5, 1), TEST), RejectReason.NO_SOURCE),
+        ((FileChange("src/pkg/a.py", 0, 0, old_path="pkg/a.py"), TEST), "source-unchanged"),
+        ((FileChange("src/pkg/_ext.pyx", None, None), TEST), "source-unchanged"),
         ((SRC, FileChange("CHANGELOG.md", 3, 0)), RejectReason.NO_TEST),
         ((FileChange("src/pkg/a.py", 300, 1), FileChange("tests/t.py", 100, 0)), "too-large"),
     ],

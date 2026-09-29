@@ -25,6 +25,7 @@ class RejectReason(StrEnum):
 
     EMPTY = "empty"
     NO_SOURCE = "no-source"
+    SOURCE_UNCHANGED = "source-unchanged"
     NO_TEST = "no-test"
     TOO_LARGE = "too-large"
 
@@ -180,6 +181,9 @@ def check(stats: DiffStats, settings: Settings) -> RejectReason | None:
         return RejectReason.EMPTY
     if not stats.source_files:
         return RejectReason.NO_SOURCE
+    if not stats.added(Category.SOURCE) and not stats.deleted(Category.SOURCE):
+        # Pure renames, mode changes or binary files: nothing for a test to catch.
+        return RejectReason.SOURCE_UNCHANGED
     if not stats.test_files:
         return RejectReason.NO_TEST
     if stats.changed_lines > settings.max_lines:
