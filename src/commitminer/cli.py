@@ -69,7 +69,8 @@ ConfigOption = Annotated[
     Path | None,
     typer.Option(
         "--config",
-        help="Classifier overrides (default: commitminer.toml at the repository root).",
+        help="Classifier rules, limits, weights and bands "
+        "(default: commitminer.toml at the repository root).",
         show_default=False,
     ),
 ]
@@ -88,7 +89,7 @@ MaxLinesOption = Annotated[
     typer.Option(
         "--max-lines",
         min=1,
-        help="Largest source+test diff to accept [default: commitminer.toml, else 400].",
+        help="Largest source+test diff to accept (default: commitminer.toml, else 400).",
         show_default=False,
     ),
 ]
@@ -97,7 +98,7 @@ MaxSourceFilesOption = Annotated[
     typer.Option(
         "--max-source-files",
         min=1,
-        help="Most source files a commit may change [default: commitminer.toml, else 10].",
+        help="Most source files a commit may change (default: commitminer.toml, else 10).",
         show_default=False,
     ),
 ]
@@ -106,7 +107,7 @@ TestLinesCapOption = Annotated[
     typer.Option(
         "--test-lines-cap",
         min=1,
-        help="Added test lines for a full test score [default: commitminer.toml, else 40].",
+        help="Added test lines for a full test score (default: commitminer.toml, else 40).",
         show_default=False,
     ),
 ]
@@ -239,7 +240,7 @@ def explain_command(
     ],
     repo: Annotated[
         Path | None,
-        typer.Option("--repo", help="Local clone [default: the current directory]."),
+        typer.Option("--repo", help="Local clone (default: the current directory)."),
     ] = None,
     history: Annotated[
         Path | None,

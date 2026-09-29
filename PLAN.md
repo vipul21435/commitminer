@@ -94,6 +94,53 @@ Its output (JSONL) is the input for downstream environment builders.
 - Real-history check (live clones, not bundled): dtolnay/semver (Rust) went from 0 to 50
   candidates (18 with `--no-content`), spf13/pflag (Go) from 0 to 97.
 
+### Decisions made while building slice 2
+
+- One `git log` call carries numstat and the patch (`-p --unified=0`). The patch of a
+  commit is one NUL-free token after the numstat terminator; its file blocks come in
+  numstat order and are matched by position, with every block's +/- counts checked against
+  numstat (no mismatch on tomli, semver or pflag). The walker now streams the output
+  (Popen, 64 KiB reads, stderr to a temporary file, watchdog timer) instead of buffering it,
+  because patch text is about 20 times larger than numstat.
+- Patch shape is pinned on the command line (`--diff-algorithm=myers`,
+  `--inter-hunk-context=0`, `--indent-heuristic`): repository config such as
+  `diff.algorithm` or `diff.interHunkContext` would otherwise change hunk counts.
+- Recordings store measurements, not patch text (tomli's patch text is about 4.2 MB).
+  Fields equal to their defaults are left out; the tomli recording grew from 63697 to
+  67715 bytes. The recording format version stays 1: `patch` is optional and old
+  recordings load (their commits simply have no patch data, which features report as
+  "unknown: no patch data" instead of guessing).
+- "Cosmetic" is judged per hunk on the sequence of normalised code lines (trailing comments
+  and blank lines dropped; outside Python also leading and trailing whitespace). Inner
+  whitespace is kept: semver `5e87530d55` changes a format string's spaces, a real
+  behaviour change. On the three real histories every `source-cosmetic` subject was listed
+  and the doubtful ones read with `git show --unified=0` (3 each on tomli, semver and
+  pflag): all touched only comments, doc comments, lint pragmas or formatting.
+- Rust test modules are found with a small lexer (block comments nest, strings, raw
+  strings, char literals versus lifetimes) that matches the braces of each
+  `#[cfg(test)]` item. A regex-per-token lexer replaced a char-by-char one after profiling
+  (semver walk 1.07 s to 0.54 s at the time; same results).
+- A Rust source file counts as changing tests when its `#[test]` count grew (slice 1) or
+  lines inside its test modules were added (new). Edits only inside test modules reject the
+  commit as `source-unchanged`.
+- Hard filters: `too-large` became `oversize` and also caps source files (10 by default);
+  `docs-only` and `generated-only` split out of `no-source`; `source-cosmetic` is new.
+  Filters live in `filters.py` with a description per code.
+- Score and difficulty are separate. The score ranks (6 features; `test_lines_added` went
+  from 3 to 2 to make room for `added_assertions` at 1, keeping the sum at 10). Difficulty
+  (files 1, hunks 3, lines 3, cross_file 2, public_api 1) measures the fix on source code
+  only and gives a band; it never changes the ranking. Band thresholds 2 and 4.5 were
+  anchored on two hand-computed examples (a one-file, 3-hunk, 20-line fix is 1.7, easy; a
+  public-API change over three source files, 5 hunks and 40 lines is 5.1, hard) and checked
+  against the spread on the three histories.
+- `commitminer.toml` gained `[filter]`, `[score]`, `[score.weights]`, `[difficulty]` and
+  `[difficulty.weights]`; command-line limits override the file. The export schema went to
+  version 2 (difficulty, public_api, per-file patch).
+- `explain` works on a clone (any revision, merges refused because `git log --no-merges -1`
+  would silently return an ancestor) or on a recording (sha prefix of at least 4 hex
+  digits). Golden files pin text and JSON output for fixed synthetic commits built with
+  fixed dates, so shas are reproducible; `UPDATE_GOLDEN=1` refreshes them.
+
 ## Core (deliverable)
 
 - [x] Core: done on 2026-09-30. 127 tests, 100% line and branch coverage, CI green
@@ -141,7 +188,11 @@ The smallest end-to-end path, from a git history to a ranked JSONL file:
   `commitminer classify <path>...` prints the category and the rule that matched. Per-repo
   overrides in `commitminer.toml`. Table-driven tests: every rule has a positive and a
   negative example, and a test fails if a rule has no example.
-- [ ] 2. Patch-level difficulty features with per-feature contributions.
+- [x] 2. Patch-level difficulty features with per-feature contributions. Done on
+  2026-09-30: patch measurements while walking, hard filters with 8 reason codes, a score
+  with 6 features and a difficulty estimate with 5 and a band, weights from
+  `commitminer.toml`, `commitminer explain`; 596 tests, 100% coverage. See "Decisions made
+  while building slice 2".
   Walk patches (`-p --unified=0`) to count hunks; add difficulty features: files, hunks and
   lines changed, cross-file edits (distinct source files touched), public API touched
   (per-language signals such as top-level `def`/`class` without a leading underscore,
