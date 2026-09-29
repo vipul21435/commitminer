@@ -1,7 +1,8 @@
 """Candidate filter and a transparent linear scorer.
 
 A commit is a candidate when it changes at least one source file and at least
-one test file and stays under a size limit. Candidates are scored with
+one test file and stays under a size limit. Generated and vendored files never
+count as source or test, and do not count toward the size. Candidates are scored with
 ``score = sum(weight * value)`` over a few features whose values lie in
 ``[0, 1]``; every feature keeps its raw detail, value, weight and contribution,
 so the ranking can always be explained line by line.
@@ -16,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 
-from commitminer.classify import Category, Classification, classify
+from commitminer.classify import RULES, Category, Classification, Rule, classify
 from commitminer.models import Commit, FileChange
 
 
@@ -50,6 +51,8 @@ class Settings:
     test_lines_cap: int = 40
     """Added test lines at which ``test_lines_added`` reaches its full value."""
     weights: Weights = field(default_factory=Weights)
+    rules: tuple[Rule, ...] = RULES
+    """Classifier table: the built-in rules, or a per-repository override."""
 
     def __post_init__(self) -> None:
         if self.max_lines < 1 or self.test_lines_cap < 1:
@@ -106,9 +109,9 @@ class DiffStats:
         )
 
 
-def diff_stats(commit: Commit) -> DiffStats:
+def diff_stats(commit: Commit, rules: tuple[Rule, ...] = RULES) -> DiffStats:
     """Classify every file a commit changed (renames by their new path)."""
-    return DiffStats(tuple(ClassifiedFile(f, classify(f.path)) for f in commit.files))
+    return DiffStats(tuple(ClassifiedFile(f, classify(f.path, rules)) for f in commit.files))
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,7 +233,7 @@ def features(commit: Commit, stats: DiffStats, settings: Settings) -> tuple[Feat
 
 def evaluate(commit: Commit, settings: Settings) -> Candidate | Rejection:
     """Filter one commit and, if it passes, score it."""
-    stats = diff_stats(commit)
+    stats = diff_stats(commit, settings.rules)
     reason = check(stats, settings)
     if reason is not None:
         return Rejection(commit, reason)

@@ -47,7 +47,7 @@ def test_candidate_json_has_everything_a_builder_needs() -> None:
         "path": "tests/test_new.py",
         "old_path": "tests/test_old.py",
         "category": "test",
-        "rule": "py-test-dir",
+        "rule": "test-dir",
         "added": 12,
         "deleted": 0,
     }

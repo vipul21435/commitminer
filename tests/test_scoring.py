@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from commitminer.classify import Category
+from commitminer.classify import RULES, Category, Rule
 from commitminer.models import Commit, FileChange
 from commitminer.scoring import (
     Candidate,
@@ -43,6 +43,9 @@ def as_candidate(outcome: Candidate | Rejection) -> Candidate:
         ((FileChange("src/pkg/_ext.pyx", None, None), TEST), "source-unchanged"),
         ((SRC, FileChange("CHANGELOG.md", 3, 0)), RejectReason.NO_TEST),
         ((FileChange("src/pkg/a.py", 300, 1), FileChange("tests/t.py", 100, 0)), "too-large"),
+        ((FileChange("api/v1/svc.pb.go", 40, 3), FileChange("svc_test.go", 9, 0)), "no-source"),
+        ((FileChange("vendor/x/y.go", 4, 1), FileChange("y_test.go", 9, 0)), "no-source"),
+        ((FileChange("src/lib.rs", 4, 1), FileChange("vendor/x/tests/t.rs", 9, 0)), "no-test"),
     ],
 )
 def test_filter_reasons(files: tuple[FileChange, ...], reason: str) -> None:
@@ -158,3 +161,27 @@ def test_mine_with_no_commits() -> None:
     assert result.walked == 0
     assert result.candidates == ()
     assert result.rejected_by_reason() == {}
+
+
+def test_generated_and_vendored_files_do_not_count_toward_size() -> None:
+    commit = make(
+        "Fix lexer on CRLF input",
+        (
+            FileChange("internal/lexer/lexer.go", 6, 2),
+            FileChange("internal/lexer/lexer_test.go", 14, 0),
+            FileChange("go.sum", 900, 20),
+            FileChange("vendor/golang.org/x/text/width.go", 700, 0),
+        ),
+    )
+    candidate = as_candidate(evaluate(commit, Settings(max_lines=40)))
+    assert candidate.stats.changed_lines == 22
+    categories = [f.category for f in candidate.stats.files]
+    assert categories == [Category.SOURCE, Category.TEST, Category.GENERATED, Category.VENDORED]
+
+
+def test_settings_carry_the_rule_table() -> None:
+    fixtures = Rule("fixtures", Category.TEST, "dir", ("fixtures",), "project test data")
+    commit = make(files=(SRC, FileChange("fixtures/case.json", 5, 0)))
+    assert isinstance(evaluate(commit, Settings()), Rejection)
+    candidate = as_candidate(evaluate(commit, Settings(rules=(fixtures, *RULES))))
+    assert candidate.stats.test_files[0].classification.rule_id == "fixtures"

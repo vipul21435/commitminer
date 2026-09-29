@@ -26,9 +26,12 @@ the flip is the downstream builder's job.
   Lines (gzipped when the name ends in `.gz`); `commitminer mine --history` replays it
   through the same code path. Mining the live tomli clone and replaying its recording
   produce byte-identical JSONL (checked with `cmp`).
-- **Python file classifier**: an ordered rule table (`src/commitminer/classify.py`) sorts
-  each path into source, test, docs, config or other and reports the rule id that matched.
-  Tests cover every rule with a positive example and near misses.
+- **Multi-language file classifier**: one ordered rule table
+  (`src/commitminer/classify.py`) for Python, Rust, JavaScript/TypeScript, Go and Java sorts
+  each path into source, test, docs, config, generated, vendored or other, from path
+  conventions and content signals (generated-code headers, minified JavaScript, Rust
+  `#[cfg(test)]` modules), and reports the rule id that matched. Every rule has positive and
+  negative examples in a table-driven test.
 - **Candidate filter** with reason codes: `empty`, `no-source`, `source-unchanged` (source
   files only renamed), `no-test`, `too-large` (source+test lines over `--max-lines`).
 - **Transparent scorer**: five features in `[0, 1]` times weights that add up to 10:
@@ -209,8 +212,9 @@ flowchart LR
   pass on the parent: a false positive. #7 `149547d2ec` is mostly a build change
   (`git show --numstat`: 103 of its 219 added lines are in the CI workflow). Hunk counts,
   comment-only detection and added-assertion counts are slice 2 in PLAN.md.
-- **Python-only classifier.** Files of other languages fall through to `other`, so a Rust,
-  Go or JavaScript repository yields no candidates yet.
+- **Content signals are not read while mining yet.** The classifier's content rules
+  (generated headers, minified JavaScript, Rust inline tests) only fire when signals are
+  passed in; the walker does not read file contents yet, so mining uses path rules only.
 - **Test data counts as test lines.** tomli keeps its cases as `.toml`/`.json` files under
   `tests/`; they count toward `test_lines_added`, which suits tomli but may overrate
   fixture-heavy commits elsewhere.
