@@ -71,6 +71,7 @@ from commitminer.signals import (
     rust_tests_added,
 )
 from commitminer.testids import test_functions
+from commitminer.urls import strip_credentials
 
 MARKER = "commitminer:v1"
 _FORMAT = f"--format=%x00{MARKER}%x00%H%x00%P%x00%aI%x00%B"
@@ -502,12 +503,16 @@ def is_ancestor(repo: Path, ancestor: str, commit: str) -> bool | None:
 
 
 def origin_url(repo: Path) -> str | None:
-    """The clone's ``remote.origin.url``, or ``None`` when it has no origin remote."""
+    """The clone's ``remote.origin.url`` without credentials, or ``None`` without an origin.
+
+    A clone made as ``https://<token>@host/...`` keeps the token in its remote;
+    it is removed here, since the URL is written to exports and reports.
+    """
     try:
         out = run_git(["git", "-C", str(repo), *GIT_CONFIG, "config", "--get", "remote.origin.url"])
     except GitError:
         return None
-    return out.decode(_ENCODING, "replace").strip() or None
+    return strip_credentials(out.decode(_ENCODING, "replace").strip()) or None
 
 
 def normalize_date(date: str) -> str:

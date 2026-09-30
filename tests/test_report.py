@@ -201,6 +201,11 @@ def test_links_come_from_web_urls_and_git_remotes(tmp_path: Path) -> None:
     assert repo_web_url("/srv/git/r.git") is None
     assert repo_web_url("host:r.git") is None  # the scp form needs a user
     assert repo_web_url("javascript:alert(1)") is None
+    # Exports written before credentials were stripped still get clean links.
+    assert repo_web_url("https://bot:t0ken@github.com/o/r.git") == "https://github.com/o/r"
+    assert repo_web_url("ssh://git:t0ken@ghe.example.invalid/o/r") == (
+        "https://ghe.example.invalid/o/r"
+    )
     assert repo_web_url("../r") is None
     assert repo_web_url("file:///srv/r") is None
     assert repo_web_url(None) is None

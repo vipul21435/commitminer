@@ -32,6 +32,7 @@ from commitminer.models import Commit, PatchStats, PullRequest
 from commitminer.scoring import Candidate, Feature, MineResult
 from commitminer.settings import Settings
 from commitminer.stats import ClassifiedFile
+from commitminer.urls import strip_credentials
 
 SCHEMA_VERSION = 6
 """Version of the export records; bumped on incompatible changes.
@@ -178,7 +179,7 @@ def candidate_to_json(
         "schema_version": SCHEMA_VERSION,
         "rank": rank,
         "repo": repo,
-        "repo_url": url,
+        "repo_url": strip_credentials(url),
         "sha": commit.sha,
         "base": commit.base,
         "date": commit.date,
@@ -254,7 +255,7 @@ def run_to_json(
         "schema_version": SCHEMA_VERSION,
         "commitminer": __version__,
         "repo": run.repo,
-        "url": run.url,
+        "url": strip_credentials(run.url),
         "source": run.source,
         "unit": run.unit,
         "walked": result.walked,

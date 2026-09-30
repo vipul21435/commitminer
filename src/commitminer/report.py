@@ -34,6 +34,7 @@ from typing import Any, Final
 
 from commitminer.export import SCHEMA_VERSION
 from commitminer.filters import RejectReason
+from commitminer.urls import strip_credentials
 
 FORMATS: Final = ("markdown", "html")
 _SUFFIXES: Final = {".md": "markdown", ".markdown": "markdown", ".html": "html", ".htm": "html"}
@@ -263,7 +264,7 @@ def repo_web_url(url: str | None) -> str | None:
     """An http(s) URL for the repository, from a web URL or a git remote, else ``None``."""
     if not url:
         return None
-    url = url.strip().removesuffix("/").removesuffix(".git")
+    url = strip_credentials(url.strip()).removesuffix("/").removesuffix(".git")
     if _HTTP.match(url):
         return url
     remote = _SSH_REMOTE.match(url)

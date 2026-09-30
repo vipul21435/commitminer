@@ -328,3 +328,26 @@ def test_a_replayed_entry_ignores_an_enterprise_api_url(
     assert result.exit_code == 0, result.output
     runs = [json.loads(line) for line in out.read_text().splitlines()]
     assert [r["url"] for r in runs if r["kind"] == "run"] == ["https://github.com/hukkin/tomli"]
+
+
+def test_a_clone_entry_does_not_export_the_credentials_of_its_remote(tmp_path: Path) -> None:
+    secret = "ghp_EXAMPLEsecretTOKEN0123"
+    clone = GitRepo(tmp_path / "calc")
+    clone.commit("Add calc", {"src/pkg/calc.py": "def f(a, b):\n    return a - b\n"})
+    clone.commit(
+        "Fix f",
+        {
+            "src/pkg/calc.py": "def f(a, b):\n    return a + b\n",
+            "tests/test_calc.py": "def test_f():\n    assert f(1, 2) == 3\n",
+        },
+    )
+    clone.git("remote", "add", "origin", f"https://build-bot:{secret}@github.com/example/calc.git")
+    config = tmp_path / "batch.toml"
+    config.write_text(f'[[batch.repos]]\nname = "example/calc"\nclone = "{clone.root}"\n')
+    out, report = tmp_path / "out.jsonl", tmp_path / "report.md"
+    args = ["--ledger", str(tmp_path / "l.sqlite3"), "--out", str(out), "--report", str(report)]
+    result = runner.invoke(app, ["batch", str(config), *args])
+    assert result.exit_code == 0, result.output
+    assert "https://github.com/example/calc.git" in out.read_text()
+    assert secret not in out.read_text()
+    assert secret not in report.read_text()

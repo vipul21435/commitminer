@@ -948,7 +948,10 @@ their patch measurements, both feature breakdowns and the public API it touches)
 
 A downstream builder reads `repo_url`, `base` (the commit a task starts from), `sha` (the
 fix), `source_files`, `test_files` and `fail_to_pass`, then verifies the flip by running
-those tests on both commits. `commitminer schema` prints the JSON Schema
+those tests on both commits. `repo_url` and the run's `url` never carry credentials: a
+clone made as `https://<token>@host/...` (CI job clones, private repositories) keeps the
+token in its origin remote, so `user:password@` is removed from it, from `--url`, from a
+recording's URL and from report links (an `ssh://` URL keeps its user, `git@`). `commitminer schema` prints the JSON Schema
 (draft 2020-12, `additionalProperties: false` on every record, so a field the export
 starts writing without a schema change fails the tests); the ledger commands read schema
 3 to 6 and skip the run and batch records. The fail-to-pass ids are a guess from the diff: in the
@@ -1060,6 +1063,7 @@ flowchart LR
 | `fixtures.py` | httpx transports that record responses as fixture files and replay them offline |
 | `pulls.py` | merged pull requests with their files and commits as `Commit` records, linked issues |
 | `history.py` | writes and validates recorded histories (JSONL, optional reproducible gzip) |
+| `urls.py` | removes credentials (`user:password@`) from repository URLs before they are written |
 | `languages.py` | the six languages and extension detection |
 | `signals.py` | content-signal detectors over file bytes |
 | `globs.py` | glob syntax, pattern checks, linear-time component and path matching |
@@ -1084,7 +1088,7 @@ flowchart LR
 | What | Command | Result |
 | --- | --- | --- |
 | Tests and coverage | `make cov` | 1036 passed, 100.00% line and branch coverage (gate 90%) |
-| Types | `make typecheck` | `mypy --strict`: no issues in 27 source files |
+| Types | `make typecheck` | `mypy --strict`: no issues in 28 source files |
 | Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |
 | Demo batch | `make demo` (its `demo-batch` part) | 4 runs, 946 commits and pull requests walked, 293 candidates, 181 new, 6 already recorded, 106 collisions (105 same commit, 1 overlap); run again: 0 walked, 1 GitHub request instead of 52 |

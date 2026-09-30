@@ -38,6 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from commitminer.models import Commit, FileChange, PatchStats
+from commitminer.urls import strip_credentials
 
 FORMAT = "commitminer-history"
 VERSION = 1
@@ -230,7 +231,11 @@ def write_history(
     url: str | None = None,
     head: str | None = None,
 ) -> HistoryHeader:
-    """Write ``commits`` to ``path`` as a recording and return its header."""
+    """Write ``commits`` to ``path`` as a recording and return its header.
+
+    Credentials in ``url`` (``https://<token>@host/...``) are not written.
+    """
+    url = strip_credentials(url)
     header = HistoryHeader(repo=repo, url=url, head=head, commits=len(commits))
     lines = [
         _dumps(

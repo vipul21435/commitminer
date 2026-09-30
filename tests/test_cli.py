@@ -87,6 +87,40 @@ def test_mine_a_clone_prints_summary_table_and_breakdown(
     assert record["test_files"] == ["tests/test_core.py"]
 
 
+SECRET = "ghp_EXAMPLEsecretTOKEN0123"
+
+
+def test_credentials_in_the_origin_remote_are_not_exported(
+    small_repo: GitRepo, tmp_path: Path
+) -> None:
+    # CI job clones and private-repository clones keep a token in remote.origin.url;
+    # exports and reports are handed on, so it must not reach them.
+    remote = f"https://build-bot:{SECRET}@github.com/example/calc.git"
+    small_repo.git("remote", "add", "origin", remote)
+    out = tmp_path / "c.jsonl"
+    mined = runner.invoke(app, ["mine", str(small_repo.root), "--out", str(out), "--top", "0"])
+    assert mined.exit_code == 0, mined.output
+    run, (record,) = read_export(out)
+    assert run["url"] == record["repo_url"] == "https://github.com/example/calc.git"
+    for name in ("r.md", "r.html"):
+        report = tmp_path / name
+        rendered = runner.invoke(app, ["report", str(out), "--out", str(report)])
+        assert rendered.exit_code == 0, rendered.output
+        text = report.read_text()
+        assert SECRET not in text
+        assert "https://github.com/example/calc/commit/" in text
+    assert SECRET not in out.read_text()
+    given = runner.invoke(
+        app, ["mine", str(small_repo.root), "--out", str(out), "--url", f"https://{SECRET}@h/r"]
+    )
+    assert given.exit_code == 0, given.output
+    assert SECRET not in out.read_text()
+    recording = tmp_path / "h.jsonl"
+    args = ["record", str(small_repo.root), "--out", str(recording), "--url", remote]
+    assert runner.invoke(app, args).exit_code == 0
+    assert SECRET not in recording.read_text()
+
+
 def test_record_then_replay_matches_mining_the_clone(small_repo: GitRepo, tmp_path: Path) -> None:
     recording = tmp_path / "history.jsonl.gz"
     recorded = runner.invoke(
