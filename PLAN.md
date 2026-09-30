@@ -444,6 +444,8 @@ Its output (JSONL) is the input for downstream environment builders.
 
 ### Review fixes committed after the check of the late-review fixes
 
+- Three confirmed findings, each fixed in its own commit with a regression test that
+  fails on the old code (1106 tests, 100% line and branch coverage).
 - (1) A SOCKS proxy in the environment (desktop proxy clients export
   `all_proxy=socks5://...`) crashed every live request, because httpx mounts every
   environment proxy when the client is built and needs `socksio` for SOCKS. Decision:

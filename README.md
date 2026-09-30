@@ -1102,7 +1102,7 @@ flowchart LR
 
 | What | Command | Result |
 | --- | --- | --- |
-| Tests and coverage | `make cov` | 1090 passed, 100.00% line and branch coverage (gate 90%) |
+| Tests and coverage | `make cov` | 1106 passed, 100.00% line and branch coverage (gate 90%); also 1106 passed with `ALL_PROXY=socks5://127.0.0.1:7890` and `https_proxy=socks4://127.0.0.1:1` set |
 | Types | `make typecheck` | `mypy --strict`: no issues in 28 source files |
 | Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |
@@ -1130,7 +1130,7 @@ flowchart LR
 | Recording size | `ls -l examples/tomli/history.jsonl.gz` | 126060 bytes (1046553 uncompressed) with version 2 hunk hashes and test ids; 125342 before test ids, 125311 with version 1 hashes, 67715 without hashes, 63697 before patch measurements |
 | Go recordings | `ls -l examples/mapstructure/`; `gzip -dc ... \| wc -c` | mitchellh/mapstructure 34004 bytes (124730 uncompressed, 236 commits, 364 file entries), go-viper/mapstructure 61973 (243930, 374 commits, 589 entries) |
 | Recording integrity | `make verify-recording` (also in CI) | all three byte-identical to fresh recordings from GitHub |
-| Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 113209978 bytes (112977638 before the batch demo's recordings; 112840949 before the schema and the report; 110897309 before httpx) |
+| Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 113323709 bytes (113209978 before httpx's SOCKS extra; 112977638 before the batch demo's recordings; 112840949 before the schema and the report; 110897309 before httpx) |
 
 ## Design decisions
 
