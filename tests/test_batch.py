@@ -484,8 +484,10 @@ def test_web_urls_and_api_roots(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GITHUB_API_URL", raising=False)
     assert batch_module.api_root(pr_spec()) == "https://api.github.com"
     monkeypatch.setenv("GITHUB_API_URL", "https://ghe.example.invalid/api/v3")
-    assert batch_module.api_root(pr_spec()) == "https://ghe.example.invalid/api/v3"
+    assert batch_module.api_root(pr_spec(replay=None)) == "https://ghe.example.invalid/api/v3"
     assert batch_module.api_root(pr_spec(api_url="https://x.invalid")) == "https://x.invalid"
+    # Fixtures are keyed by the path of the API they came from, not the host's.
+    assert batch_module.api_root(pr_spec()) == "https://api.github.com"
 
 
 # --- running a batch --------------------------------------------------------------------------

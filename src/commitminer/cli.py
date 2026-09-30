@@ -26,6 +26,7 @@ from commitminer.batch import (
     render_best,
     render_collisions,
     render_run,
+    resolve_api_root,
     run_batch,
     web_url,
 )
@@ -428,7 +429,8 @@ def prs_command(
         str | None,
         typer.Option(
             "--api-url",
-            help=f"REST API root (default: $GITHUB_API_URL, else {API_URL}).",
+            help=f"REST API root (default: $GITHUB_API_URL, else {API_URL}; "
+            "--replay ignores $GITHUB_API_URL).",
             show_default=False,
         ),
     ] = None,
@@ -488,7 +490,7 @@ def prs_command(
         cache = ResponseCache(cache_dir or default_cache_dir())
     transport: httpx.BaseTransport
     recorder = None
-    root = api_url or os.environ.get("GITHUB_API_URL") or API_URL
+    root = resolve_api_root(api_url, replaying=replay_dir is not None)
     try:
         if replay_dir is not None:
             transport = ReplayTransport(replay_dir)

@@ -51,6 +51,18 @@ def test_prs_ranks_the_recorded_pull_requests(tmp_path: Path) -> None:
     assert records[0]["base"] == first["base_sha"]
 
 
+def test_replay_ignores_an_enterprise_api_url_from_the_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # GitHub Enterprise runners set this; the fixtures were recorded from api.github.com.
+    monkeypatch.setenv("GITHUB_API_URL", "https://ghe.example.invalid/api/v3")
+    out = tmp_path / "prs.jsonl"
+    result = runner.invoke(app, [*REPLAY, "--top", "0", "--explain", "0", "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    assert "hukkin/tomli: read 24 merged pull requests" in result.stdout
+    assert read_export(out)[0]["url"] == "https://github.com/hukkin/tomli"
+
+
 def test_pull_requests_score_like_the_squashed_commits_they_became(tmp_path: Path) -> None:
     out = tmp_path / "prs.jsonl"
     assert runner.invoke(app, [*REPLAY, "--top", "0", "--out", str(out)]).exit_code == 0

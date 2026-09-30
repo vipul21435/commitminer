@@ -641,6 +641,10 @@ closes an issue (`Fixes #12`, `owner/repo#12`, an issue URL) and 0.5 for the pul
 itself; `fix_keyword` is also set by a `bug`, `fix`, `regression` or `crash` label
 (`type: bug`, `C-bug`, `kind/regression`). Without `GITHUB_TOKEN` GitHub allows 60
 requests an hour, which is about 29 pull requests (1 + 2 requests each); with it, 5000.
+The API root is `--api-url`, else `$GITHUB_API_URL` (GitHub Enterprise runners set it to
+`https://<host>/api/v3`), else `https://api.github.com`. `--replay` ignores
+`$GITHUB_API_URL`: fixtures are keyed by the request path of the API they were recorded
+from, so replaying a GitHub Enterprise recording needs its `--api-url` again.
 
 Output of `make demo-prs` (unedited from the first command on; it replays the 52 recorded
 responses in `examples/tomli/prs/`, so the rate-limit counters are the recorded ones):

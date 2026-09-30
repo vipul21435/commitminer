@@ -358,9 +358,22 @@ def walk_history(
     return Walked(kept, resume, spec.url or header.url)
 
 
+def resolve_api_root(explicit: str | None, replaying: bool) -> str:
+    """The REST API root: ``explicit``, else ``$GITHUB_API_URL``, else GitHub's.
+
+    A replay ignores ``$GITHUB_API_URL``: that variable describes the live
+    environment (GitHub Enterprise runners set it to ``https://<host>/api/v3``),
+    while fixtures are keyed by the request path of the API they were recorded
+    from, so a path prefix from the environment would miss every one of them.
+    """
+    if explicit:
+        return explicit
+    return (None if replaying else os.environ.get("GITHUB_API_URL")) or API_URL
+
+
 def api_root(spec: RepoSpec) -> str:
-    """The REST API root of an entry: ``api_url``, else ``$GITHUB_API_URL``, else GitHub's."""
-    return spec.api_url or os.environ.get("GITHUB_API_URL") or API_URL
+    """The REST API root of an entry (see :func:`resolve_api_root`)."""
+    return resolve_api_root(spec.api_url, spec.replay is not None)
 
 
 def web_url(api_url: str, repo: str) -> str:

@@ -308,3 +308,22 @@ def test_a_batch_whose_export_cannot_be_written_records_nothing(
     assert again.stdout.splitlines()[-1] == f"wrote 3 runs and 13 candidates to {good}"
     with open_ledger(ledger) as opened:
         assert len(opened.entries()) == 10
+
+
+def test_a_replayed_entry_ignores_an_enterprise_api_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # GitHub Enterprise runners set this; the fixtures were recorded from api.github.com.
+    monkeypatch.setenv("GITHUB_API_URL", "https://ghe.example.invalid/api/v3")
+    config = tmp_path / "batch.toml"
+    config.write_text(
+        f'[[batch.repos]]\nname = "hukkin/tomli"\ngithub = "hukkin/tomli"\nlimit = 25\n'
+        f'replay = "{TOMLI / "prs"}"\n'
+    )
+    out = tmp_path / "out.jsonl"
+    result = runner.invoke(
+        app, ["batch", str(config), "--ledger", str(tmp_path / "l.sqlite3"), "--out", str(out)]
+    )
+    assert result.exit_code == 0, result.output
+    runs = [json.loads(line) for line in out.read_text().splitlines()]
+    assert [r["url"] for r in runs if r["kind"] == "run"] == ["https://github.com/hukkin/tomli"]
