@@ -442,6 +442,16 @@ Its output (JSONL) is the input for downstream environment builders.
   nested values the renderer computes with. (11) A test's range search stops at the next
   test definition in languages without test attributes; results are unchanged.
 
+### Review fixes committed after the check of the late-review fixes
+
+- (1) A SOCKS proxy in the environment (desktop proxy clients export
+  `all_proxy=socks5://...`) crashed every live request, because httpx mounts every
+  environment proxy when the client is built and needs `socksio` for SOCKS. Decision:
+  depend on `httpx[socks]` (one small pure-Python package) so SOCKS5 proxies work, and
+  turn any proxy setting httpx still rejects (`socks4://`, a bad port, a malformed
+  `NO_PROXY`) into a `GitHubError`, so `prs` prints one line and a batch fails only the
+  live entry. The test conftest now also clears the proxy variables of the host.
+
 ## Core (deliverable)
 
 - [x] Core: done on 2026-09-30. 127 tests, 100% line and branch coverage, CI green

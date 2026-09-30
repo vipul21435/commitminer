@@ -351,3 +351,31 @@ def test_a_clone_entry_does_not_export_the_credentials_of_its_remote(tmp_path: P
     assert "https://github.com/example/calc.git" in out.read_text()
     assert secret not in out.read_text()
     assert secret not in report.read_text()
+
+
+def test_a_proxy_httpx_cannot_use_fails_only_the_live_entry(
+    repos: tuple[Path, dict[str, dict[str, str]]], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, _ = repos
+    monkeypatch.setenv("HTTPS_PROXY", "socks4://127.0.0.1:1080")
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
+    config = tmp_path / "batch.toml"
+    config.write_text(
+        f'[[batch.repos]]\nname = "up"\nclone = "{root}/upstream"\n'
+        '[[batch.repos]]\nname = "o/r"\ngithub = "o/r"\nlimit = 1\n'
+    )
+    out, ledger = tmp_path / "s.jsonl", tmp_path / "l.sqlite3"
+    args = ["--ledger", str(ledger), "--out", str(out), "--top", "0"]
+    result = runner.invoke(app, ["batch", str(config), *args])
+    assert result.exit_code == 2, result.output
+    assert "Traceback" not in result.output
+    lines = result.stdout.splitlines()
+    assert lines[1].startswith("up [clone]: first run")
+    assert lines[2] == (
+        "o/r [pull-requests]: failed: o/r: cannot use the proxy settings of the environment: "
+        "Unknown scheme for proxy URL URL('socks4://127.0.0.1:1080')"
+    )
+    assert "1 of 2 repositories failed: o/r [pull-requests]" in result.stderr
+    assert out.is_file()
+    with open_ledger(ledger) as opened:
+        assert opened.entries()

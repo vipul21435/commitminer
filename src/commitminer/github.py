@@ -215,10 +215,20 @@ class NetworkTransport(httpx.BaseTransport):
     mandatory proxy. This transport sends every request through such a
     default client (environment proxies, ``SSL_CERT_FILE``), so it can be
     wrapped by the recorder and passed to :class:`GitHubClient` like any other.
+
+    HTTP, HTTPS and SOCKS5 proxies work (``socks5://`` and ``socks5h://``,
+    through httpx's ``socks`` extra). The default client mounts every proxy of
+    the environment when it is built, so a proxy httpx cannot use (an unknown
+    scheme such as ``socks4://``, a bad port, a malformed ``NO_PROXY`` entry)
+    raises :class:`GitHubError` here, before any request.
     """
 
     def __init__(self) -> None:
-        self._client = httpx.Client()
+        try:
+            self._client = httpx.Client()
+        except (ImportError, ValueError, httpx.InvalidURL) as exc:
+            # httpx masks a proxy password in these messages ("[secure]").
+            raise GitHubError(f"cannot use the proxy settings of the environment: {exc}") from exc
 
     def handle_request(self, request: httpx.Request) -> httpx.Response:
         """Send ``request`` through the default client; the caller reads the stream."""

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import socketserver
 import threading
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -268,10 +269,10 @@ class _ProxyHandler(BaseHTTPRequestHandler):
 
 @pytest.fixture
 def http_proxy(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[str]]:
-    """A local forward proxy set as HTTP_PROXY; yields the request lines it received."""
-    for name in ("http_proxy", "https_proxy", "all_proxy", "no_proxy"):
-        monkeypatch.delenv(name, raising=False)
-        monkeypatch.delenv(name.upper(), raising=False)
+    """A local forward proxy set as HTTP_PROXY; yields the request lines it received.
+
+    The conftest has already removed the host's proxy variables.
+    """
     _ProxyHandler.seen = []
     server = ThreadingHTTPServer(("127.0.0.1", 0), _ProxyHandler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -305,6 +306,105 @@ def test_recording_goes_through_the_environment_proxy(
     assert result.exit_code == 0, result.output
     assert len(http_proxy) == 1
     assert len(list(recorded.glob("*.json"))) == 1
+
+
+class _Socks5Handler(socketserver.StreamRequestHandler):
+    """A SOCKS5 proxy that answers the tunnelled GET itself with an empty JSON list."""
+
+    seen: ClassVar[list[str]] = []
+
+    def handle(self) -> None:
+        read = self.rfile.read
+        _version, methods = read(2)
+        read(methods)
+        self.wfile.write(b"\x05\x00")  # no authentication
+        _version, _command, _reserved, kind = read(4)
+        assert kind == 3, "httpx sends the host name, not an address"
+        host = read(read(1)[0]).decode()
+        port = int.from_bytes(read(2), "big")
+        self.wfile.write(b"\x05\x00\x00\x01" + bytes(6))  # connected
+        request_line = self.rfile.readline().decode().strip()
+        while self.rfile.readline() not in (b"\r\n", b""):
+            pass
+        self.seen.append(f"{host}:{port} {request_line}")
+        self.wfile.write(
+            b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+            b"Content-Length: 2\r\nConnection: close\r\n\r\n[]"
+        )
+
+
+@pytest.fixture
+def socks_proxy() -> Iterator[tuple[int, list[str]]]:
+    """A local SOCKS5 proxy; yields its port and the requests it tunnelled."""
+    _Socks5Handler.seen = []
+    server = socketserver.ThreadingTCPServer(("127.0.0.1", 0), _Socks5Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server.server_address[1], _Socks5Handler.seen
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+@pytest.mark.parametrize("scheme", ["socks5", "socks5h"])
+def test_live_requests_go_through_a_socks5_all_proxy(
+    scheme: str, socks_proxy: tuple[int, list[str]], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    port, seen = socks_proxy
+    monkeypatch.setenv("all_proxy", f"{scheme}://127.0.0.1:{port}")
+    args = ["prs", "o/r", "--api-url", "http://example.invalid", "--no-cache", "--top", "0"]
+    result = runner.invoke(app, [*args, "--max-wait", "0.5"])
+    assert result.exit_code == 0, result.output
+    assert "o/r: read 0 merged pull requests" in result.stdout
+    assert seen == [
+        "example.invalid:80 GET /repos/o/r/pulls"
+        "?state=closed&sort=updated&direction=desc&per_page=100 HTTP/1.1"
+    ]
+
+
+def test_a_socks_all_proxy_beside_an_http_proxy_leaves_http_to_the_http_proxy(
+    http_proxy: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # What a desktop proxy client typically exports: the SOCKS entry must not break the run.
+    monkeypatch.setenv("all_proxy", "socks5://127.0.0.1:9")
+    args = ["prs", "o/r", "--api-url", "http://example.invalid", "--no-cache", "--top", "0"]
+    result = runner.invoke(app, [*args, "--max-wait", "0.5"])
+    assert result.exit_code == 0, result.output
+    assert len(http_proxy) == 1
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "message"),
+    [
+        ("HTTPS_PROXY", "socks4://127.0.0.1:1080", "Unknown scheme for proxy URL"),
+        ("https_proxy", "socks4://user:secretpw@127.0.0.1:1080", "user:[secure]@"),
+        ("ALL_PROXY", "http://proxy.corp:abc", "Invalid port: 'abc'"),
+        ("NO_PROXY", "[::1", "Invalid port"),
+    ],
+)
+@pytest.mark.parametrize("record", [False, True])
+def test_an_environment_proxy_httpx_cannot_use_is_one_line(
+    name: str,
+    value: str,
+    message: str,
+    record: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(name, value)
+    if name == "NO_PROXY":
+        monkeypatch.setenv("HTTPS_PROXY", "http://127.0.0.1:9")
+    args = ["prs", "o/r", "--api-url", "https://example.invalid", "--top", "0"]
+    args += ["--record", str(tmp_path / "rec")] if record else ["--no-cache"]
+    result = runner.invoke(app, [*args, "--max-wait", "0.5"])
+    assert result.exit_code == 2, result.output
+    lines = result.stderr.splitlines()
+    assert len(lines) == 1, result.stderr
+    assert lines[0].startswith("error: cannot use the proxy settings of the environment: ")
+    assert message in lines[0]
+    assert "secretpw" not in result.output
+    assert not (tmp_path / "rec").exists() or not list((tmp_path / "rec").iterdir())
 
 
 def test_the_cli_copies_of_the_defaults_match() -> None:

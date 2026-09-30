@@ -650,8 +650,12 @@ The API root is `--api-url`, else `$GITHUB_API_URL` (GitHub Enterprise runners s
 `$GITHUB_API_URL`: fixtures are keyed by the request path of the API they were recorded
 from, so replaying a GitHub Enterprise recording needs its `--api-url` again. Live
 requests (and `--record`) go through the proxies in `HTTP_PROXY`, `HTTPS_PROXY`,
-`ALL_PROXY` and `NO_PROXY`, as a plain httpx client would (checked in
-`tests/test_cli_prs.py` against a local proxy). The ETag cache is an optimisation: when it
+`ALL_PROXY` and `NO_PROXY` (either case), as a plain httpx client would: HTTP, HTTPS and
+SOCKS5 (`socks5://`, `socks5h://`) proxies, checked in `tests/test_cli_prs.py` against a
+local HTTP proxy and a local SOCKS5 proxy. A proxy setting httpx cannot use
+(`socks4://`, a bad port, a malformed `NO_PROXY` entry) is one `error: cannot use the
+proxy settings of the environment: ...` line and exit 2; in a batch it fails only the
+pull-request entries that go to the network. The ETag cache is an optimisation: when it
 cannot be written (`--cache-dir` names a file or a read-only directory, the disk is full),
 `prs` prints `warning: cannot write the ETag cache in <dir> (...)` on stderr and carries on
 uncached. A `--record` directory that cannot be created or written and a malformed
