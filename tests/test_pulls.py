@@ -316,6 +316,30 @@ def test_merged_pulls_reads_merged_pulls_newest_merge_first(tmp_path: Path) -> N
     assert isinstance(mine(walked.commits).candidates[0], Candidate)
 
 
+def test_a_pull_request_repeated_on_the_next_page_is_read_once(tmp_path: Path) -> None:
+    # A pull request further down was updated between the two list requests, so every
+    # item moved one place and #3, the last of page 1, is also the first of page 2.
+    link = f'<{API}/repositories/1/pulls?page=2>; rel="next"'
+    first_page = [pull(1, "2024-01-01T00:00:00Z"), pull(3, "2024-02-01T00:00:00Z")]
+    second_page = [pull(3, "2024-02-01T00:00:00Z"), pull(4, "2024-02-02T00:00:00Z")]
+    write_fixture(tmp_path, LIST, reply(200, first_page, {"link": link}))
+    write_fixture(tmp_path, "GET /repositories/1/pulls?page=2", reply(200, second_page))
+    for number in (1, 3, 4):
+        serve(tmp_path, number, FILES, COMMITS)
+    with GitHubClient(transport=ReplayTransport(tmp_path), clock=FakeClock()) as client:
+        walked = merged_pulls(client, "o/r", limit=10)
+        assert client.stats.requests == 8
+    assert [c.pull_request.number for c in walked.commits if c.pull_request] == [4, 3, 1]
+    assert len(mine(walked.commits).candidates) == 3
+
+
+def test_a_pull_request_without_a_number_is_an_error(tmp_path: Path) -> None:
+    write_fixture(tmp_path, LIST, reply(200, [{**pull(1), "number": None}]))
+    client = GitHubClient(transport=ReplayTransport(tmp_path), clock=FakeClock())
+    with pytest.raises(GitHubError, match=r"pull.number: expected a count, got None"):
+        merged_pulls(client, "o/r", limit=10)
+
+
 def test_merged_pulls_stops_at_the_limit_and_skips_huge_pulls(tmp_path: Path) -> None:
     write_fixture(tmp_path, LIST, reply(200, [pull(1), pull(2), pull(3)]))
     many = [

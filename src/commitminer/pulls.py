@@ -240,6 +240,7 @@ def merged_pulls(
     if limit < 1 or max_files < 1:
         raise ValueError("limit and max_files must be at least 1")
     merged: list[dict[str, Any]] = []
+    listed: set[int] = set()
     unmerged = already = 0
     newest: str | None = None
     params: dict[str, str | int] = {
@@ -250,6 +251,12 @@ def merged_pulls(
     }
     for item in client.items(f"/repos/{repo}/pulls", params):
         pull = _object(item, "pull")
+        number = _count(pull.get("number"), "pull.number")
+        if number in listed:
+            # Pages are numbered over a list sorted by update time: a pull request
+            # updated while they are read pushes the last one of a page onto the next.
+            continue
+        listed.add(number)
         updated = pull.get("updated_at")
         if isinstance(updated, str):
             if since is not None and updated <= since:
@@ -267,7 +274,7 @@ def merged_pulls(
     commits: list[Commit] = []
     skipped: list[int] = []
     for pull in merged:
-        number = _count(pull.get("number"), "pull.number")
+        number = pull["number"]
         base = f"/repos/{repo}/pulls/{number}"
         pull_files = _files(client, f"{base}/files", max_files)
         if pull_files is None:

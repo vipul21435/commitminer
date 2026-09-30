@@ -1368,7 +1368,10 @@ flowchart LR
 - **`--limit` follows GitHub's update order.** The pull requests read are the most
   recently updated closed ones that were merged, not the most recently merged; a comment
   on an old pull request brings it forward. Requests are sequential (about 0.47 s each in
-  the live run above).
+  the live run above). The list is paged by page number, so an update while pages are read
+  shifts it: a pull request pushed onto the next page is read once (duplicates by number
+  are dropped), but one reopened meanwhile moves the rest up and the first pull request
+  of the next page can be missed.
 - **Linked issues are keyword links only.** Issues linked in GitHub's "Development"
   sidebar without a closing keyword are not found (the REST API does not list them), and
   a closing keyword in a pull-request title is not read (GitHub documents the description
