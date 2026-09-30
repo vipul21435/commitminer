@@ -169,8 +169,12 @@ def _string(value: Any, where: str) -> str:
 
 def _path(value: Any, base: Path, where: str) -> Path:
     path = Path(_string(value, where)).expanduser()
+    joined = path if path.is_absolute() else base / path
     # normpath drops "dir/.." lexically, so messages show examples/tomli, not batch/../tomli.
-    return Path(os.path.normpath(path if path.is_absolute() else base / path))
+    # The OS resolves ".." after following a symlink, so the short form is kept only when
+    # it names the same file; otherwise "dir/.." stays and the OS resolves it.
+    short = os.path.normpath(joined)
+    return Path(short) if os.path.realpath(short) == os.path.realpath(joined) else joined
 
 
 def _integer(value: Any, where: str) -> int:

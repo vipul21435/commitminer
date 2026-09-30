@@ -239,6 +239,32 @@ def test_unreadable_or_invalid_batch_files(tmp_path: Path) -> None:
         load_batch(write(tmp_path / "bad.toml", "[batch\n"))
 
 
+def test_dot_dot_after_a_symlinked_directory_follows_the_symlink(tmp_path: Path) -> None:
+    # real/configs/b.toml reached as work/cfg/b.toml, with cfg -> ../real/configs: the OS
+    # resolves cfg/../shared to real/shared, and so must the batch file (a lexical
+    # normalization used to make it work/shared and create a new, empty ledger there).
+    configs, shared, work = tmp_path / "real/configs", tmp_path / "real/shared", tmp_path / "work"
+    for directory in (configs, shared, work):
+        directory.mkdir(parents=True)
+    (shared / "h.jsonl.gz").write_bytes((TOMLI / "history.jsonl.gz").read_bytes())
+    write(
+        configs / "b.toml",
+        '[batch]\nledger = "../shared/ledger.sqlite3"\n'
+        '[[batch.repos]]\nname = "hukkin/tomli"\nhistory = "../shared/h.jsonl.gz"\n',
+    )
+    (work / "cfg").symlink_to(Path("../real/configs"))
+    config = load_batch(work / "cfg" / "b.toml")
+    assert config.ledger == work / "cfg" / ".." / "shared" / "ledger.sqlite3"
+    assert config.ledger.resolve() == (shared / "ledger.sqlite3").resolve()
+    history = Path(config.repos[0].target)
+    assert history.resolve() == (shared / "h.jsonl.gz").resolve()
+    assert read_history(history)[0].repo == "hukkin/tomli"
+    # Without a symlink the short form is kept (it names the same file).
+    plain = load_batch(configs / "b.toml")
+    assert plain.ledger == shared / "ledger.sqlite3"
+    assert plain.repos[0].target == str(shared / "h.jsonl.gz")
+
+
 def test_the_copied_constants_match_their_modules() -> None:
     assert batch_module.API_URL == github.API_URL
     assert batch_module.REPO_NAME.pattern == pulls.REPO_NAME.pattern
