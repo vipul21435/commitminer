@@ -262,3 +262,22 @@ def _with_patch(patch: object, added: int | None = 1) -> dict[str, object]:
 def test_patch_records_are_validated(record: object, message: str) -> None:
     with pytest.raises(HistoryError, match=message):
         commit_from_json(record)
+
+
+def test_truncated_corrupt_or_non_utf8_recordings_are_history_errors(tmp_path: Path) -> None:
+    recording = Path(__file__).resolve().parent.parent / "examples/tomli/history.jsonl.gz"
+    data = recording.read_bytes()
+    truncated = tmp_path / "truncated.jsonl.gz"
+    truncated.write_bytes(data[:60000])
+    with pytest.raises(HistoryError, match="truncated or corrupt gzip stream"):
+        read_history(truncated)
+    corrupt = bytearray(data)
+    corrupt[100:120] = b"\xff" * 20
+    damaged = tmp_path / "damaged.jsonl.gz"
+    damaged.write_bytes(bytes(corrupt))
+    with pytest.raises(HistoryError, match="truncated or corrupt gzip stream"):
+        read_history(damaged)
+    latin = tmp_path / "latin.jsonl"
+    latin.write_bytes(b"\xff\xfe{}\n")
+    with pytest.raises(HistoryError, match="not UTF-8 text"):
+        read_history(latin)

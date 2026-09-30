@@ -31,6 +31,7 @@ from __future__ import annotations
 import gzip
 import io
 import json
+import zlib
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -300,9 +301,19 @@ def parse_history(lines: Iterable[str]) -> tuple[HistoryHeader, list[Commit]]:
 
 
 def read_history(path: Path) -> tuple[HistoryHeader, list[Commit]]:
-    """Read a recording written by :func:`write_history` (gzipped if it ends in ``.gz``)."""
-    if path.suffix == ".gz":
-        with gzip.open(path, "rt", encoding="utf-8") as handle:
+    """Read a recording written by :func:`write_history` (gzipped if it ends in ``.gz``).
+
+    A truncated or corrupt gzip stream and bytes that are not UTF-8 are a
+    :class:`HistoryError`, like any other malformed recording; a file that
+    cannot be opened or read is an :class:`OSError`.
+    """
+    try:
+        if path.suffix == ".gz":
+            with gzip.open(path, "rt", encoding="utf-8") as handle:
+                return parse_history(handle)
+        with path.open(encoding="utf-8") as handle:
             return parse_history(handle)
-    with path.open(encoding="utf-8") as handle:
-        return parse_history(handle)
+    except (EOFError, zlib.error) as exc:
+        raise HistoryError(f"truncated or corrupt gzip stream: {exc}") from exc
+    except UnicodeDecodeError as exc:
+        raise HistoryError(f"not UTF-8 text: {exc.reason}") from exc

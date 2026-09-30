@@ -371,6 +371,17 @@ def test_a_missing_or_broken_recording_is_a_source_error(tmp_path: Path) -> None
     bad = write(tmp_path / "bad.jsonl", "{}\n")
     with pytest.raises(batch_module.SourceError, match="not a commitminer-history file"):
         walk_history(spec("history", bad), None, set(), False)
+    # A truncated gzip stream and bytes that are not UTF-8 are source errors too, so the
+    # batch reports the repository as failed instead of stopping (they used to escape as
+    # EOFError and UnicodeDecodeError).
+    truncated = tmp_path / "truncated.jsonl.gz"
+    truncated.write_bytes((TOMLI / "history.jsonl.gz").read_bytes()[:60000])
+    with pytest.raises(batch_module.SourceError, match="truncated or corrupt gzip stream"):
+        walk_history(spec("history", truncated), None, set(), False)
+    latin = tmp_path / "latin.jsonl"
+    latin.write_bytes(b"\xff\xfe{}\n")
+    with pytest.raises(batch_module.SourceError, match="not UTF-8 text"):
+        walk_history(spec("history", latin), None, set(), False)
 
 
 def pr_spec(**options: Any) -> RepoSpec:
@@ -543,22 +554,29 @@ def test_a_repository_that_fails_does_not_stop_the_others(
         root,
         'name = "gone"\nhistory = "missing.jsonl.gz"',
         'name = "hukkin/tomli"\ngithub = "hukkin/tomli"',
+        'name = "truncated"\nhistory = "truncated.jsonl.gz"',
         UPSTREAM.format(root=root),
     )
+    (config.path.parent / "truncated.jsonl.gz").write_bytes(
+        (TOMLI / "history.jsonl.gz").read_bytes()[:60000]
+    )
     result = run_batch(config, ledger)
-    gone, prs, upstream = result.runs
+    gone, prs, truncated, upstream = result.runs
+    assert truncated.error is not None
+    assert "truncated or corrupt gzip stream" in truncated.error
     assert gone.error is not None
     assert "missing.jsonl.gz" in gone.error
     assert render_run(gone).startswith("gone [history]: failed: ")
     assert prs.error == "no GitHub client for pull-request entries"
     assert upstream.result is not None
-    assert [run.spec.name for run in result.failed] == ["gone", "hukkin/tomli"]
+    assert [run.spec.name for run in result.failed] == ["gone", "hukkin/tomli", "truncated"]
     assert set(outcome_counts(gone).values()) == {0}
     assert {run.spec.name for run, _, _ in best_new(result)} == {"demo/durations"}
     records = batch_records(result)
     assert records[0]["failed"] == [
         {"repo": "gone", "source": "history", "error": gone.error},
         {"repo": "hukkin/tomli", "source": "pull-requests", "error": prs.error},
+        {"repo": "truncated", "source": "history", "error": truncated.error},
     ]
     assert records[0]["runs"] == 1
 
