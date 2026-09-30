@@ -212,9 +212,11 @@ uv run commitminer ledger add team.sqlite3 out/candidates.jsonl --sha <sha> --ow
 uv run commitminer explain <sha> --repo /path/to/a/clone
 ```
 
-Verified in a fresh clone of `b3c4057`: `make install` took 1.40 s, the first `make demo`
-(the tomli ranking, then the batch twice) 1.39 s and the next one 0.83 s, and
-`make demo-ledger` 1.33 s (`/usr/bin/time -p`, warm uv cache, 8 GB Apple Silicon Mac).
+Verified in a fresh clone of `4ad4cb5`: `make install` took 2.77 s, the first `make demo`
+(the tomli ranking, then the batch twice) 2.50 s and the next one 2.02 s, and
+`make demo-ledger` 2.15 s; `demo-explain`, `demo-classify`, `demo-prs` and `demo-report`
+also exited 0 (`/usr/bin/time -p`, warm uv cache, 8 GB Apple Silicon Mac under load from
+other builds; 1.40 s, 1.39 s, 0.83 s and 1.33 s when first measured at `b3c4057`).
 
 ## Usage
 
