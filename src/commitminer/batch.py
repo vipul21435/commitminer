@@ -32,10 +32,12 @@ and ``config`` (another ``commitminer.toml`` whose classifier and scoring
 tables replace the batch file's for that entry). An entry is identified by its
 name and source, so one repository can be listed once per source.
 
-Each repository runs in order: walk what is new since its watermark, filter
-and rank, then record the run in the ledger in one transaction (new fixes as
-``proposed``, the walked shas, the new watermark; see
-:meth:`commitminer.ledger.Ledger.record_run`). How each source resumes:
+Every repository is walked first (what is new since its watermark). Then, in
+one ledger transaction, each is filtered, ranked and recorded in order (new
+fixes as ``proposed``, the walked shas, the new watermark; see
+:meth:`commitminer.ledger.Ledger.record_run`), and the transaction commits
+only after the export and the report are written: a batch that fails or is
+interrupted before leaves the ledger as it was. How each source resumes:
 
 - **clone**: the watermark is the head commit walked. A re-run walks
   ``watermark..head`` only; when the watermark is no longer an ancestor of the
@@ -519,54 +521,72 @@ def run_batch(
     dry_run: bool = False,
     client_factory: ClientFactory | None = None,
     progress: Callable[[RepoRun], None] | None = None,
+    finish: Callable[[BatchResult], None] | None = None,
 ) -> BatchResult:
-    """Mine each selected repository in order and record it in ``ledger``.
+    """Mine each selected repository in order and record the batch in ``ledger``.
+
+    Every repository is walked first, without holding the ledger's lock.
+    Then, in one transaction, each is ranked and recorded in order (so later
+    repositories collide with earlier ones), ``progress`` is called after
+    each, and ``finish`` gets the result (the CLI writes the export and the
+    report there). The transaction commits only when ``finish`` returns: if
+    anything fails or is interrupted before, the ledger is left unchanged and
+    the next run does the whole batch again, so no candidate is recorded
+    without having been exported.
 
     ``full`` ignores the watermarks (everything is walked again; fixes already
     recorded under the same repository come back as ``recorded``).
     ``dry_run`` records into an in-memory copy of the ledger, so the verdicts
-    are those of a real run and the file is left unchanged. ``progress`` is
-    called after each repository.
+    are those of a real run and the file is left unchanged.
     """
     specs = select(config, only)
     target = ledger.snapshot() if dry_run else ledger
-    runs: list[RepoRun] = []
-    collisions: list[Collision] = []
+    path = ledger.path if ledger.path is not None else config.ledger
     try:
-        for spec in specs:
-            run = _run_one(spec, config, target, full, client_factory)
-            if run.result is not None:
-                collisions += _collisions(spec.name, run.result, run.verdicts)
-            runs.append(run)
-            if progress is not None:
-                progress(run)
+        walks = [(spec, _walk_one(spec, target, full, client_factory)) for spec in specs]
+        runs: list[RepoRun] = []
+        collisions: list[Collision] = []
+        with target.transaction():
+            for spec, walked in walks:
+                run = _record_one(spec, walked, config, target)
+                if run.result is not None:
+                    collisions += _collisions(spec.name, run.result, run.verdicts)
+                runs.append(run)
+                if progress is not None:
+                    progress(run)
+            result = BatchResult(config, path, tuple(runs), tuple(collisions), full, dry_run)
+            if finish is not None:
+                finish(result)
     finally:
         if dry_run:
             target.close()
-    path = ledger.path if ledger.path is not None else config.ledger
-    return BatchResult(config, path, tuple(runs), tuple(collisions), full, dry_run)
+    return result
 
 
-def _run_one(
-    spec: RepoSpec,
-    config: BatchConfig,
-    ledger: Ledger,
-    full: bool,
-    client_factory: ClientFactory | None,
-) -> RepoRun:
+def _walk_one(
+    spec: RepoSpec, ledger: Ledger, full: bool, client_factory: ClientFactory | None
+) -> Walked | str:
+    """What is new in one repository since its watermark, or why it cannot be walked."""
     mark = ledger.watermark(spec.name, spec.source)
     seen = frozenset() if full else ledger.walked_shas(spec.name, spec.source)
     try:
         if spec.source == "clone":
-            walked = walk_clone(spec, mark, seen, full)
-        elif spec.source == "history":
-            walked = walk_history(spec, mark, seen, full)
-        else:
-            if client_factory is None:
-                raise SourceError("no GitHub client for pull-request entries")
-            walked = walk_pulls(spec, mark, seen, full, client_factory)
+            return walk_clone(spec, mark, seen, full)
+        if spec.source == "history":
+            return walk_history(spec, mark, seen, full)
+        if client_factory is None:
+            raise SourceError("no GitHub client for pull-request entries")
+        return walk_pulls(spec, mark, seen, full, client_factory)
     except SourceError as exc:
-        return RepoRun(spec, error=str(exc))
+        return str(exc)
+
+
+def _record_one(
+    spec: RepoSpec, walked: Walked | str, config: BatchConfig, ledger: Ledger
+) -> RepoRun:
+    """Rank one walked repository and record its run in the ledger."""
+    if isinstance(walked, str):
+        return RepoRun(spec, error=walked)
     result = mine(walked.commits, spec.settings)
     proposals = [
         Proposal(spec.name, c.commit.sha, c.commit.subject, c.fingerprint)

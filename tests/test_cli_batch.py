@@ -171,11 +171,13 @@ def test_batch_errors_exit_2(repos: tuple[Path, dict[str, dict[str, str]]], tmp_
     no_dir = runner.invoke(app, ["batch", str(config), "--ledger", str(blocked / "l.sqlite3")])
     assert no_dir.exit_code == 2
     assert "cannot create the ledger's directory" in no_dir.stderr
+    team = tmp_path / "unwritten.sqlite3"
     unwritable = runner.invoke(
-        app, ["batch", str(config), "--out", str(blocked / "x.jsonl"), "--ledger", "l.sqlite3"]
+        app, ["batch", str(config), "--out", str(blocked / "x.jsonl"), "--ledger", str(team)]
     )
     assert unwritable.exit_code == 2
     assert "cannot write" in unwritable.stderr
+    assert "nothing was recorded in the ledger" in unwritable.stderr
     broken = tmp_path / "broken.toml"
     broken.write_text(
         '[[batch.repos]]\nname = "gone"\nhistory = "missing.jsonl.gz"\n'
@@ -269,3 +271,40 @@ def test_a_dry_run_and_read_only_commands_leave_an_old_ledger_alone(tmp_path: Pa
     finally:
         old.chmod(0o644)
     assert old.read_bytes() == before
+
+
+def test_a_batch_whose_export_cannot_be_written_records_nothing(
+    repos: tuple[Path, dict[str, dict[str, str]]], tmp_path: Path
+) -> None:
+    # Regression: the ledger was committed before the export was written, so after a
+    # failed write the next run found every repository up to date and exported nothing.
+    root, _ = repos
+    config = batch_file(tmp_path, root)
+    ledger = tmp_path / "team.sqlite3"
+    (tmp_path / "outdir").write_text("x")
+    failed = runner.invoke(
+        app, ["batch", str(config), "--out", str(tmp_path / "outdir" / "b.jsonl"), "--top", "0"]
+    )
+    assert failed.exit_code == 2
+    assert "outdir/b.jsonl: cannot write: " in failed.stderr
+    assert "; nothing was recorded in the ledger" in failed.stderr
+    with open_ledger(ledger) as opened:
+        assert (opened.entries(), opened.watermarks()) == ([], [])
+    report = runner.invoke(
+        app, ["batch", str(config), "--report", str(tmp_path / "outdir" / "r.md"), "--top", "0"]
+    )
+    assert report.exit_code == 2
+    assert "outdir/r.md: cannot write: " in report.stderr
+    with open_ledger(ledger) as opened:
+        assert opened.entries() == []
+    dry = runner.invoke(
+        app, ["batch", str(config), "--dry-run", "--out", str(tmp_path / "outdir" / "d.jsonl")]
+    )
+    assert dry.exit_code == 2
+    assert "nothing was recorded" not in dry.stderr
+    good = tmp_path / "b.jsonl"
+    again = runner.invoke(app, ["batch", str(config), "--out", str(good), "--top", "0"])
+    assert again.exit_code == 0, again.output
+    assert again.stdout.splitlines()[-1] == f"wrote 3 runs and 13 candidates to {good}"
+    with open_ledger(ledger) as opened:
+        assert len(opened.entries()) == 10

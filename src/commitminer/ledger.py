@@ -50,8 +50,10 @@ Batch runs (:mod:`commitminer.batch`) keep a **watermark** per repository and
 source: where the last run stopped (the head commit walked, or for pull
 requests the newest update time listed) and the shas it evaluated, so a re-run
 walks only new commits. :meth:`Ledger.record_run` stores a repository's new
-fixes (as ``proposed``), its walked shas and its watermark in one transaction:
-an interrupted batch leaves each repository either fully recorded or untouched.
+fixes (as ``proposed``), its walked shas and its watermark atomically, and a
+batch records all its repositories in one :meth:`Ledger.transaction` that is
+committed only after the batch's export is written: an interrupted batch
+leaves the ledger untouched.
 A ``claimed`` add of a fix held as ``proposed`` takes it over (:meth:`Ledger.add`).
 """
 
@@ -504,8 +506,10 @@ class Ledger:
         """
         shas = sorted(set(walked))
         added: list[int] = []
+        # Inside a batch's transaction (see transaction()) the run is a savepoint of it.
+        nested = self._db.in_transaction
         with self._guard("write"):
-            self._db.execute("BEGIN IMMEDIATE")
+            self._db.execute("SAVEPOINT record_run" if nested else "BEGIN IMMEDIATE")
             try:
                 results = []
                 for proposal in proposals:
@@ -524,12 +528,38 @@ class Ledger:
                     "runs = watermarks.runs + 1, updated = excluded.updated",
                     (repo, source, position, len(shas), self._now()),
                 )
-                self._db.execute("COMMIT")
+                self._db.execute("RELEASE record_run" if nested else "COMMIT")
             except BaseException:
-                self._db.execute("ROLLBACK")
+                if nested:
+                    self._db.execute("ROLLBACK TO record_run")
+                    self._db.execute("RELEASE record_run")
+                else:
+                    self._db.execute("ROLLBACK")
                 self._run.difference_update(added)
                 raise
         return results
+
+    @contextlib.contextmanager
+    def transaction(self) -> Iterator[None]:
+        """Hold the write lock; commit what is recorded inside at the end, or none of it.
+
+        A batch records all its repositories inside one transaction and commits
+        only after its export and report are written, so a batch that fails or
+        is interrupted before that leaves the ledger unchanged. Any exception
+        (including ``KeyboardInterrupt``) rolls everything back.
+        """
+        with self._guard("write"):
+            self._db.execute("BEGIN IMMEDIATE")
+        before = set(self._run)
+        try:
+            yield
+            with self._guard("write"):
+                self._db.execute("COMMIT")
+        except BaseException:
+            if self._db.in_transaction:
+                self._db.execute("ROLLBACK")
+            self._run.intersection_update(before)
+            raise
 
     def watermark(self, repo: str, source: str) -> Watermark | None:
         """The watermark of one repository and source, if a batch has run it."""

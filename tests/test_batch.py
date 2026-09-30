@@ -633,6 +633,40 @@ def test_a_repository_that_fails_does_not_stop_the_others(
     assert records[0]["runs"] == 1
 
 
+def test_an_interrupted_or_unfinished_batch_records_nothing(
+    demo: tuple[Path, dict[str, dict[str, str]]], tmp_path: Path, ledger: Ledger
+) -> None:
+    # Regression: each repository was committed as soon as it was mined, before the export
+    # was written, so a batch interrupted in between lost those candidates from every later
+    # export (the next run found them up to date).
+    root, _ = demo
+    config = demo_batch(tmp_path, root, UPSTREAM.format(root=root), FORK.format(root=root))
+
+    def interrupt(run: RepoRun) -> None:
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        run_batch(config, ledger, progress=interrupt)
+    assert (ledger.entries(), ledger.watermarks()) == ([], [])
+
+    def export_fails(result: BatchResult) -> None:
+        # The export is written with the recorded verdicts, before anything is committed.
+        assert len(result.runs) == 2
+        with open_ledger(tmp_path / "ledger.sqlite3", readonly=True) as other:
+            assert other.entries() == []
+        raise OSError(28, "No space left on device")
+
+    with pytest.raises(OSError, match="No space left"):
+        run_batch(config, ledger, finish=export_fails)
+    assert (ledger.entries(), ledger.watermarks()) == ([], [])
+    finished: list[BatchResult] = []
+    result = run_batch(config, ledger, finish=finished.append)
+    assert finished == [result]
+    assert [outcome_counts(run)["new"] for run in result.runs] == [3, 1]
+    assert len(ledger.entries()) == 4
+    assert [m.repo for m in ledger.watermarks()] == ["demo/durations", "demo/durations-fork"]
+
+
 def test_the_same_commits_under_two_names_collide_as_the_same_commit(
     tmp_path: Path, ledger: Ledger
 ) -> None:

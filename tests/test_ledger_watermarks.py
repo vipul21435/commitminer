@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -175,6 +176,71 @@ def test_a_failed_run_keeps_nothing(ledger: Ledger, monkeypatch: pytest.MonkeyPa
     # The rolled-back entry is not remembered as part of the run.
     ((_, verdict),) = ledger.record_run("demo/up", "clone", "2" * 40, [], [proposal("b", "x1")])
     assert verdict.status is Status.NEW
+
+
+def test_a_transaction_commits_its_runs_together_or_not_at_all(
+    ledger: Ledger, path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A batch records every repository inside one transaction and commits after its
+    # export is written; an interrupt before that must leave the file as it was.
+    def interrupted() -> None:
+        with ledger.transaction():
+            ledger.record_run("demo/up", "clone", HEAD, ["a" * 40], [proposal("a", "h1")])
+            ledger.record_run("demo/fork", "clone", HEAD, [], [proposal("b", "h1")])
+            with open_ledger(path, readonly=True) as other:
+                assert other.entries() == []  # nothing is visible before the commit
+            raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        interrupted()
+    assert ledger.entries() == []
+    assert ledger.watermarks() == []
+    ((_, verdict),) = ledger.record_run("demo/x", "clone", HEAD, [], [proposal("a", "h1")])
+    assert verdict.status is Status.NEW
+    assert verdict.matches == ()
+    # A failed run inside the transaction is rolled back to its savepoint alone.
+    original = ledger._insert
+
+    def fails(*args: object) -> object:
+        raise RuntimeError("disk on fire")
+
+    with ledger.transaction():
+        ledger.record_run("demo/up", "clone", HEAD, ["b" * 40], [proposal("b", "x1")])
+        monkeypatch.setattr(ledger, "_insert", fails)
+        with pytest.raises(RuntimeError, match="disk on fire"):
+            ledger.record_run("demo/y", "clone", HEAD, ["c" * 40], [proposal("c", "y1")])
+        monkeypatch.setattr(ledger, "_insert", original)
+    with open_ledger(path, readonly=True) as reopened:
+        assert sorted(e.sha[0] for e in reopened.entries()) == ["a", "b"]
+        assert [m.repo for m in reopened.watermarks()] == ["demo/up", "demo/x"]
+    # A commit that fails is rolled back and reported as a ledger error.
+    monkeypatch.setattr(ledger, "_db", _FailingCommit(ledger._db))
+    with pytest.raises(LedgerError, match="cannot write: disk I/O error"), ledger.transaction():
+        ledger.record_run("demo/z", "clone", HEAD, [], [proposal("d", "z1")])
+    # SQLite may roll a failed COMMIT back itself (a full disk): nothing is left to undo.
+    monkeypatch.setattr(ledger, "_db", _FailingCommit(ledger._db._db, rolled_back=True))
+    with pytest.raises(LedgerError, match="cannot write: disk I/O error"), ledger.transaction():
+        ledger.record_run("demo/z", "clone", HEAD, [], [proposal("d", "z1")])
+    monkeypatch.undo()
+    assert sorted(e.sha[0] for e in ledger.entries()) == ["a", "b"]
+
+
+class _FailingCommit:
+    """A connection whose COMMIT fails, like a full disk at the end of a batch."""
+
+    def __init__(self, db: sqlite3.Connection, *, rolled_back: bool = False) -> None:
+        self._db = db
+        self._rolled_back = rolled_back
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._db, name)
+
+    def execute(self, sql: str, *args: object) -> sqlite3.Cursor:
+        if sql == "COMMIT":
+            if self._rolled_back:
+                self._db.execute("ROLLBACK")
+            raise sqlite3.OperationalError("disk I/O error")
+        return self._db.execute(sql, *args)
 
 
 def test_a_snapshot_records_runs_without_touching_the_file(ledger: Ledger, path: Path) -> None:

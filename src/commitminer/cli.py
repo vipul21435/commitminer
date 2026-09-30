@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -605,36 +605,54 @@ def batch_command(
     count = len(batch.repos)
     repositories = "1 repository" if count == 1 else f"{count} repositories"
     typer.echo(f"batch {config}: {repositories}, ledger {where}{mode}")
-    result = _run_batch(batch, where, only or [], full, dry_run)
-    typer.echo(render_collisions(result))
-    if top:
-        typer.echo("")
-        typer.echo(render_best(result, top))
-    records = batch_records(result)
-    target = out or batch.out
-    if target is not None:
-        try:
-            write_records(target, records)
-        except OSError as exc:
-            raise _fail(f"{target}: cannot write: {exc}") from exc
-        runs = sum(1 for record in records if record["kind"] == "run")
-        count = sum(1 for record in records if record["kind"] == "candidate")
-        typer.echo("")
-        typer.echo(f"wrote {runs} runs and {count} candidates to {target}")
-    document = report or batch.report
-    if document is not None:
-        chosen = format_for(document, None)
-        _write_report(document, render(from_records(records, "the batch export"), chosen))
-        typer.echo(f"wrote the {chosen} report to {document}")
+
+    def finish(result: BatchResult) -> None:
+        # Runs inside the ledger's transaction: if a write fails, nothing is recorded.
+        typer.echo(render_collisions(result))
+        if top:
+            typer.echo("")
+            typer.echo(render_best(result, top))
+        records = batch_records(result)
+        target = out or batch.out
+        if target is not None:
+            try:
+                write_records(target, records)
+            except OSError as exc:
+                raise _fail(f"{target}: cannot write: {exc}{unchanged}") from exc
+            runs = sum(1 for record in records if record["kind"] == "run")
+            count = sum(1 for record in records if record["kind"] == "candidate")
+            typer.echo("")
+            typer.echo(f"wrote {runs} runs and {count} candidates to {target}")
+        document = report or batch.report
+        if document is not None:
+            chosen = format_for(document, None)
+            text = render(from_records(records, "the batch export"), chosen)
+            try:
+                document.parent.mkdir(parents=True, exist_ok=True)
+                document.write_text(text, encoding="utf-8", newline="\n")
+            except OSError as exc:
+                raise _fail(f"{document}: cannot write: {exc}{unchanged}") from exc
+            typer.echo(f"wrote the {chosen} report to {document}")
+
+    unchanged = "" if dry_run else "; nothing was recorded in the ledger"
+    result = _run_batch(batch, where, only or [], full, dry_run, finish)
     if result.failed:
         names = ", ".join(run.spec.label for run in result.failed)
         raise _fail(f"{len(result.failed)} of {len(result.runs)} repositories failed: {names}")
 
 
 def _run_batch(
-    batch: BatchConfig, where: Path, only: list[str], full: bool, dry_run: bool
+    batch: BatchConfig,
+    where: Path,
+    only: list[str],
+    full: bool,
+    dry_run: bool,
+    finish: Callable[[BatchResult], None],
 ) -> BatchResult:
-    """Open (or, for a dry run of a missing ledger, stand in for) the ledger and run the batch."""
+    """Open (or, for a dry run of a missing ledger, stand in for) the ledger and run the batch.
+
+    ``finish`` writes the export and the report before the ledger commits.
+    """
 
     def progress(run: RepoRun) -> None:
         typer.echo(render_run(run))
@@ -662,6 +680,7 @@ def _run_batch(
                 dry_run=dry_run,
                 client_factory=_batch_client,
                 progress=progress,
+                finish=lambda result: finish(replace(result, ledger=where)),
             )
     except ConfigError as exc:
         raise _fail(str(exc)) from exc
