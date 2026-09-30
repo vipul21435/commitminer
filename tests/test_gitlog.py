@@ -11,6 +11,7 @@ from commitminer.gitlog import (
     MARKER,
     GitError,
     head_sha,
+    is_ancestor,
     log_command,
     parse_log,
     split_stream,
@@ -226,6 +227,22 @@ def test_walk_honours_revision_ranges_and_max_count(git_repo: GitRepo) -> None:
     assert [c.sha for c in walk(git_repo.root, f"{first}..HEAD")] == [third, second]
     assert [c.sha for c in walk(git_repo.root, max_count=1)] == [third]
     assert head_sha(git_repo.root) == third
+
+
+def test_is_ancestor(git_repo: GitRepo) -> None:
+    first = git_repo.commit("one", {"a.py": "1\n"})
+    second = git_repo.commit("two", {"a.py": "2\n"})
+    git_repo.git("checkout", "-q", "-b", "side", first)
+    side = git_repo.commit("side", {"b.py": "b\n"})
+    root = git_repo.root
+    assert is_ancestor(root, first, second) is True
+    assert is_ancestor(root, second, second) is True
+    assert is_ancestor(root, second, side) is False
+    assert is_ancestor(root, side, second) is False
+    # Not a full sha, or not in this clone (another clone's watermark, a gc'ed commit).
+    assert is_ancestor(root, first[:10], second) is None
+    assert is_ancestor(root, "0" * 40, second) is None
+    assert is_ancestor(root, "--output=x", second) is None
 
 
 def test_walk_ignores_repository_config_that_would_change_output(git_repo: GitRepo) -> None:

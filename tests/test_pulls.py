@@ -13,7 +13,7 @@ from commitminer.github import GitHubClient, GitHubError
 from commitminer.ledger import Status, Verdict
 from commitminer.models import FileChange, PatchStats, PullRequest
 from commitminer.patch import Hunk, PatchError, hunks_from_unified, parse_patch
-from commitminer.pulls import file_change, linked_issues, merged_pulls, pull_commit
+from commitminer.pulls import file_change, linked_issues, merged_pulls, pull_commit, pull_sha
 from commitminer.scoring import Candidate, fix_keyword, linked_reference, mine
 from fixturefiles import API, FakeClock, reply, write_fixture
 from gitrepo import GitRepo, lines, unhashed
@@ -230,7 +230,7 @@ def test_pull_request_metadata_feeds_the_score() -> None:
     assert features["fix_keyword"].value == 1.0
     assert features["fix_keyword"].detail == "label 'type: bug'"
     record = candidate_to_json(candidate, 1, "o/r")
-    assert record["schema_version"] == 5
+    assert record["schema_version"] == 6
     assert record["base"] == BASE
     assert record["pull_request"]["number"] == 7
     assert record["pull_request"]["linked_issues"] == ["#3", "#4"]
@@ -343,3 +343,39 @@ def test_merged_pulls_rejects_bad_arguments_and_answers(tmp_path: Path) -> None:
             merged_pulls(client, "o/r", 0)
         with pytest.raises(GitHubError, match=r"files.*expected a list"):
             merged_pulls(client, "o/r", 1)
+
+
+def test_merged_pulls_resume_after_a_watermark(tmp_path: Path) -> None:
+    """A batch run lists only pull requests updated after its watermark, skipping walked ones."""
+    listing = [
+        pull(5, updated_at="2024-05-05T00:00:00Z", merge_commit_sha="5" * 40),
+        pull(4, updated_at="2024-05-04T00:00:00Z", merge_commit_sha="4" * 40),
+        pull(3, None, updated_at="2024-05-03T00:00:00Z"),
+        pull(2, updated_at="2024-05-02T00:00:00Z", merge_commit_sha="2" * 40),
+        pull(1, updated_at="2024-05-01T00:00:00Z", merge_commit_sha="1" * 40),
+    ]
+    write_fixture(tmp_path, LIST, reply(200, listing))
+    for number in (1, 2, 4, 5):
+        serve(tmp_path, number, FILES, COMMITS)
+    with GitHubClient(transport=ReplayTransport(tmp_path), clock=FakeClock()) as client:
+        first = merged_pulls(client, "o/r", limit=10)
+        assert (first.newest, first.already_walked, len(first.commits)) == (
+            "2024-05-05T00:00:00Z",
+            0,
+            4,
+        )
+        # Pull request 4 was walked before (updated since, say by a comment): not read again.
+        resumed = merged_pulls(
+            client, "o/r", limit=10, since="2024-05-02T00:00:00Z", seen={"4" * 40}
+        )
+    assert [c.pull_request.number for c in resumed.commits if c.pull_request] == [5]
+    assert (resumed.already_walked, resumed.closed_unmerged) == (1, 1)
+    assert resumed.newest == "2024-05-05T00:00:00Z"
+
+
+def test_pull_sha_is_the_merge_commit_else_the_head() -> None:
+    assert pull_sha(pull()) == MERGE
+    assert pull_sha(pull(merge_commit_sha=None)) == HEAD
+    assert pull_sha(pull(merge_commit_sha="")) == HEAD
+    assert pull_sha({"head": None}) is None
+    assert pull_sha({"head": {"sha": 7}}) is None

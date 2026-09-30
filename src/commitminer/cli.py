@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
@@ -13,6 +14,21 @@ from typing import TYPE_CHECKING, Annotated
 import typer
 
 from commitminer import __version__
+from commitminer.batch import (
+    API_URL,
+    BatchConfig,
+    BatchResult,
+    RepoRun,
+    RepoSpec,
+    api_root,
+    batch_records,
+    load_batch,
+    render_best,
+    render_collisions,
+    render_run,
+    run_batch,
+    web_url,
+)
 from commitminer.config import Config, ConfigError, find_config, load_config
 from commitminer.explain import ExplainError, explain_json, find_commit, render_commit
 from commitminer.export import (
@@ -23,6 +39,7 @@ from commitminer.export import (
     render_table,
     schema_text,
     write_jsonl,
+    write_records,
 )
 from commitminer.gitlog import GitError, head_sha, origin_url, resolve_commit, walk
 from commitminer.history import HistoryError, read_history, write_history
@@ -56,9 +73,11 @@ from commitminer.settings import Settings
 if TYPE_CHECKING:
     import httpx
 
-# The GitHub client (and httpx) is imported by the prs command only, so the other
-# commands start faster; tests check that these copies match the modules' values.
-API_URL = "https://api.github.com"
+    from commitminer.github import GitHubClient
+
+# The GitHub client (and httpx) is imported by the prs and batch commands only, so
+# the other commands start faster; tests check that these copies (API_URL comes
+# from commitminer.batch) match the modules' values.
 DEFAULT_MAX_FILES = 300
 
 app = typer.Typer(
@@ -497,12 +516,127 @@ def prs_command(
     _report(list(walked.commits), repo, settings, output, unit="pull requests")
 
 
-def web_url(api_url: str, repo: str) -> str:
-    """The repository's web URL from the REST API root: github.com, or a GHES host."""
-    root = api_url.rstrip("/")
-    if root == API_URL:
-        return f"https://github.com/{repo}"
-    return f"{root.removesuffix('/api/v3')}/{repo}"
+def _batch_client(spec: RepoSpec) -> GitHubClient:
+    """The GitHub client of a batch's pull-request entry: fixtures with ``replay``, else live."""
+    from commitminer.fixtures import ReplayTransport
+    from commitminer.github import GitHubClient, ResponseCache, default_cache_dir
+
+    cache = None
+    if spec.cache_dir is not None or spec.replay is None:
+        cache = ResponseCache(spec.cache_dir or default_cache_dir())
+    transport = ReplayTransport(spec.replay) if spec.replay is not None else _network_transport()
+    return GitHubClient(
+        token=os.environ.get("GITHUB_TOKEN") or None,
+        api_url=api_root(spec),
+        cache=cache,
+        transport=transport,
+        max_wait=spec.max_wait,
+    )
+
+
+@app.command(name="batch")
+def batch_command(
+    config: Annotated[
+        Path,
+        typer.Argument(
+            help="Batch file: a commitminer.toml with [batch] and [[batch.repos]].",
+            show_default=False,
+        ),
+    ],
+    ledger: Annotated[
+        Path | None,
+        typer.Option(
+            "--ledger",
+            help="Ledger to record into (default: batch.ledger, else "
+            ".commitminer/ledger.sqlite3 next to the batch file; created if missing).",
+            show_default=False,
+        ),
+    ] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option(
+            "--out", help="Write the batch export here (default: batch.out).", show_default=False
+        ),
+    ] = None,
+    only: Annotated[
+        list[str] | None,
+        typer.Option("--only", help="Run only the repositories with this name (repeatable)."),
+    ] = None,
+    full: Annotated[
+        bool,
+        typer.Option("--full", help="Ignore the watermarks and walk every repository in full."),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option(
+            "--dry-run", help="Check against the ledger without recording anything in it."
+        ),
+    ] = False,
+    top: Annotated[
+        int, typer.Option("--top", min=0, help="Best new candidates to list across the batch.")
+    ] = 10,
+) -> None:
+    """Mine several repositories into one ledger, walking only what is new since the last run."""
+    try:
+        batch = load_batch(config)
+    except ConfigError as exc:
+        raise _fail(str(exc)) from exc
+    where = ledger or batch.ledger
+    mode = " (dry run: the ledger is not changed)" if dry_run else ""
+    count = len(batch.repos)
+    repositories = "1 repository" if count == 1 else f"{count} repositories"
+    typer.echo(f"batch {config}: {repositories}, ledger {where}{mode}")
+    result = _run_batch(batch, where, only or [], full, dry_run)
+    typer.echo(render_collisions(result))
+    if top:
+        typer.echo("")
+        typer.echo(render_best(result, top))
+    target = out or batch.out
+    if target is not None:
+        records = batch_records(result)
+        try:
+            write_records(target, records)
+        except OSError as exc:
+            raise _fail(f"{target}: cannot write: {exc}") from exc
+        runs = sum(1 for record in records if record["kind"] == "run")
+        count = sum(1 for record in records if record["kind"] == "candidate")
+        typer.echo("")
+        typer.echo(f"wrote {runs} runs and {count} candidates to {target}")
+    if result.failed:
+        names = ", ".join(run.spec.label for run in result.failed)
+        raise _fail(f"{len(result.failed)} of {len(result.runs)} repositories failed: {names}")
+
+
+def _run_batch(
+    batch: BatchConfig, where: Path, only: list[str], full: bool, dry_run: bool
+) -> BatchResult:
+    """Open (or, for a dry run of a missing ledger, stand in for) the ledger and run the batch."""
+
+    def progress(run: RepoRun) -> None:
+        typer.echo(render_run(run))
+
+    path = where
+    try:
+        with ExitStack() as stack:
+            if dry_run and not where.exists():
+                path = Path(stack.enter_context(tempfile.TemporaryDirectory())) / "empty.sqlite3"
+            elif not where.parent.is_dir():
+                where.parent.mkdir(parents=True)
+            opened = stack.enter_context(_ledger(path, create=True))
+            result = run_batch(
+                batch,
+                opened,
+                only=only,
+                full=full,
+                dry_run=dry_run,
+                client_factory=_batch_client,
+                progress=progress,
+            )
+    except OSError as exc:
+        raise _fail(f"{where}: cannot create the ledger's directory: {exc}") from exc
+    except ConfigError as exc:
+        raise _fail(str(exc)) from exc
+    return replace(result, ledger=where)
 
 
 @app.command()

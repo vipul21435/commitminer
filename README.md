@@ -131,7 +131,7 @@ the flip is the downstream builder's job.
   `x.test.js::test name`. 30 of tomli's 44 candidates get ids (the other 14 change only
   `.toml`/`.json` test data). Without file contents (pull requests, `--no-content`) only
   test definitions among the added lines are named.
-- **Export** (schema version 5, [JSON Schema](src/commitminer/schemas/export-v5.schema.json)
+- **Export** (schema version 6, [JSON Schema](src/commitminer/schemas/export-v6.schema.json)
   committed, printed by `commitminer schema`, every export validated against it in the
   tests and in CI): a run record first (source, URL, funnel counts, every rejected commit
   with its reason, ledger summary, settings), then one candidate per line: repository URL,
@@ -674,14 +674,14 @@ entries, the settings every limit and weight, and a candidate also carries its f
 their patch measurements, both feature breakdowns and the public API it touches):
 
 ```json
-{"kind": "run", "schema_version": 5, "commitminer": "0.1.0", "repo": "hukkin/tomli",
+{"kind": "run", "schema_version": 6, "commitminer": "0.1.0", "repo": "hukkin/tomli",
  "url": "https://github.com/hukkin/tomli", "source": "history", "unit": "commits",
  "walked": 312, "candidates": 44, "bands": {"easy": 15, "medium": 17, "hard": 12},
  "rejected": {"docs-only": 42, "no-source": 100, "source-unchanged": 1, "source-cosmetic": 6, "no-test": 115, "oversize": 4},
  "rejections": [{"sha": "5a77b12a7a9f052ce5a20c335d2825658f6aea52", "date": "2026-04-14T11:34:49+02:00", "subject": "Use frozendict on Python 3.15", "reason": "no-test", "pull_request": null}, "..."],
- "ledger": null, "exported": 44,
+ "ledger": null, "exported": 44, "resume": null,
  "settings": {"max_lines": 400, "max_source_files": 10, "test_lines_cap": 40, "weights": {"small_diff": 3.0, "...": "..."}, "...": "..."}}
-{"kind": "candidate", "schema_version": 5, "rank": 1, "repo": "hukkin/tomli",
+{"kind": "candidate", "schema_version": 6, "rank": 1, "repo": "hukkin/tomli",
  "repo_url": "https://github.com/hukkin/tomli",
  "sha": "5ab9ec926d9dc1ef79e66215edd51285371fe8a0", "base": "37a543b74bb1633478aea9f3a6a450a550bdeb63",
  "date": "2021-05-28T23:10:06+02:00", "subject": "NEW: Allow float parse func customisation (#2)",
@@ -696,7 +696,7 @@ fix), `source_files`, `test_files` and `fail_to_pass`, then verifies the flip by
 those tests on both commits. `commitminer schema` prints the JSON Schema
 (draft 2020-12, `additionalProperties: false` on every record, so a field the export
 starts writing without a schema change fails the tests); the ledger commands read schema
-3 to 5 and skip the run record. The fail-to-pass ids are a guess from the diff: in the
+3 to 6 and skip the run and batch records. The fail-to-pass ids are a guess from the diff: in the
 demo's top candidate, `5ab9ec926d` adds `test_parse_float` and changes lines inside
 `test_deepcopy` (`git show --unified=0 5ab9ec926d -- tests/test_misc.py`); tomli keeps
 those tests as module-level functions, and its `unittest` classes give ids such as
@@ -709,7 +709,7 @@ collapsible sections):
 ```markdown
 # CommitMiner report: hukkin/tomli
 
-Source: a recorded history of [https://github.com/hukkin/tomli](https://github.com/hukkin/tomli), 312 commits walked. CommitMiner 0.1.0, export schema version 5.
+Source: a recorded history of [https://github.com/hukkin/tomli](https://github.com/hukkin/tomli), 312 commits walked. CommitMiner 0.1.0, export schema version 6.
 
 ## Funnel
 
@@ -786,7 +786,7 @@ flowchart LR
     testids --> patch
     ledger --> export
     scoring --> export[export: run record + candidates JSONL, table, breakdowns]
-    export -->|validated by| schema[(export-v5.schema.json)]
+    export -->|validated by| schema[(export-v6.schema.json)]
     export -->|commitminer report| report[report: Markdown / HTML]
     scoring --> explain[explain: one commit]
 ```
@@ -813,7 +813,7 @@ flowchart LR
 | `fingerprint.py` | hunk hashes (whitespace, path and position insensitive) and commit fingerprints |
 | `ledger.py` | the SQLite ledger: schema and migrations, verdicts, atomic claims, reading exported candidates |
 | `export.py` | the run record and candidate JSONL export, the JSON Schema accessor, the terminal renderers |
-| `schemas/` | `export-v5.schema.json`, the committed JSON Schema of the export records |
+| `schemas/` | `export-v6.schema.json`, the committed JSON Schema of the export records |
 | `report.py` | reads an export and renders the Markdown and self-contained HTML reports |
 | `explain.py` | the `explain` output, text and JSON |
 | `ruletable.py` | `classify` and `rules` command output, `docs/rules.md` |

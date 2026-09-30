@@ -477,6 +477,30 @@ def resolve_commit(repo: Path, rev: str) -> str:
     return head_sha(repo, f"{rev}^{{commit}}")
 
 
+_FULL_SHA = re.compile(r"^[0-9a-f]{40}(?:[0-9a-f]{24})?$")
+
+
+def is_ancestor(repo: Path, ancestor: str, commit: str) -> bool | None:
+    """Whether ``ancestor`` is ``commit`` or one of its ancestors.
+
+    ``None`` when ``ancestor`` is not a full sha or the clone does not have it
+    (a watermark from another clone, or a commit gone after a force push).
+    """
+    if not _FULL_SHA.match(ancestor):
+        return None
+    try:
+        out = run_git(
+            [
+                *("git", "-C", str(repo), *GIT_CONFIG, "rev-list", "--count"),
+                *("--end-of-options", f"{commit}..{ancestor}"),
+            ]
+        )
+    except GitError:
+        return None
+    # Nothing reachable from the ancestor that the commit does not also reach.
+    return out.strip() == b"0"
+
+
 def origin_url(repo: Path) -> str | None:
     """The clone's ``remote.origin.url``, or ``None`` when it has no origin remote."""
     try:

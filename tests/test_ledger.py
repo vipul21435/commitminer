@@ -592,8 +592,8 @@ def test_read_candidates(tmp_path: Path) -> None:
     [
         ("{", "invalid JSON"),
         ("[]", "expected an object"),
-        (_line(schema_version=2), "schema_version 2, expected 3 to 5"),
-        (_line(schema_version=6), "schema_version 6, expected 3 to 5"),
+        (_line(schema_version=2), "schema_version 2, expected 3 to 6"),
+        (_line(schema_version=7), "schema_version 7, expected 3 to 6"),
         (_line(rank="1"), "rank: expected int"),
         (_line(repo=None), "repo: expected str"),
         (_line(fingerprint=[]), "fingerprint: expected an object or null"),

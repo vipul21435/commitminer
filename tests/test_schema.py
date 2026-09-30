@@ -161,6 +161,7 @@ def test_the_schema_rejects_what_the_export_never_writes(validator: Draft202012V
             "weights": {"small_diff": 3.0},
             "difficulty_weights": {"files": 1.0},
         },
+        "resume": None,
     }
     assert _errors(validator, run) == []
     assert _errors(validator, {**run, "rejected": {"bogus": 1}})

@@ -1,9 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/vipul21435/commitminer/schemas/export-v5.schema.json",
-  "title": "CommitMiner export record (schema version 5)",
-  "description": "One line of a file written by `commitminer mine --out` or `commitminer prs --out`. The first line is the run record; every other line is one candidate, best first. A downstream environment builder reads `repo_url`, `base` (the commit a task starts from), `sha` (the fix), `source_files`, `test_files` and `fail_to_pass` (likely test ids, to be verified by running the flip).",
+  "$id": "https://github.com/vipul21435/commitminer/schemas/export-v6.schema.json",
+  "title": "CommitMiner export record (schema version 6)",
+  "description": "One line of a file written by `commitminer mine --out`, `prs --out` or `batch --out`. A mine or prs export is a run record followed by its candidates, best first. A batch export starts with a batch record, then holds one run record per repository, each followed by that repository's candidates. A downstream environment builder reads `repo_url`, `base` (the commit a task starts from), `sha` (the fix), `source_files`, `test_files` and `fail_to_pass` (likely test ids, to be verified by running the flip).",
   "oneOf": [
+    { "$ref": "#/$defs/batch" },
     { "$ref": "#/$defs/run" },
     { "$ref": "#/$defs/candidate" }
   ],
@@ -129,7 +130,7 @@
       "type": "object",
       "properties": {
         "kind": { "const": "candidate" },
-        "schema_version": { "const": 5 },
+        "schema_version": { "const": 6 },
         "rank": { "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }], "description": "Rank among all candidates of the run (null outside a ranking)." },
         "repo": { "type": "string", "description": "The repository label (--repo-name, OWNER/REPO, or the clone's directory name)." },
         "repo_url": { "type": ["string", "null"], "description": "The repository URL: --url, the recording's URL, the clone's origin remote or the GitHub web URL." },
@@ -181,12 +182,75 @@
       "type": "object",
       "additionalProperties": { "type": "number", "minimum": 0 }
     },
+    "resume": {
+      "type": "object",
+      "description": "How a batch run of one repository resumed from its watermark in the ledger.",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["first", "resumed", "up-to-date", "full"],
+          "description": "first: no watermark yet; resumed: only commits after the watermark were walked; up-to-date: nothing new; full: everything was walked again (--full, or a watermark the clone cannot use)."
+        },
+        "previous": { "type": ["string", "null"], "description": "The watermark before the run: a head sha, or for pull requests the newest update time." },
+        "watermark": { "type": ["string", "null"], "description": "The watermark after the run (not stored with --dry-run)." },
+        "skipped": { "$ref": "#/$defs/count", "description": "Commits or pull requests passed over because a batch had evaluated them." },
+        "note": { "type": ["string", "null"] }
+      },
+      "required": ["mode", "previous", "watermark", "skipped", "note"],
+      "additionalProperties": false
+    },
+    "collision": {
+      "type": "object",
+      "description": "A candidate that duplicates or overlaps a fix recorded under another repository.",
+      "properties": {
+        "repo": { "type": "string" },
+        "sha": { "$ref": "#/$defs/sha" },
+        "subject": { "type": "string" },
+        "rank": { "type": "integer", "minimum": 1 },
+        "status": { "type": "string", "enum": ["duplicate", "overlap"] },
+        "same_commit": { "type": "boolean", "description": "The other repository recorded this very commit (a fork or a mirror)." },
+        "match": { "$ref": "#/$defs/match" }
+      },
+      "required": ["repo", "sha", "subject", "rank", "status", "same_commit", "match"],
+      "additionalProperties": false
+    },
+    "batch": {
+      "type": "object",
+      "description": "The first line of a batch export: the batch file, the ledger, the repositories that failed and the collisions across repositories.",
+      "properties": {
+        "kind": { "const": "batch" },
+        "schema_version": { "const": 6 },
+        "commitminer": { "type": "string" },
+        "config": { "type": "string", "description": "The batch file." },
+        "ledger": { "type": "string" },
+        "min_overlap": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "dry_run": { "type": "boolean" },
+        "full": { "type": "boolean" },
+        "runs": { "$ref": "#/$defs/count", "description": "Run records that follow, one per repository that did not fail." },
+        "failed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "repo": { "type": "string" },
+              "source": { "type": "string", "enum": ["clone", "history", "pull-requests"] },
+              "error": { "type": "string" }
+            },
+            "required": ["repo", "source", "error"],
+            "additionalProperties": false
+          }
+        },
+        "collisions": { "type": "array", "items": { "$ref": "#/$defs/collision" } }
+      },
+      "required": ["kind", "schema_version", "commitminer", "config", "ledger", "min_overlap", "dry_run", "full", "runs", "failed", "collisions"],
+      "additionalProperties": false
+    },
     "run": {
       "type": "object",
-      "description": "The first line of an export: the funnel, every rejected commit with its reason, the ledger summary and the settings.",
+      "description": "What one repository's run looked at: the funnel, every rejected commit with its reason, the ledger summary, the settings and, in a batch, how it resumed.",
       "properties": {
         "kind": { "const": "run" },
-        "schema_version": { "const": 5 },
+        "schema_version": { "const": 6 },
         "commitminer": { "type": "string", "description": "The CommitMiner version that wrote the file." },
         "repo": { "type": "string" },
         "url": { "type": ["string", "null"] },
@@ -251,6 +315,7 @@
           ]
         },
         "exported": { "$ref": "#/$defs/count", "description": "Candidate records that follow (fewer than `candidates` with --new-only)." },
+        "resume": { "oneOf": [{ "$ref": "#/$defs/resume" }, { "type": "null" }], "description": "Set by commitminer batch; null for mine and prs." },
         "settings": {
           "type": "object",
           "properties": {
@@ -271,7 +336,7 @@
           "additionalProperties": false
         }
       },
-      "required": ["kind", "schema_version", "commitminer", "repo", "url", "source", "unit", "walked", "candidates", "bands", "rejected", "rejections", "ledger", "exported", "settings"],
+      "required": ["kind", "schema_version", "commitminer", "repo", "url", "source", "unit", "walked", "candidates", "bands", "rejected", "rejections", "ledger", "exported", "settings", "resume"],
       "additionalProperties": false
     }
   }

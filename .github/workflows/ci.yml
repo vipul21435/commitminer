@@ -41,7 +41,7 @@ jobs:
         run: make demo-ledger
       - name: Pull-request demo (recorded GitHub responses, offline)
         run: make demo-prs
-      - name: Report demo (export schema 5, Markdown and HTML reports)
+      - name: Report demo (export schema 6, Markdown and HTML reports)
         run: make demo-report
       - name: Exported candidates validate against the committed JSON Schema
         run: |

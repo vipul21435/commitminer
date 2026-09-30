@@ -24,7 +24,7 @@ fix, fixes, fixed, resolve, resolves, resolved) followed by ``#123``,
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Container, Iterable
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -178,11 +178,26 @@ class PullWalk:
     ``too_many_files`` lists the merged pull requests with more than the
     allowed number of changed files: their files were not read in full, so
     they are not ranked (they could not be small, focused tasks anyway).
+    ``newest`` is the latest ``updated_at`` of the closed pull requests listed
+    (the watermark of a batch run), ``already_walked`` counts merged pull
+    requests passed over because a batch had evaluated their commit.
     """
 
     commits: tuple[Commit, ...]
     closed_unmerged: int
     too_many_files: tuple[int, ...] = ()
+    newest: str | None = None
+    already_walked: int = 0
+
+
+def pull_sha(pull: dict[str, Any]) -> str | None:
+    """The sha a merged pull request's :class:`Commit` gets: the merge commit, else the head."""
+    merge = pull.get("merge_commit_sha")
+    if isinstance(merge, str) and merge:
+        return merge
+    head = pull.get("head")
+    sha = head.get("sha") if isinstance(head, dict) else None
+    return sha if isinstance(sha, str) else None
 
 
 DEFAULT_MAX_FILES: Final = 300
@@ -202,19 +217,31 @@ def _files(client: GitHubClient, url: str, max_files: int) -> list[Any] | None:
 
 
 def merged_pulls(
-    client: GitHubClient, repo: str, limit: int, max_files: int = DEFAULT_MAX_FILES
+    client: GitHubClient,
+    repo: str,
+    limit: int,
+    max_files: int = DEFAULT_MAX_FILES,
+    *,
+    since: str | None = None,
+    seen: Container[str] = frozenset(),
 ) -> PullWalk:
     """Read the ``limit`` most recently updated merged pull requests of ``repo`` (``OWNER/REPO``).
 
     Files are read before commits, so a pull request with more than
     ``max_files`` changed files costs at most ``max_files / 100`` requests.
+    A batch run resumes with ``since``, the newest ``updated_at`` of its last
+    run: the listing (newest updated first) stops at the first pull request
+    not updated after it. Merged pull requests whose commit sha is in
+    ``seen`` were evaluated before and are passed over without reading their
+    files or commits.
     """
     if not REPO_NAME.match(repo):
         raise GitHubError(f"{repo!r} is not OWNER/REPO")
     if limit < 1 or max_files < 1:
         raise ValueError("limit and max_files must be at least 1")
     merged: list[dict[str, Any]] = []
-    unmerged = 0
+    unmerged = already = 0
+    newest: str | None = None
     params: dict[str, str | int] = {
         "state": "closed",
         "sort": "updated",
@@ -223,8 +250,16 @@ def merged_pulls(
     }
     for item in client.items(f"/repos/{repo}/pulls", params):
         pull = _object(item, "pull")
+        updated = pull.get("updated_at")
+        if isinstance(updated, str):
+            if since is not None and updated <= since:
+                break  # sorted by update time: nothing below is newer than the watermark
+            newest = updated if newest is None else max(newest, updated)
         if pull.get("merged_at") is None:
             unmerged += 1
+            continue
+        if pull_sha(pull) in seen:
+            already += 1
             continue
         merged.append(pull)
         if len(merged) == limit:
@@ -241,4 +276,4 @@ def merged_pulls(
         pull_commits = list(client.items(f"{base}/commits", {"per_page": 100}))
         commits.append(pull_commit(pull, pull_commits, pull_files, repo))
     commits.sort(key=lambda c: (c.date, c.pull_request.number if c.pull_request else 0))
-    return PullWalk(tuple(reversed(commits)), unmerged, tuple(sorted(skipped)))
+    return PullWalk(tuple(reversed(commits)), unmerged, tuple(sorted(skipped)), newest, already)

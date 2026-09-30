@@ -70,7 +70,8 @@ _RULE_KEYS: Final = frozenset(
     {"id", "category", "rationale", "languages", "case_sensitive", "unless_paths"}
 )
 _BUILTIN_IDS: Final = frozenset(rule.rule_id for rule in RULES)
-_TABLES: Final = frozenset({"classify", "filter", "score", "difficulty"})
+_TABLES: Final = frozenset({"classify", "filter", "score", "difficulty", "batch"})
+"""Top-level tables; ``[batch]`` is read by :mod:`commitminer.batch` only."""
 _NUMBERS: Final[dict[str, dict[str, type]]] = {
     "filter": {"max_lines": int, "max_source_files": int},
     "score": {"test_lines_cap": int, "assertions_cap": int},

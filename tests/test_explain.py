@@ -339,5 +339,5 @@ def test_render_commit_without_patch_data_with_binaries_and_renames() -> None:
     record = explain_json(evaluate(docs, settings), settings, "r")
     assert record["reason"] == "docs-only"
     assert "reason_detail" not in record
-    assert record["schema_version"] == 5
+    assert record["schema_version"] == 6
     assert record["pull_request"] is None

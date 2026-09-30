@@ -420,6 +420,11 @@ def test_request_stats_describe() -> None:
         "waited 2 s; rate limit 57 of 60 left, resets 2023-11-14 22:13:20 UTC"
     )
     assert RequestStats(limit=60, remaining=1).describe().endswith("1 of 60 left")
+    assert (
+        RequestStats(1, 0, 1)
+        .describe()
+        .startswith("1 request (0 answered 304 from the cache), 1 retry,")
+    )
 
 
 def test_malformed_rate_limit_headers_are_ignored(tmp_path: Path) -> None:

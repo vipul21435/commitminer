@@ -219,7 +219,10 @@ def test_report_errors_exit_2(tmp_path: Path) -> None:
         ("", "empty file"),
         ("{\n", "line 1: invalid JSON"),
         ("[]\n", "line 1: expected an object"),
-        ('{"schema_version": 4}\n', "schema_version 4, expected 5 (mine the candidates again)"),
+        (
+            '{"schema_version": 4}\n',
+            "schema_version 4, expected 5 or 6 (mine the candidates again)",
+        ),
         ('{"schema_version": 5, "kind": "candidate"}\n', "the first record must be the run record"),
         ('{"schema_version": 5, "kind": "run"}\n', "line 1: missing field 'repo'"),
     ]:

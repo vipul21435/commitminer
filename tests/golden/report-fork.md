@@ -1,6 +1,6 @@
 # CommitMiner report: demo/durations-fork
 
-Source: a local clone of [https://example.invalid/demo/fork.git](https://example.invalid/demo/fork), 5 commits walked. CommitMiner 0.1.0, export schema version 5.
+Source: a local clone of [https://example.invalid/demo/fork.git](https://example.invalid/demo/fork), 5 commits walked. CommitMiner 0.1.0, export schema version 6.
 
 Checked against the ledger ledger.sqlite3 (min overlap 0.5).
 

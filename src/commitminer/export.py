@@ -1,14 +1,17 @@
 """Candidate export (JSON Lines) and plain-text rendering for the terminal.
 
-An export is one JSON object per line. The first line is the **run record**
-(``"kind": "run"``): what was mined, the funnel counts, every rejected commit
-with its reason, the ledger summary and the settings. Every other line is one
-**candidate** (``"kind": "candidate"``), best first, self-contained: the
-repository URL, base and fix commits, the classified files, the likely
-fail-to-pass test ids, both feature breakdowns, the fingerprint and the ledger
-verdict. The committed JSON Schema (``schemas/export-v5.schema.json``, printed
-by ``commitminer schema``) describes both records; the tests validate every
-export against it.
+An export is one JSON object per line. The first line of a ``mine`` or
+``prs`` export is the **run record** (``"kind": "run"``): what was mined, the
+funnel counts, every rejected commit with its reason, the ledger summary and
+the settings. Every other line is one **candidate** (``"kind": "candidate"``),
+best first, self-contained: the repository URL, base and fix commits, the
+classified files, the likely fail-to-pass test ids, both feature breakdowns,
+the fingerprint and the ledger verdict. A ``batch`` export starts with a
+**batch record** (``"kind": "batch"``, written by :mod:`commitminer.batch`)
+and then holds one run record per repository, each followed by its
+candidates. The committed JSON Schema (``schemas/export-v6.schema.json``,
+printed by ``commitminer schema``) describes all three records; the tests
+validate every export against it.
 """
 
 from __future__ import annotations
@@ -30,7 +33,7 @@ from commitminer.scoring import Candidate, Feature, MineResult
 from commitminer.settings import Settings
 from commitminer.stats import ClassifiedFile
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 """Version of the export records; bumped on incompatible changes.
 
 2: ``added_assertions`` score feature, ``difficulty``, per-file ``patch``, and
@@ -44,6 +47,8 @@ commit shas, commits) for candidates mined with ``commitminer prs``, else
 5: ``kind`` on every record and a ``run`` record first; on candidates
 ``repo_url``, ``fail_to_pass`` (likely test ids from the test functions the
 patch touched) and per-file ``patch.tests``; a committed JSON Schema.
+6: ``batch`` exports (a batch record, then one run record per repository with
+its candidates); ``resume`` on run records (``null`` outside a batch).
 """
 
 SCHEMA_FILE = f"export-v{SCHEMA_VERSION}.schema.json"
@@ -55,8 +60,23 @@ def schema_text() -> str:
 
 
 @dataclass(frozen=True, slots=True)
+class Resume:
+    """How a batch run of one repository resumed from its watermark."""
+
+    mode: str
+    """``first``, ``resumed``, ``up-to-date`` or ``full``."""
+    previous: str | None
+    """The watermark before the run."""
+    watermark: str | None
+    """The watermark after the run."""
+    skipped: int = 0
+    """Commits or pull requests passed over because a batch had evaluated them."""
+    note: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Run:
-    """What one ``mine`` or ``prs`` run looked at: the run record's identity."""
+    """What one ``mine``, ``prs`` or batch run looked at: the run record's identity."""
 
     repo: str
     url: str | None
@@ -68,6 +88,7 @@ class Run:
     ledger: str | None = None
     min_overlap: float | None = None
     new_only: bool = False
+    resume: Resume | None = None
 
 
 def _feature_to_json(feature: Feature) -> dict[str, Any]:
@@ -255,7 +276,41 @@ def run_to_json(
         "ledger": ledger,
         "exported": exported,
         "settings": settings_to_json(run.settings),
+        "resume": None if run.resume is None else asdict(run.resume),
     }
+
+
+def export_records(
+    result: MineResult,
+    repo: str,
+    verdicts: Sequence[Verdict] | None = None,
+    ranks: Sequence[int] | None = None,
+    run: Run | None = None,
+    funnel: MineResult | None = None,
+    all_verdicts: Sequence[Verdict] | None = None,
+) -> list[dict[str, Any]]:
+    """The run record (with ``run``), then every candidate record, best first.
+
+    ``ranks`` are the candidates' ranks when ``result`` holds only some of
+    them (``--new-only``); ``funnel`` and ``all_verdicts`` are then the full
+    result and its verdicts, which the run record describes.
+    """
+    rows = [
+        candidate_to_json(c, rank, repo, verdict, run.url if run else None)
+        for rank, c, verdict in zip(
+            _ranks(result, ranks), result.candidates, _verdicts(result, verdicts), strict=True
+        )
+    ]
+    if run is None:
+        return rows
+    return [run_to_json(run, funnel or result, all_verdicts, len(rows)), *rows]
+
+
+def write_records(path: Path, records: Sequence[dict[str, Any]]) -> None:
+    """Write records as JSON Lines: sorted keys, ASCII only, one object per line."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [json.dumps(record, sort_keys=True, ensure_ascii=True) for record in records]
+    path.write_text("".join(line + "\n" for line in lines), encoding="ascii", newline="\n")
 
 
 def write_jsonl(
@@ -268,27 +323,10 @@ def write_jsonl(
     funnel: MineResult | None = None,
     all_verdicts: Sequence[Verdict] | None = None,
 ) -> int:
-    """Write the export: the run record (with ``run``), then every candidate, best first.
-
-    Returns the number of candidates written. ``ranks`` are the candidates'
-    ranks when ``result`` holds only some of them (``--new-only``); ``funnel``
-    and ``all_verdicts`` are then the full result and its verdicts, which the
-    run record describes.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    rows = [
-        candidate_to_json(c, rank, repo, verdict, run.url if run else None)
-        for rank, c, verdict in zip(
-            _ranks(result, ranks), result.candidates, _verdicts(result, verdicts), strict=True
-        )
-    ]
-    records: list[dict[str, Any]] = []
-    if run is not None:
-        records.append(run_to_json(run, funnel or result, all_verdicts, len(rows)))
-    records += rows
-    lines = [json.dumps(record, sort_keys=True, ensure_ascii=True) for record in records]
-    path.write_text("".join(line + "\n" for line in lines), encoding="ascii", newline="\n")
-    return len(rows)
+    """Write the export of one run (see :func:`export_records`); returns the candidates written."""
+    records = export_records(result, repo, verdicts, ranks, run, funnel, all_verdicts)
+    write_records(path, records)
+    return sum(1 for record in records if record["kind"] == "candidate")
 
 
 def _ascii(text: str) -> str:

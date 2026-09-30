@@ -40,7 +40,11 @@ _MD_SPECIAL: Final = re.compile(r"([\\`*_\[\]<>|~])")
 
 
 class ReportError(ValueError):
-    """The export file cannot be read as a schema version 5 export."""
+    """The export file cannot be read as a schema version 5 or 6 export."""
+
+
+READABLE: Final = (5, SCHEMA_VERSION)
+"""Export schema versions the report reads: 6 only adds batch exports and ``resume``."""
 
 
 # --- reading the export ---------------------------------------------------------------------
@@ -102,10 +106,10 @@ def _record(line: str, number: int) -> dict[str, Any]:
         raise ReportError(f"{where}: invalid JSON: {exc.msg}") from exc
     if not isinstance(record, dict):
         raise ReportError(f"{where}: expected an object")
-    if record.get("schema_version") != SCHEMA_VERSION:
+    if record.get("schema_version") not in READABLE:
         raise ReportError(
             f"{where}: schema_version {record.get('schema_version')!r}, expected "
-            f"{SCHEMA_VERSION} (mine the candidates again)"
+            f"{' or '.join(map(str, READABLE))} (mine the candidates again)"
         )
     return record
 
@@ -449,7 +453,7 @@ def build(export: Export, top: int | None = None) -> list[Block]:
         intro += [" of ", Link(url, base)]
     intro.append(
         f", {run['walked']} {run['unit']} walked. CommitMiner {run['commitminer']}, "
-        f"export schema version {SCHEMA_VERSION}."
+        f"export schema version {run['schema_version']}."
     )
     ledger_line: list[Block] = []
     if ledger:

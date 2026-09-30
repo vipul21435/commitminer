@@ -102,9 +102,11 @@ class RequestStats:
 
     def describe(self) -> str:
         """One line for the terminal."""
+        requests = "1 request" if self.requests == 1 else f"{self.requests} requests"
+        retries = "1 retry" if self.retries == 1 else f"{self.retries} retries"
         text = (
-            f"{self.requests} requests ({self.not_modified} answered 304 from the cache), "
-            f"{self.retries} retries, waited {self.waited:.0f} s"
+            f"{requests} ({self.not_modified} answered 304 from the cache), "
+            f"{retries}, waited {self.waited:.0f} s"
         )
         if self.remaining is not None and self.limit is not None:
             text += f"; rate limit {self.remaining} of {self.limit} left"

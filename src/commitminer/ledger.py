@@ -719,16 +719,17 @@ class RankedProposal:
     proposal: Proposal
 
 
-READABLE_SCHEMAS: Final = (3, 4, 5)
+READABLE_SCHEMAS: Final = (3, 4, 5, 6)
 """Export schema versions whose candidates the ledger can read.
 
 4 only adds ``pull_request``; 5 adds a run record (skipped here) and fields
-the ledger does not use.
+the ledger does not use; 6 adds batch exports (their batch and run records
+are skipped, their candidates keep their own repository labels).
 """
 
 
 def read_candidates(path: Path) -> list[RankedProposal]:
-    """Read the candidates of a ``mine --out`` or ``prs --out`` file (schema version 3 to 5)."""
+    """Read the candidates of a ``mine``, ``prs`` or ``batch`` export (schema version 3 to 6)."""
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -746,10 +747,10 @@ def read_candidates(path: Path) -> list[RankedProposal]:
             raise LedgerError(f"{where}: expected an object")
         if record.get("schema_version") not in READABLE_SCHEMAS:
             raise LedgerError(
-                f"{where}: schema_version {record.get('schema_version')!r}, expected 3 to 5 "
+                f"{where}: schema_version {record.get('schema_version')!r}, expected 3 to 6 "
                 "(mine the candidates again)"
             )
-        if record.get("kind") == "run":
+        if record.get("kind") in ("run", "batch"):
             continue
         rank = record.get("rank")
         found.append(
@@ -792,24 +793,26 @@ def watermark_to_json(mark: Watermark) -> dict[str, Any]:
     }
 
 
+def match_to_json(match: Match) -> dict[str, Any]:
+    """One match of a ledger verdict: the entry (or earlier candidate) and the shared hunks."""
+    return {
+        "source": "run" if match.in_run else "ledger",
+        "repo": match.entry.repo,
+        "sha": match.entry.sha,
+        "subject": match.entry.subject,
+        "status": None if match.in_run else match.entry.status,
+        "owner": None if match.in_run else match.entry.owner,
+        "first_seen": None if match.in_run else match.entry.first_seen,
+        "exact": match.exact,
+        "shared": match.shared,
+        "hunks": match.entry.hunk_count,
+        "overlap": round(match.overlap, 4),
+    }
+
+
 def ledger_verdict_to_json(verdict: Verdict) -> dict[str, Any]:
     """The ``ledger`` object of the export: status and matches."""
     return {
         "status": verdict.status.value,
-        "matches": [
-            {
-                "source": "run" if match.in_run else "ledger",
-                "repo": match.entry.repo,
-                "sha": match.entry.sha,
-                "subject": match.entry.subject,
-                "status": None if match.in_run else match.entry.status,
-                "owner": None if match.in_run else match.entry.owner,
-                "first_seen": None if match.in_run else match.entry.first_seen,
-                "exact": match.exact,
-                "shared": match.shared,
-                "hunks": match.entry.hunk_count,
-                "overlap": round(match.overlap, 4),
-            }
-            for match in verdict.matches
-        ],
+        "matches": [match_to_json(match) for match in verdict.matches],
     }

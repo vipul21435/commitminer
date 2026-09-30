@@ -41,7 +41,7 @@ def test_prs_ranks_the_recorded_pull_requests(tmp_path: Path) -> None:
     assert lines[9].startswith("#1 #200 score 6.55, difficulty 2.10 (medium)")
     run, records = read_export(out)
     assert len(records) == 6
-    assert {r["schema_version"] for r in records} == {5}
+    assert {r["schema_version"] for r in records} == {6}
     assert (run["source"], run["unit"], run["walked"]) == ("pull-requests", "pull requests", 24)
     assert run["url"] == records[0]["repo_url"] == "https://github.com/hukkin/tomli"
     assert run["rejections"][0]["pull_request"] is not None
