@@ -214,6 +214,60 @@ def test_regex_end(line: str, start: int, end: int | None) -> None:
     assert regex_end(line, start) == end
 
 
+@pytest.mark.parametrize(
+    ("prefix", "end"),
+    [
+        # The keyword check reads only a short window before the slash: a keyword
+        # is still found there, and a word that merely ends in one is not.
+        ("x" * 5000 + "; return ", 3),
+        ("x" * 5000 + " xreturn ", None),
+        ("x" * 5000 + " instanceof ", 3),
+        ("x" * 5000 + " instanceof\t\n  ", 3),
+        ("await ", 3),
+    ],
+    ids=["return", "xreturn", "instanceof", "whitespace", "short-prefix"],
+)
+def test_regex_end_reads_a_bounded_window_before_the_slash(
+    prefix: str, end: int | None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from commitminer import patch
+
+    seen: list[int] = []
+    pattern = patch._REGEX_BEFORE_WORD
+
+    class Counting:
+        def search(self, text: str) -> object:
+            seen.append(len(text))
+            return pattern.search(text)
+
+    monkeypatch.setattr(patch, "_REGEX_BEFORE_WORD", Counting())
+    line = prefix + "/a/"
+    expected = None if end is None else len(prefix) + end
+    assert regex_end(line, len(prefix)) == expected
+    assert seen
+    assert max(seen) <= patch._REGEX_BEFORE_WINDOW
+
+
+def test_minified_bundle_lines_are_stripped_in_linear_time() -> None:
+    # Regression: the keyword check used to copy and search the whole prefix for
+    # every "/" on the line, so a 200 KB minified line with 24000 slashes took
+    # 51 s. It takes well under a tenth of a second now; the bound is generous so
+    # a slow CI runner cannot fail it while the quadratic version still would.
+    import time
+
+    line = "var a=b/c,d=e/f;x.y(z)/2;" * 8000
+    started = time.perf_counter()
+    text = code_text(line, JS)
+    elapsed = time.perf_counter() - started
+    assert text == line
+    assert elapsed < 5.0
+    # The literal pattern must not backtrack through an unclosed class either.
+    unclosed = "a=/[x;" * 2000
+    started = time.perf_counter()
+    assert strip_comment(unclosed, JS) == unclosed
+    assert time.perf_counter() - started < 5.0
+
+
 BLOCK_COMMENTS = {
     Language.RUST: (
         "/* one\n"

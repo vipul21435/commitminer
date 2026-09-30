@@ -833,6 +833,7 @@ flowchart LR
 | Live pull requests | same without `--replay`, with `GITHUB_TOKEN` and a fresh `--cache-dir`, twice | 24.65 s, 52 requests, rate limit 4700 of 5000 left; again: 23.79 s, 52 answered 304, still 4700 left |
 | Fixture size | `du -sh examples/tomli/prs`; `ls -lS` | 396 KB in 52 files, the largest 82378 bytes (the first page of 100 closed pull requests, about 1.5 MB before trimming) |
 | One explanation | `uv run commitminer explain 55bf7fb619 --repo <semver clone>` | 0.10 s (3 runs) |
+| A minified line | `patch.code_text` on `"var a=b/c,d=e/f;x.y(z)/2;" * 8000` (200000 characters, 24000 slashes), timed with `time.perf_counter` | 0.05 s; 50.75 s before the regex check read only a bounded window before each `/` |
 | Mining against a ledger | semver walk with `--ledger` holding its 66 candidates | 0.66 to 0.67 s (3 runs): 65 duplicate, 1 overlap |
 | Checking an export | `uv run commitminer ledger check <that ledger> <semver export>` | 0.08 s (3 runs) |
 | Concurrent claims | `tests/test_ledger.py`: 8 threads, 8 connections, one fix | exactly 1 added, 7 refused |

@@ -389,11 +389,16 @@ SYNTAX[Language.JAVASCRIPT] = _JS_SYNTAX
 SYNTAX[Language.TYPESCRIPT] = _JS_SYNTAX
 
 
-_REGEX_LITERAL = re.compile(r"/(?![*/])(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\[])+/")
+# Possessive quantifiers: the alternatives are disjoint, so backtracking could
+# never find another match, it could only make an unclosed "[" quadratic.
+_REGEX_LITERAL = re.compile(r"/(?![*/])(?:\\.|\[(?:\\.|[^\]\\])*+\]|[^/\\\[])++/")
 _REGEX_BEFORE_CHARS = frozenset("(,=:[!&|?{};+-*%<>~^")
 _REGEX_BEFORE_WORD = re.compile(
     r"\b(?:return|typeof|instanceof|in|of|new|delete|void|throw|case|do|else|yield|await)$"
 )
+# The longest keyword above plus one character, so the window handed to the
+# pattern always holds the character before the keyword (for its ``\b``).
+_REGEX_BEFORE_WINDOW = 11
 
 
 def regex_end(line: str, start: int) -> int | None:
@@ -402,10 +407,18 @@ def regex_end(line: str, start: int) -> int | None:
     A ``/`` opens a regex only where an expression can start: at the start of
     the line, after an operator or opening bracket, or after a keyword such as
     ``return``. Elsewhere it divides. The literal must close on the same line.
+
+    Only the few characters before the ``/`` are looked at, never the whole
+    prefix: a minified bundle is one line with thousands of slashes, and a
+    check that read the prefix for each of them was quadratic in the line.
     """
-    before = line[:start].rstrip()
-    if before and before[-1] not in _REGEX_BEFORE_CHARS and not _REGEX_BEFORE_WORD.search(before):
-        return None
+    end = start
+    while end and line[end - 1].isspace():
+        end -= 1
+    if end and line[end - 1] not in _REGEX_BEFORE_CHARS:
+        window = line[max(0, end - _REGEX_BEFORE_WINDOW) : end]
+        if _REGEX_BEFORE_WORD.search(window) is None:
+            return None
     found = _REGEX_LITERAL.match(line, start)
     return found.end() if found is not None else None
 
