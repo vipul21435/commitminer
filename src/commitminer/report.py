@@ -571,7 +571,8 @@ def _run_blocks(export: Export, top: int | None, level: int) -> list[Block]:
     intro: list[Cell] = [f"Source: {_SOURCES.get(run['source'], run['source'])}"]
     url = run.get("url")
     if isinstance(url, str) and url:
-        intro += [" of ", Link(url, base)]
+        # An export written before run_to_json stripped credentials still holds them.
+        intro += [" of ", Link(strip_credentials(url), base)]
     intro.append(
         f", {run['walked']} {run['unit']} walked. CommitMiner {run['commitminer']}, "
         f"export schema version {run['schema_version']}."

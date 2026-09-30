@@ -219,6 +219,39 @@ def test_links_come_from_web_urls_and_git_remotes(tmp_path: Path) -> None:
     assert "](" not in markdown  # no URL: no links at all
 
 
+SECRET = "ghp_EXAMPLEsecretTOKEN0123"
+
+
+def _with_credentials(line: str) -> str:
+    """A run record as an export written before credentials were stripped held it."""
+    record = json.loads(line)
+    if record.get("kind") == "run" and isinstance(record.get("url"), str):
+        record["url"] = record["url"].replace("https://", f"https://build-bot:{SECRET}@", 1)
+    return json.dumps(record)
+
+
+@pytest.mark.parametrize("suffix", [".md", ".html"])
+def test_a_report_of_an_old_export_shows_no_credentials(tmp_path: Path, suffix: str) -> None:
+    export = tmp_path / "e.jsonl"
+    _synthetic_export(export, "Fix it", "https://github.com/example/calc.git")
+    old = tmp_path / "old.jsonl"
+    old.write_text("\n".join(_with_credentials(line) for line in export.read_text().splitlines()))
+    assert SECRET in old.read_text()
+    out = tmp_path / f"r{suffix}"
+    result = runner.invoke(app, ["report", str(old), "--out", str(out)])
+    assert result.exit_code == 0, result.output
+    text = out.read_text(encoding="utf-8")
+    assert SECRET not in text
+    assert "build-bot" not in text
+    if suffix == ".md":
+        assert "Source: a local clone of [https://github.com/example/calc.git](" in text
+    else:
+        assert (
+            '<a href="https://github.com/example/calc">https://github.com/example/calc.git</a>'
+            in text
+        )
+
+
 def test_report_errors_exit_2(tmp_path: Path) -> None:
     missing = runner.invoke(app, ["report", str(tmp_path / "none.jsonl")])
     assert missing.exit_code == 2
@@ -439,6 +472,19 @@ def test_batch_report_golden(batch_export: Path, tmp_path: Path) -> None:
     )
     assert markdown.count("\n## ") == 3 + 2  # the batch sections, then one per repository
     assert "\n#### #1 " in markdown  # candidates one level down
+
+
+def test_a_batch_report_of_an_old_export_shows_no_credentials(
+    batch_export: Path, tmp_path: Path
+) -> None:
+    old = tmp_path / "old.jsonl"
+    old.write_text("\n".join(_with_credentials(line) for line in _batch_lines(batch_export)))
+    assert old.read_text().count(SECRET) == 2  # the two run records
+    loaded = read_export(old)
+    for text in (render_markdown(loaded), render_html(loaded)):
+        assert SECRET not in text
+        assert "build-bot" not in text
+        assert "https://example.invalid/demo/durations.git" in text
 
 
 def test_batch_report_from_the_command_and_after_a_resume(

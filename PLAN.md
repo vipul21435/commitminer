@@ -451,6 +451,10 @@ Its output (JSONL) is the input for downstream environment builders.
   turn any proxy setting httpx still rejects (`socks4://`, a bad port, a malformed
   `NO_PROXY`) into a `GitHubError`, so `prs` prints one line and a batch fails only the
   live entry. The test conftest now also clears the proxy variables of the host.
+- (2) A report of an export written before credentials were stripped linked to a clean
+  URL but still showed the raw one as the link text. The report now strips the text too
+  (`Link(strip_credentials(url), base)`), tested on such an export in Markdown and HTML,
+  single-run and batch.
 
 ## Core (deliverable)
 

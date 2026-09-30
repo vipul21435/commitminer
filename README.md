@@ -959,7 +959,9 @@ fix), `source_files`, `test_files` and `fail_to_pass`, then verifies the flip by
 those tests on both commits. `repo_url` and the run's `url` never carry credentials: a
 clone made as `https://<token>@host/...` (CI job clones, private repositories) keeps the
 token in its origin remote, so `user:password@` is removed from it, from `--url`, from a
-recording's URL and from report links (an `ssh://` URL keeps its user, `git@`). `commitminer schema` prints the JSON Schema
+recording's URL and from the links of a report, both the link target and the text shown,
+also when the report is rendered from an export written before this was fixed (an
+`ssh://` URL keeps its user, `git@`). `commitminer schema` prints the JSON Schema
 (draft 2020-12, `additionalProperties: false` on every record, so a field the export
 starts writing without a schema change fails the tests); the ledger commands read schema
 3 to 6 and skip the run and batch records. The fail-to-pass ids are a guess from the diff: in the
