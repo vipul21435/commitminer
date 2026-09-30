@@ -31,7 +31,7 @@ jobs:
         run: make typecheck
       - name: Tests with coverage gate
         run: make cov
-      - name: Demo (recorded tomli history, offline)
+      - name: Demo (recorded tomli history, then a batch with a Go fork pair, offline)
         run: make demo
       - name: Explain demo (one candidate, one rejected commit)
         run: make demo-explain
@@ -50,12 +50,14 @@ jobs:
           from jsonschema import Draft202012Validator
           from commitminer.export import schema_text
           validator = Draft202012Validator(json.loads(schema_text()))
-          records = [json.loads(line) for line in open("out/tomli-candidates.jsonl")]
-          for record in records:
-              validator.validate(record)
-          kinds = [record["kind"] for record in records]
-          print(len(records), "records valid:", kinds[0], "+", kinds.count("candidate"), "candidates")'
-      - name: Recording still matches upstream tomli
+          for name in ("out/tomli-candidates.jsonl", "out/batch-candidates.jsonl"):
+              records = [json.loads(line) for line in open(name)]
+              for record in records:
+                  validator.validate(record)
+              kinds = [record["kind"] for record in records]
+              print(name, len(records), "records valid:", kinds[0], "+",
+                    kinds.count("run"), "runs +", kinds.count("candidate"), "candidates")'
+      - name: Recordings still match upstream (tomli and the mapstructure pair)
         run: make verify-recording
 
   docker:
@@ -88,6 +90,13 @@ jobs:
             commitminer ledger add /tmp/ledger.sqlite3 /tmp/up.jsonl --owner ci
             commitminer mine /tmp/demo/fork --top 5 --explain 0 --ledger /tmp/ledger.sqlite3
             commitminer ledger list /tmp/ledger.sqlite3'
+      - name: Batch inside the image (tomli and a Go fork pair into one ledger, then resumed)
+        run: |
+          docker run --rm --network none --entrypoint sh commitminer:ci -c '
+            set -e
+            commitminer batch examples/batch/commitminer.toml --ledger /tmp/l.sqlite3 --top 3
+            commitminer batch examples/batch/commitminer.toml --ledger /tmp/l.sqlite3 --top 0
+            commitminer ledger watermarks /tmp/l.sqlite3'
       - name: Pull requests inside the image (recorded GitHub responses, no network)
         run: |
           docker run --rm --network none commitminer:ci prs hukkin/tomli --limit 25 \

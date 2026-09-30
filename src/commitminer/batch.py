@@ -169,7 +169,8 @@ def _string(value: Any, where: str) -> str:
 
 def _path(value: Any, base: Path, where: str) -> Path:
     path = Path(_string(value, where)).expanduser()
-    return path if path.is_absolute() else base / path
+    # normpath drops "dir/.." lexically, so messages show examples/tomli, not batch/../tomli.
+    return Path(os.path.normpath(path if path.is_absolute() else base / path))
 
 
 def _integer(value: Any, where: str) -> int:

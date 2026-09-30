@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CommitMiner batch report: batch.toml</title>
+<style>
+body { font-family: system-ui, sans-serif; margin: 2rem auto; max-width: 96rem; padding: 0 1rem;
+       color: #1f2328; background: #ffffff; line-height: 1.4; }
+h1, h2, h3 { line-height: 1.25; }
+h2 { border-bottom: 1px solid #d0d7de; padding-bottom: 0.3rem; margin-top: 2rem; }
+table { border-collapse: collapse; margin: 0.5rem 0 1rem; font-size: 0.9rem; }
+th, td { border: 1px solid #d0d7de; padding: 0.25rem 0.5rem; text-align: left;
+         vertical-align: top; }
+th { background: #f6f8fa; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; }
+tr:nth-child(even) td { background: #fbfbfb; }
+details { margin: 0.5rem 0; }
+summary { cursor: pointer; font-weight: 600; }
+code, .sha { font-family: ui-monospace, monospace; }
+a { color: #0969da; }
+ul { padding-left: 1.5rem; }
+</style>
+</head>
+<body>
+<h1>CommitMiner batch report: batch.toml</h1>
+<p>Batch file batch.toml, ledger ledger.sqlite3 (min overlap 0.5). 2 runs (1 more failed): 9 commits and pull requests walked, 7 candidates, 4 new, 3 colliding with other repositories. CommitMiner 0.1.0, export schema version 6.</p>
+<h2>Repositories</h2>
+<p>One row per repository and source, in batch order. Walked counts only what was new since the watermark; evaluated before counts what earlier runs had already seen.</p>
+<table>
+<thead><tr>
+<th>repository</th>
+<th>source</th>
+<th>run</th>
+<th class="n">walked</th>
+<th class="n">evaluated before</th>
+<th class="n">candidates</th>
+<th class="n">new</th>
+<th class="n">already recorded</th>
+<th class="n">same repository</th>
+<th class="n">collisions</th>
+<th>watermark</th>
+</tr></thead>
+<tbody>
+<tr><td><a href="https://example.invalid/demo/durations">demo/durations</a></td><td>clone</td><td>first run</td><td class="n">4</td><td class="n">0</td><td class="n">3</td><td class="n">3</td><td class="n">0</td><td class="n">0</td><td class="n">0</td><td>0287bf15bc</td></tr>
+<tr><td><a href="https://example.invalid/demo/fork">demo/durations-fork</a></td><td>clone</td><td>first run</td><td class="n">5</td><td class="n">0</td><td class="n">4</td><td class="n">1</td><td class="n">0</td><td class="n">0</td><td class="n">3</td><td>92ee5dce6f</td></tr>
+<tr><td>demo/gone</td><td>history</td><td>failed: missing.jsonl.gz: [Errno 2] No such file or directory: &#x27;missing.jsonl.gz&#x27;</td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td class="n"></td><td></td></tr>
+</tbody>
+</table>
+<h2>Collisions across repositories</h2>
+<p>3 candidates duplicate or overlap a fix recorded under another repository, earlier in this run or before it; 0 of them are the same commit (a fork or a mirror shares its history). Shared counts the distinct source and test hunks both fixes have; overlap divides it by the hunks of the smaller fix.</p>
+<table>
+<thead><tr>
+<th>repository</th>
+<th>commit</th>
+<th>kind</th>
+<th>matches</th>
+<th>commit</th>
+<th class="n">shared</th>
+<th class="n">overlap</th>
+<th>recorded</th>
+<th>subject</th>
+</tr></thead>
+<tbody>
+<tr><td>demo/durations-fork</td><td><a href="https://example.invalid/demo/fork/commit/e275649a9ebc6f3c209665b110ab76407b4e678c">e275649a9e</a></td><td>same fix</td><td>demo/durations</td><td><a href="https://example.invalid/demo/durations/commit/536d6c4adfe6d6bea2d4b8d23706767dc70600b9">536d6c4adf</a></td><td class="n">3</td><td class="n">1.00</td><td>this run</td><td>Reject numbers without a unit</td></tr>
+<tr><td>demo/durations-fork</td><td><a href="https://example.invalid/demo/fork/commit/6dbfaa8121b3c0bb8dcec00e7b83e56ccecb096d">6dbfaa8121</a></td><td>same fix</td><td>demo/durations</td><td><a href="https://example.invalid/demo/durations/commit/a4320cdcfffd7a4cfe40b2f14dfc345d44d4abc5">a4320cdcff</a></td><td class="n">2</td><td class="n">1.00</td><td>this run</td><td>Import durations with two-space indentation</td></tr>
+<tr><td>demo/durations-fork</td><td><a href="https://example.invalid/demo/fork/commit/287f42b780d4f713146b8a5066dca8e6bf2b6804">287f42b780</a></td><td>same fix</td><td>demo/durations</td><td><a href="https://example.invalid/demo/durations/commit/0287bf15bc6d6ecea73b1703574355fafc310627">0287bf15bc</a></td><td class="n">3</td><td class="n">1.00</td><td>this run</td><td>Accept days and weeks</td></tr>
+</tbody>
+</table>
+<h2>Best new candidates</h2>
+<p>All 4 new candidates, by score; rank is the rank within the repository&#x27;s run.</p>
+<table>
+<thead><tr>
+<th class="n">#</th>
+<th>repository</th>
+<th class="n">rank</th>
+<th>commit</th>
+<th>date</th>
+<th class="n">score</th>
+<th>difficulty</th>
+<th>subject</th>
+</tr></thead>
+<tbody>
+<tr><td class="n">1</td><td>demo/durations</td><td class="n">1</td><td><a href="https://example.invalid/demo/durations/commit/536d6c4adfe6d6bea2d4b8d23706767dc70600b9">536d6c4adf</a></td><td>2025-03-02</td><td class="n">7.67</td><td>0.92 easy</td><td>Reject numbers without a unit (fixes #7)</td></tr>
+<tr><td class="n">2</td><td>demo/durations-fork</td><td class="n">1</td><td><a href="https://example.invalid/demo/fork/commit/92ee5dce6fa8166ca195c383fad07ed0107fcc25">92ee5dce6f</a></td><td>2025-03-14</td><td class="n">7.36</td><td>0.56 easy</td><td>Allow spaces between parts (fixes #3)</td></tr>
+<tr><td class="n">3</td><td>demo/durations</td><td class="n">2</td><td><a href="https://example.invalid/demo/durations/commit/0287bf15bc6d6ecea73b1703574355fafc310627">0287bf15bc</a></td><td>2025-03-04</td><td class="n">7.34</td><td>0.92 easy</td><td>Accept days and weeks (fixes #9)</td></tr>
+<tr><td class="n">4</td><td>demo/durations</td><td class="n">3</td><td><a href="https://example.invalid/demo/durations/commit/a4320cdcfffd7a4cfe40b2f14dfc345d44d4abc5">a4320cdcff</a></td><td>2025-03-01</td><td class="n">4.36</td><td>1.95 easy</td><td>Add duration parser</td></tr>
+</tbody>
+</table>
+<h2>demo/durations (clone)</h2>
+<p>Source: a local clone of <a href="https://example.invalid/demo/durations">https://example.invalid/demo/durations.git</a>, 4 commits walked. CommitMiner 0.1.0, export schema version 6.</p>
+<p>Checked against the ledger ledger.sqlite3 (min overlap 0.5).</p>
+<h3>Funnel</h3>
+<table>
+<thead><tr>
+<th>step</th>
+<th class="n">count</th>
+<th class="n">remaining</th>
+</tr></thead>
+<tbody>
+<tr><td>walked commits</td><td class="n">4</td><td class="n">4</td></tr>
+<tr><td>rejected: docs-only (every changed file is documentation)</td><td class="n">1</td><td class="n">3</td></tr>
+<tr><td>candidates</td><td class="n">3</td><td class="n">3</td></tr>
+<tr><td>ledger: new</td><td class="n">3</td><td class="n">3</td></tr>
+<tr><td>exported</td><td class="n">3</td><td class="n">3</td></tr>
+</tbody>
+</table>
+<p>Difficulty bands: easy 3.</p>
+<h3>Ranked candidates</h3>
+<p>All 3 exported candidates. Score columns are each feature&#x27;s contribution (weight times value); f2p counts the likely fail-to-pass tests.</p>
+<table>
+<thead><tr>
+<th class="n">rank</th>
+<th>commit</th>
+<th>date</th>
+<th class="n">score</th>
+<th class="n">difficulty</th>
+<th class="n">small_diff</th>
+<th class="n">test_lines_added</th>
+<th class="n">added_assertions</th>
+<th class="n">linked_reference</th>
+<th class="n">fix_keyword</th>
+<th class="n">focused_source</th>
+<th class="n">lines</th>
+<th class="n">src</th>
+<th class="n">test</th>
+<th class="n">f2p</th>
+<th>ledger</th>
+<th>subject</th>
+</tr></thead>
+<tbody>
+<tr><td class="n">1</td><td><a href="https://example.invalid/demo/durations/commit/536d6c4adfe6d6bea2d4b8d23706767dc70600b9">536d6c4adf</a></td><td>2025-03-02</td><td class="n">7.67</td><td class="n">0.92 easy</td><td class="n">2.92</td><td class="n">0.35</td><td class="n">0.40</td><td class="n">2.00</td><td class="n">1.00</td><td class="n">1.00</td><td class="n">11</td><td class="n">1</td><td class="n">1</td><td class="n">1</td><td>new</td><td>Reject numbers without a unit (fixes #7)</td></tr>
+<tr><td class="n">2</td><td><a href="https://example.invalid/demo/durations/commit/0287bf15bc6d6ecea73b1703574355fafc310627">0287bf15bc</a></td><td>2025-03-04</td><td class="n">7.34</td><td class="n">0.92 easy</td><td class="n">2.94</td><td class="n">0.20</td><td class="n">0.20</td><td class="n">2.00</td><td class="n">1.00</td><td class="n">1.00</td><td class="n">8</td><td class="n">1</td><td class="n">1</td><td class="n">1</td><td>new</td><td>Accept days and weeks (fixes #9)</td></tr>
+<tr><td class="n">3</td><td><a href="https://example.invalid/demo/durations/commit/a4320cdcfffd7a4cfe40b2f14dfc345d44d4abc5">a4320cdcff</a></td><td>2025-03-01</td><td class="n">4.36</td><td class="n">1.95 easy</td><td class="n">2.81</td><td class="n">0.35</td><td class="n">0.20</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">1.00</td><td class="n">25</td><td class="n">1</td><td class="n">1</td><td class="n">1</td><td>new</td><td>Add duration parser</td></tr>
+</tbody>
+</table>
+<h3>Candidates</h3>
+<details><summary>#1 536d6c4adf: Reject numbers without a unit (fixes #7)</summary>
+<ul>
+<li>commit: <a href="https://example.invalid/demo/durations/commit/536d6c4adfe6d6bea2d4b8d23706767dc70600b9">536d6c4adfe6d6bea2d4b8d23706767dc70600b9</a></li>
+<li>base: a4320cdcfffd7a4cfe40b2f14dfc345d44d4abc5</li>
+<li>source files: src/durations/parse.py</li>
+<li>test files: tests/test_parse.py</li>
+<li>likely fail-to-pass tests: tests/test_parse.py::test_a_number_needs_a_unit</li>
+<li>fingerprint: d3c6af7bc86c6f62 (3 source and test hunks)</li>
+<li>ledger: new</li>
+</ul>
+<table>
+<thead><tr>
+<th>feature</th>
+<th class="n">value</th>
+<th class="n">weight</th>
+<th class="n">contrib</th>
+<th>detail</th>
+</tr></thead>
+<tbody>
+<tr><td>small_diff</td><td class="n">0.973</td><td class="n">3.00</td><td class="n">2.917</td><td>11 of at most 400 source+test lines changed</td></tr>
+<tr><td>test_lines_added</td><td class="n">0.175</td><td class="n">2.00</td><td class="n">0.350</td><td>7 test lines added (full value at 40)</td></tr>
+<tr><td>added_assertions</td><td class="n">0.400</td><td class="n">1.00</td><td class="n">0.400</td><td>2 assertion lines added in tests (full value at 5)</td></tr>
+<tr><td>linked_reference</td><td class="n">1.000</td><td class="n">2.00</td><td class="n">2.000</td><td>fixes #7</td></tr>
+<tr><td>fix_keyword</td><td class="n">1.000</td><td class="n">1.00</td><td class="n">1.000</td><td>fixes</td></tr>
+<tr><td>focused_source</td><td class="n">1.000</td><td class="n">1.00</td><td class="n">1.000</td><td>1 source file changed</td></tr>
+</tbody>
+</table>
+</details>
+<details><summary>#2 0287bf15bc: Accept days and weeks (fixes #9)</summary>
+<ul>
+<li>commit: <a href="https://example.invalid/demo/durations/commit/0287bf15bc6d6ecea73b1703574355fafc310627">0287bf15bc6d6ecea73b1703574355fafc310627</a></li>
+<li>base: 29ec87a55d02ddfd7620dd4b3f3f8e17324ad119</li>
+<li>source files: src/durations/parse.py</li>
+<li>test files: tests/test_parse.py</li>
+<li>likely fail-to-pass tests: tests/test_parse.py::test_days_and_weeks</li>
+<li>fingerprint: c282f61bc585bf9b (3 source and test hunks)</li>
+<li>ledger: new</li>
+</ul>
+<table>
+<thead><tr>
+<th>feature</th>
+<th class="n">value</th>
+<th class="n">weight</th>
+<th class="n">contrib</th>
+<th>detail</th>
+</tr></thead>
+<tbody>
+<tr><td>small_diff</td><td class="n">0.980</td><td class="n">3.00</td><td class="n">2.940</td><td>8 of at most 400 source+test lines changed</td></tr>
+<tr><td>test_lines_added</td><td class="n">0.100</td><td class="n">2.00</td><td class="n">0.200</td><td>4 test lines added (full value at 40)</td></tr>
+<tr><td>added_assertions</td><td class="n">0.200</td><td class="n">1.00</td><td class="n">0.200</td><td>1 assertion line added in tests (full value at 5)</td></tr>
+<tr><td>linked_reference</td><td class="n">1.000</td><td class="n">2.00</td><td class="n">2.000</td><td>fixes #9</td></tr>
+<tr><td>fix_keyword</td><td class="n">1.000</td><td class="n">1.00</td><td class="n">1.000</td><td>fixes</td></tr>
+<tr><td>focused_source</td><td class="n">1.000</td><td class="n">1.00</td><td class="n">1.000</td><td>1 source file changed</td></tr>
+</tbody>
+</table>
+</details>
+<details><summary>#3 a4320cdcff: Add duration parser</summary>
+<ul>
+<li>commit: <a href="https://example.invalid/demo/durations/commit/a4320cdcfffd7a4cfe40b2f14dfc345d44d4abc5">a4320cdcfffd7a4cfe40b2f14dfc345d44d4abc5</a></li>
+<li>base: (root commit)</li>
+<li>source files: src/durations/parse.py</li>
+<li>test files: tests/test_parse.py</li>
+<li>likely fail-to-pass tests: tests/test_parse.py::test_hours_and_minutes</li>
+<li>fingerprint: 7842e726a4b52616 (2 source and test hunks)</li>
+<li>ledger: new</li>
+</ul>
+<table>
+<thead><tr>
+<th>feature</th>
+<th class="n">value</th>
+<th class="n">weight</th>
+<th class="n">contrib</th>
+<th>detail</th>
+</tr></thead>
+<tbody>
+<tr><td>small_diff</td><td class="n">0.938</td><td class="n">3.00</td><td class="n">2.812</td><td>25 of at most 400 source+test lines changed</td></tr>
+<tr><td>test_lines_added</td><td class="n">0.175</td><td class="n">2.00</td><td class="n">0.350</td><td>7 test lines added (full value at 40)</td></tr>
+<tr><td>added_assertions</td><td class="n">0.200</td><td class="n">1.00</td><td class="n">0.200</td><td>1 assertion line added in tests (full value at 5)</td></tr>
+<tr><td>linked_reference</td><td class="n">0.000</td><td class="n">2.00</td><td class="n">0.000</td><td>no issue or pull-request reference</td></tr>
+<tr><td>fix_keyword</td><td class="n">0.000</td><td class="n">1.00</td><td class="n">0.000</td><td>no fix keyword in the subject</td></tr>
+<tr><td>focused_source</td><td class="n">1.000</td><td class="n">1.00</td><td class="n">1.000</td><td>1 source file changed</td></tr>
+</tbody>
+</table>
+</details>
+<h3>Rejected commits</h3>
+<details><summary>docs-only (1): every changed file is documentation</summary>
+<table>
+<thead><tr>
+<th>commit</th>
+<th>date</th>
+<th>subject</th>
+</tr></thead>
+<tbody>
+<tr><td><a href="https://example.invalid/demo/durations/commit/29ec87a55d02ddfd7620dd4b3f3f8e17324ad119">29ec87a55d</a></td><td>2025-03-03</td><td>Document the accepted units</td></tr>
+</tbody>
+</table>
+</details>
+<h3>Settings</h3>
+<table>
+<thead><tr>
+<th>setting</th>
+<th>value</th>
+</tr></thead>
+<tbody>
+<tr><td>assertions_cap</td><td>5</td></tr>
+<tr><td>cross_file_cap</td><td>4</td></tr>
+<tr><td>difficulty_weights</td><td>cross_file 2, files 1, hunks 3, lines 3, public_api 1</td></tr>
+<tr><td>files_cap</td><td>10</td></tr>
+<tr><td>hard_at</td><td>4.5</td></tr>
+<tr><td>hunks_cap</td><td>10</td></tr>
+<tr><td>lines_cap</td><td>100</td></tr>
+<tr><td>max_lines</td><td>400</td></tr>
+<tr><td>max_source_files</td><td>10</td></tr>
+<tr><td>medium_at</td><td>2</td></tr>
+<tr><td>test_lines_cap</td><td>40</td></tr>
+<tr><td>weights</td><td>added_assertions 1, fix_keyword 1, focused_source 1, linked_reference 2, small_diff 3, test_lines_added 2</td></tr>
+</tbody>
+</table>
+<h2>demo/durations-fork (clone)</h2>
+<p>Source: a local clone of <a href="https://example.invalid/demo/fork">https://example.invalid/demo/fork.git</a>, 5 commits walked. CommitMiner 0.1.0, export schema version 6.</p>
+<p>Checked against the ledger ledger.sqlite3 (min overlap 0.5).</p>
+<h3>Funnel</h3>
+<table>
+<thead><tr>
+<th>step</th>
+<th class="n">count</th>
+<th class="n">remaining</th>
+</tr></thead>
+<tbody>
+<tr><td>walked commits</td><td class="n">5</td><td class="n">5</td></tr>
+<tr><td>rejected: source-unchanged (no source line changed outside inline tests (renames, mode changes, binary files))</td><td class="n">1</td><td class="n">4</td></tr>
+<tr><td>candidates</td><td class="n">4</td><td class="n">4</td></tr>
+<tr><td>ledger: duplicate</td><td class="n">3</td><td class="n">1</td></tr>
+<tr><td>ledger: new</td><td class="n">1</td><td class="n">1</td></tr>
+<tr><td>exported</td><td class="n">4</td><td class="n">4</td></tr>
+</tbody>
+</table>
+<p>Difficulty bands: easy 4.</p>
+<h3>Ranked candidates</h3>
+<p>All 4 exported candidates. Score columns are each feature&#x27;s contribution (weight times value); f2p counts the likely fail-to-pass tests.</p>
+<table>
+<thead><tr>
+<th class="n">rank</th>
+<th>commit</th>
+<th>date</th>
+<th class="n">score</th>
+<th class="n">difficulty</th>
+<th class="n">small_diff</th>
+<th class="n">test_lines_added</th>
+<th class="n">added_assertions</th>
+<th class="n">linked_reference</th>
+<th class="n">fix_keyword</th>
+<th class="n">focused_source</th>
+<th class="n">lines</th>
+<th class="n">src</th>
+<th class="n">test</th>
+<th class="n">f2p</th>
+<th>ledger</th>
+<th>subject</th>
+</tr></thead>
+<tbody>
+<tr><td class="n">1</td><td><a href="https://example.invalid/demo/fork/commit/92ee5dce6fa8166ca195c383fad07ed0107fcc25">92ee5dce6f</a></td><td>2025-03-14</td><td class="n">7.36</td><td class="n">0.56 easy</td><td class="n">2.96</td><td class="n">0.20</td><td class="n">0.20</td><td class="n">2.00</td><td class="n">1.00</td><td class="n">1.00</td><td class="n">6</td><td class="n">1</td><td class="n">1</td><td class="n">1</td><td>new</td><td>Allow spaces between parts (fixes #3)</td></tr>
+<tr><td class="n">2</td><td><a href="https://example.invalid/demo/fork/commit/e275649a9ebc6f3c209665b110ab76407b4e678c">e275649a9e</a></td><td>2025-03-11</td><td class="n">4.67</td><td class="n">0.92 easy</td><td class="n">2.92</td><td class="n">0.35</td><td class="n">0.40</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">1.00</td><td class="n">11</td><td class="n">1</td><td class="n">1</td><td class="n">1</td><td>duplicate</td><td>Reject numbers without a unit</td></tr>
+<tr><td class="n">3</td><td><a href="https://example.invalid/demo/fork/commit/6dbfaa8121b3c0bb8dcec00e7b83e56ccecb096d">6dbfaa8121</a></td><td>2025-03-10</td><td class="n">4.36</td><td class="n">1.95 easy</td><td class="n">2.81</td><td class="n">0.35</td><td class="n">0.20</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">1.00</td><td class="n">25</td><td class="n">1</td><td class="n">1</td><td class="n">1</td><td>duplicate</td><td>Import durations with two-space indentation</td></tr>
+<tr><td class="n">4</td><td><a href="https://example.invalid/demo/fork/commit/287f42b780d4f713146b8a5066dca8e6bf2b6804">287f42b780</a></td><td>2025-03-13</td><td class="n">4.34</td><td class="n">0.92 easy</td><td class="n">2.94</td><td class="n">0.20</td><td class="n">0.20</td><td class="n">0.00</td><td class="n">0.00</td><td class="n">1.00</td><td class="n">8</td><td class="n">1</td><td class="n">1</td><td class="n">1</td><td>duplicate</td><td>Accept days and weeks</td></tr>
+</tbody>
+</table>
+<h3>Candidates</h3>
+<details><summary>#1 92ee5dce6f: Allow spaces between parts (fixes #3)</summary>
+<ul>
+<li>commit: <a href="https://example.invalid/demo/fork/commit/92ee5dce6fa8166ca195c383fad07ed0107fcc25">92ee5dce6fa8166ca195c383fad07ed0107fcc25</a></li>
+<li>base: 287f42b780d4f713146b8a5066dca8e6bf2b6804</li>
+<li>source files: lib/parse.py</li>
+<li>test files: tests/test_durations.py</li>
+<li>likely fail-to-pass tests: tests/test_durations.py::test_spaces_between_parts</li>
+<li>fingerprint: a5e1eeab4abac397 (2 source and test hunks)</li>
+<li>ledger: new</li>
+</ul>
+<table>
+<thead><tr>
+<th>feature</th>
+<th class="n">value</th>
+<th class="n">weight</th>
+<th class="n">contrib</th>
+<th>detail</th>
+</tr></thead>
+<tbody>
+<tr><td>small_diff</td><td class="n">0.985</td><td class="n">3.00</td><td class="n">2.955</td><td>6 of at most 400 source+test lines changed</td></tr>
+<tr><td>test_lines_added</td><td class="n">0.100</td><td class="n">2.00</td><td class="n">0.200</td><td>4 test lines added (full value at 40)</td></tr>
+<tr><td>added_assertions</td><td class="n">0.200</td><td class="n">1.00</td><td class="n">0.200</td><td>1 assertion line added in tests (full value at 5)</td></tr>
+<tr><td>linked_reference</td><td class="n">1.000</td><td class="n">2.00</td><td class="n">2.000</td><td>fixes #3</td></tr>
+<tr><td>fix_keyword</td><td class="n">1.000</td><td class="n">1.00</td><td class="n">1.000</td><td>fixes</td></tr>
+<tr><td>focused_source</td><td class="n">1.000</td><td class="n">1.00</td><td class="n">1.000</td><td>1 source file changed</td></tr>
+</tbody>
+</table>
+</details>
+<details><summary>#2 e275649a9e: Reject numbers without a unit</summary>
+<ul>
+<li>commit: <a href="https://example.invalid/demo/fork/commit/e275649a9ebc6f3c209665b110ab76407b4e678c">e275649a9ebc6f3c209665b110ab76407b4e678c</a></li>
+<li>base: 6dbfaa8121b3c0bb8dcec00e7b83e56ccecb096d</li>
+<li>source files: src/durations/parse.py</li>
+<li>test files: tests/test_parse.py</li>
+<li>likely fail-to-pass tests: tests/test_parse.py::test_a_number_needs_a_unit</li>
+<li>fingerprint: d3c6af7bc86c6f62 (3 source and test hunks)</li>
+<li>ledger: duplicate: same fix as demo/durations 536d6c4adf (earlier in this run)</li>
+</ul>
+<table>
+<thead><tr>
+<th>feature</th>
+<th class="n">value</th>
+<th class="n">weight</th>
+<th class="n">contrib</th>
+<th>detail</th>
+</tr></thead>
+<tbody>
+<tr><td>small_diff</td><td class="n">0.973</td><td class="n">3.00</td><td class="n">2.917</td><td>11 of at most 400 source+test lines changed</td></tr>
+<tr><td>test_lines_added</td><td class="n">0.175</td><td class="n">2.00</td><td class="n">0.350</td><td>7 test lines added (full value at 40)</td></tr>
+<tr><td>added_assertions</td><td class="n">0.400</td><td class="n">1.00</td><td class="n">0.400</td><td>2 assertion lines added in tests (full value at 5)</td></tr>
+<tr><td>linked_reference</td><td class="n">0.000</td><td class="n">2.00</td><td class="n">0.000</td><td>no issue or pull-request reference</td></tr>
+<tr><td>fix_keyword</td><td class="n">0.000</td><td class="n">1.00</td><td class="n">0.000</td><td>no fix keyword in the subject</td></tr>
+<tr><td>focused_source</td><td class="n">1.000</td><td class="n">1.00</td><td class="n">1.000</td><td>1 source file changed</td></tr>
+</tbody>
+</table>
+</details>
+<details><summary>#3 6dbfaa8121: Import durations with two-space indentation</summary>
+<ul>
+<li>commit: <a href="https://example.invalid/demo/fork/commit/6dbfaa8121b3c0bb8dcec00e7b83e56ccecb096d">6dbfaa8121b3c0bb8dcec00e7b83e56ccecb096d</a></li>
+<li>base: (root commit)</li>
+<li>source files: src/durations/parse.py</li>
+<li>test files: tests/test_parse.py</li>
+<li>likely fail-to-pass tests: tests/test_parse.py::test_hours_and_minutes</li>
+<li>fingerprint: 7842e726a4b52616 (2 source and test hunks)</li>
+<li>ledger: duplicate: same fix as demo/durations a4320cdcff (earlier in this run)</li>
+</ul>
+<table>
+<thead><tr>
+<th>feature</th>
+<th class="n">value</th>
+<th class="n">weight</th>
+<th class="n">contrib</th>
+<th>detail</th>
+</tr></thead>
+<tbody>
+<tr><td>small_diff</td><td class="n">0.938</td><td class="n">3.00</td><td class="n">2.812</td><td>25 of at most 400 source+test lines changed</td></tr>
+<tr><td>test_lines_added</td><td class="n">0.175</td><td class="n">2.00</td><td class="n">0.350</td><td>7 test lines added (full value at 40)</td></tr>
+<tr><td>added_assertions</td><td class="n">0.200</td><td class="n">1.00</td><td class="n">0.200</td><td>1 assertion line added in tests (full value at 5)</td></tr>
+<tr><td>linked_reference</td><td class="n">0.000</td><td class="n">2.00</td><td class="n">0.000</td><td>no issue or pull-request reference</td></tr>
+<tr><td>fix_keyword</td><td class="n">0.000</td><td class="n">1.00</td><td class="n">0.000</td><td>no fix keyword in the subject</td></tr>
+<tr><td>focused_source</td><td class="n">1.000</td><td class="n">1.00</td><td class="n">1.000</td><td>1 source file changed</td></tr>
+</tbody>
+</table>
+</details>
+<details><summary>#4 287f42b780: Accept days and weeks</summary>
+<ul>
+<li>commit: <a href="https://example.invalid/demo/fork/commit/287f42b780d4f713146b8a5066dca8e6bf2b6804">287f42b780d4f713146b8a5066dca8e6bf2b6804</a></li>
+<li>base: 79d5e2b49c8370fd6eff6201db66826913068e86</li>
+<li>source files: lib/parse.py</li>
+<li>test files: tests/test_durations.py</li>
+<li>likely fail-to-pass tests: tests/test_durations.py::test_days_and_weeks</li>
+<li>fingerprint: c282f61bc585bf9b (3 source and test hunks)</li>
+<li>ledger: duplicate: same fix as demo/durations 0287bf15bc (earlier in this run)</li>
+</ul>
+<table>
+<thead><tr>
+<th>feature</th>
+<th class="n">value</th>
+<th class="n">weight</th>
+<th class="n">contrib</th>
+<th>detail</th>
+</tr></thead>
+<tbody>
+<tr><td>small_diff</td><td class="n">0.980</td><td class="n">3.00</td><td class="n">2.940</td><td>8 of at most 400 source+test lines changed</td></tr>
+<tr><td>test_lines_added</td><td class="n">0.100</td><td class="n">2.00</td><td class="n">0.200</td><td>4 test lines added (full value at 40)</td></tr>
+<tr><td>added_assertions</td><td class="n">0.200</td><td class="n">1.00</td><td class="n">0.200</td><td>1 assertion line added in tests (full value at 5)</td></tr>
+<tr><td>linked_reference</td><td class="n">0.000</td><td class="n">2.00</td><td class="n">0.000</td><td>no issue or pull-request reference</td></tr>
+<tr><td>fix_keyword</td><td class="n">0.000</td><td class="n">1.00</td><td class="n">0.000</td><td>no fix keyword in the subject</td></tr>
+<tr><td>focused_source</td><td class="n">1.000</td><td class="n">1.00</td><td class="n">1.000</td><td>1 source file changed</td></tr>
+</tbody>
+</table>
+</details>
+<h3>Rejected commits</h3>
+<details><summary>source-unchanged (1): no source line changed outside inline tests (renames, mode changes, binary files)</summary>
+<table>
+<thead><tr>
+<th>commit</th>
+<th>date</th>
+<th>subject</th>
+</tr></thead>
+<tbody>
+<tr><td><a href="https://example.invalid/demo/fork/commit/79d5e2b49c8370fd6eff6201db66826913068e86">79d5e2b49c</a></td><td>2025-03-12</td><td>Move the package to lib/</td></tr>
+</tbody>
+</table>
+</details>
+<h3>Settings</h3>
+<table>
+<thead><tr>
+<th>setting</th>
+<th>value</th>
+</tr></thead>
+<tbody>
+<tr><td>assertions_cap</td><td>5</td></tr>
+<tr><td>cross_file_cap</td><td>4</td></tr>
+<tr><td>difficulty_weights</td><td>cross_file 2, files 1, hunks 3, lines 3, public_api 1</td></tr>
+<tr><td>files_cap</td><td>10</td></tr>
+<tr><td>hard_at</td><td>4.5</td></tr>
+<tr><td>hunks_cap</td><td>10</td></tr>
+<tr><td>lines_cap</td><td>100</td></tr>
+<tr><td>max_lines</td><td>400</td></tr>
+<tr><td>max_source_files</td><td>10</td></tr>
+<tr><td>medium_at</td><td>2</td></tr>
+<tr><td>test_lines_cap</td><td>40</td></tr>
+<tr><td>weights</td><td>added_assertions 1, fix_keyword 1, focused_source 1, linked_reference 2, small_diff 3, test_lines_added 2</td></tr>
+</tbody>
+</table>
+</body>
+</html>

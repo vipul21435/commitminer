@@ -59,7 +59,14 @@ from commitminer.ledger import (
     watermark_to_json,
 )
 from commitminer.models import Commit
-from commitminer.report import FORMATS, ReportError, format_for, read_export, render
+from commitminer.report import (
+    FORMATS,
+    ReportError,
+    format_for,
+    from_records,
+    read_export,
+    render,
+)
 from commitminer.ruletable import (
     classify_file,
     render_rules,
@@ -558,6 +565,14 @@ def batch_command(
             "--out", help="Write the batch export here (default: batch.out).", show_default=False
         ),
     ] = None,
+    report: Annotated[
+        Path | None,
+        typer.Option(
+            "--report",
+            help="Write the batch report here, Markdown or HTML by suffix (default: batch.report).",
+            show_default=False,
+        ),
+    ] = None,
     only: Annotated[
         list[str] | None,
         typer.Option("--only", help="Run only the repositories with this name (repeatable)."),
@@ -591,9 +606,9 @@ def batch_command(
     if top:
         typer.echo("")
         typer.echo(render_best(result, top))
+    records = batch_records(result)
     target = out or batch.out
     if target is not None:
-        records = batch_records(result)
         try:
             write_records(target, records)
         except OSError as exc:
@@ -602,6 +617,11 @@ def batch_command(
         count = sum(1 for record in records if record["kind"] == "candidate")
         typer.echo("")
         typer.echo(f"wrote {runs} runs and {count} candidates to {target}")
+    document = report or batch.report
+    if document is not None:
+        chosen = format_for(document, None)
+        _write_report(document, render(from_records(records, "the batch export"), chosen))
+        typer.echo(f"wrote the {chosen} report to {document}")
     if result.failed:
         names = ", ".join(run.spec.label for run in result.failed)
         raise _fail(f"{len(result.failed)} of {len(result.runs)} repositories failed: {names}")
@@ -649,7 +669,9 @@ def schema() -> None:
 def report_command(
     candidates: Annotated[
         Path,
-        typer.Argument(help="Export written by mine --out or prs --out.", show_default=False),
+        typer.Argument(
+            help="Export written by mine --out, prs --out or batch --out.", show_default=False
+        ),
     ],
     out: Annotated[
         Path | None,
@@ -668,7 +690,7 @@ def report_command(
         typer.Option("--top", min=1, help="Candidates in the ranked table (default: all)."),
     ] = None,
 ) -> None:
-    """Render an export as a Markdown or self-contained HTML report."""
+    """Render an export (of one run or of a batch) as a Markdown or self-contained HTML report."""
     try:
         chosen = format_for(out, fmt)
         text = render(read_export(candidates), chosen, top)
@@ -677,12 +699,16 @@ def report_command(
     if out is None:
         typer.echo(text, nl=False)
         return
+    _write_report(out, text)
+    typer.echo(f"wrote the {chosen} report to {out}")
+
+
+def _write_report(out: Path, text: str) -> None:
     try:
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(text, encoding="utf-8", newline="\n")
     except OSError as exc:
         raise _fail(f"{out}: cannot write: {exc}") from exc
-    typer.echo(f"wrote the {chosen} report to {out}")
 
 
 @app.command()

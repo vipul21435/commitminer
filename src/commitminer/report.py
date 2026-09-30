@@ -13,6 +13,12 @@ Sections: the funnel (walked, rejected per reason, candidates, ledger verdicts,
 exported), the ranked table with one column per score feature contribution,
 one section per candidate (files, likely fail-to-pass tests, fingerprint,
 ledger verdict), the rejected commits grouped by reason, and the settings.
+
+A ``batch --out`` file (a batch record, then one run record per repository
+with its candidates) gives one report for the whole batch: every repository
+with how it resumed and what the ledger said about its candidates, the
+collisions across repositories, the best new candidates of the batch, and
+then each repository's sections as above, one heading level down.
 """
 
 from __future__ import annotations
@@ -22,6 +28,7 @@ import json
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Final
 
@@ -52,17 +59,25 @@ READABLE: Final = (5, SCHEMA_VERSION)
 
 @dataclass(frozen=True, slots=True)
 class Export:
-    """The run record and the candidate records of one export file."""
+    """The run record and the candidate records of one export file (or of one batch run)."""
 
     run: dict[str, Any]
     candidates: list[dict[str, Any]]
+
+
+@dataclass(frozen=True, slots=True)
+class BatchExport:
+    """The batch record and every repository's run of a ``batch --out`` file."""
+
+    batch: dict[str, Any]
+    runs: list[Export]
 
 
 def _field(record: dict[str, Any], key: str, kind: type | tuple[type, ...], where: str) -> Any:
     if key not in record:
         raise ReportError(f"{where}: missing field {key!r}")
     value = record[key]
-    if isinstance(value, bool) or not isinstance(value, kind):
+    if (isinstance(value, bool) and kind is not bool) or not isinstance(value, kind):
         expected = (
             kind.__name__ if isinstance(kind, type) else " or ".join(k.__name__ for k in kind)
         )
@@ -82,6 +97,17 @@ _RUN_FIELDS: Final[dict[str, type | tuple[type, ...]]] = {
     "rejected": dict,
     "rejections": list,
     "settings": dict,
+}
+_BATCH_FIELDS: Final[dict[str, type | tuple[type, ...]]] = {
+    "config": str,
+    "ledger": str,
+    "commitminer": str,
+    "min_overlap": (int, float),
+    "dry_run": bool,
+    "full": bool,
+    "runs": int,
+    "failed": list,
+    "collisions": list,
 }
 _CANDIDATE_FIELDS: Final[dict[str, type | tuple[type, ...]]] = {
     "rank": int,
@@ -104,6 +130,11 @@ def _record(line: str, number: int) -> dict[str, Any]:
         record = json.loads(line)
     except json.JSONDecodeError as exc:
         raise ReportError(f"{where}: invalid JSON: {exc.msg}") from exc
+    return _checked(record, number)
+
+
+def _checked(record: Any, number: int) -> dict[str, Any]:
+    where = f"line {number}"
     if not isinstance(record, dict):
         raise ReportError(f"{where}: expected an object")
     if record.get("schema_version") not in READABLE:
@@ -114,35 +145,68 @@ def _record(line: str, number: int) -> dict[str, Any]:
     return record
 
 
-def read_export(path: Path) -> Export:
-    """Read an export: the run record first, then the candidates it lists."""
+def _runs(records: Sequence[tuple[int, dict[str, Any]]], where: str, batch: bool) -> list[Export]:
+    """Split records into runs: each run record followed by its candidates."""
+    runs: list[Export] = []
+    for number, record in records:
+        kind = record.get("kind")
+        if kind == "run" and (batch or not runs):
+            for key, expected in _RUN_FIELDS.items():
+                _field(record, key, expected, f"line {number}")
+            runs.append(Export(record, []))
+        elif kind == "candidate" and runs:
+            for key, expected in _CANDIDATE_FIELDS.items():
+                _field(record, key, expected, f"line {number}")
+            runs[-1].candidates.append(record)
+        elif batch and not runs:
+            raise ReportError(f"{where}: line {number}: expected a run record after the batch")
+        else:
+            raise ReportError(f"{where}: line {number}: expected a candidate record")
+    for run in runs:
+        if len(run.candidates) != run.run["exported"]:
+            raise ReportError(
+                f"{where}: the run record of {run.run['repo']} says {run.run['exported']} "
+                f"candidates, the file has {len(run.candidates)}"
+            )
+    return runs
+
+
+def assemble(records: Sequence[tuple[int, dict[str, Any]]], where: str) -> Export | BatchExport:
+    """Checked records, numbered by line, as one run's export or a batch export."""
+    if not records:
+        raise ReportError(f"{where}: empty file")
+    number, first = records[0]
+    if first.get("kind") == "batch":
+        for key, kind in _BATCH_FIELDS.items():
+            _field(first, key, kind, f"line {number}")
+        runs = _runs(records[1:], where, batch=True)
+        if len(runs) != first["runs"]:
+            raise ReportError(
+                f"{where}: the batch record says {first['runs']} runs, the file has {len(runs)}"
+            )
+        return BatchExport(first, runs)
+    if first.get("kind") != "run":
+        raise ReportError(
+            f"{where}: line {number}: the first record must be the run record "
+            "(or the batch record of a batch export)"
+        )
+    (run,) = _runs(records, where, batch=False)
+    return run
+
+
+def from_records(records: Sequence[dict[str, Any]], where: str) -> Export | BatchExport:
+    """An export held in memory (as ``batch --report`` has it), checked like a file."""
+    return assemble([(n, _checked(r, n)) for n, r in enumerate(records, start=1)], where)
+
+
+def read_export(path: Path) -> Export | BatchExport:
+    """Read an export: a run record and its candidates, or a batch record and its runs."""
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
         raise ReportError(f"{path}: cannot read: {exc}") from exc
     lines = [(n, line) for n, line in enumerate(text.splitlines(), start=1) if line.strip()]
-    if not lines:
-        raise ReportError(f"{path}: empty file")
-    number, first = lines[0]
-    run = _record(first, number)
-    if run.get("kind") != "run":
-        raise ReportError(f"{path}: line {number}: the first record must be the run record")
-    for key, kind in _RUN_FIELDS.items():
-        _field(run, key, kind, f"line {number}")
-    candidates = []
-    for number, line in lines[1:]:
-        record = _record(line, number)
-        if record.get("kind") != "candidate":
-            raise ReportError(f"{path}: line {number}: expected a candidate record")
-        for key, kind in _CANDIDATE_FIELDS.items():
-            _field(record, key, kind, f"line {number}")
-        candidates.append(record)
-    if len(candidates) != run["exported"]:
-        raise ReportError(
-            f"{path}: the run record says {run['exported']} candidates, the file has "
-            f"{len(candidates)}"
-        )
-    return Export(run, candidates)
+    return assemble([(n, _record(line, n)) for n, line in lines], str(path))
 
 
 # --- the document ---------------------------------------------------------------------------
@@ -333,18 +397,21 @@ def _verdict_text(candidate: dict[str, Any]) -> str:
         return status
     best = matches[0]
     where = f"{best.get('repo', '?')} {str(best.get('sha', '?'))[:10]}"
+    same = "same commit as" if best.get("sha") == candidate["sha"] else "same fix as"
     if best.get("source") == "run":
-        return f"{status}: same fix as {where} (earlier in this run)"
+        return f"{status}: {same} {where} (earlier in this run)"
     owner = f" by {best['owner']}" if best.get("owner") else ""
     when = str(best.get("first_seen") or "")[:10]
     detail = f"{best.get('status', '?')}{owner} on {when}"
+    if best.get("exact") and same == "same commit as" and best.get("repo") == candidate["repo"]:
+        return f"{status}: already in the ledger ({detail})"
     if best.get("exact"):
-        return f"{status}: same fix as {where} ({detail})"
+        return f"{status}: {same} {where} ({detail})"
     shared = f"{best.get('shared', '?')} of {best.get('hunks', '?')} hunks shared"
     return f"{status}: {shared} with {where} ({detail})"
 
 
-def _candidate_section(candidate: dict[str, Any], base: str | None) -> Details:
+def _candidate_section(candidate: dict[str, Any], base: str | None, level: int = 3) -> Details:
     sha = str(candidate["sha"])
     pull = candidate.get("pull_request")
     link = _commit_link(sha, base, pull)
@@ -384,7 +451,7 @@ def _candidate_section(candidate: dict[str, Any], base: str | None) -> Details:
     )
     summary = f"#{candidate['rank']} {link.text}: {candidate['subject']}"
     return Details(
-        3,
+        level,
         summary,
         (
             Items(tuple(items)),
@@ -393,7 +460,7 @@ def _candidate_section(candidate: dict[str, Any], base: str | None) -> Details:
     )
 
 
-def _rejected(run: dict[str, Any], base: str | None) -> list[Block]:
+def _rejected(run: dict[str, Any], base: str | None, level: int = 3) -> list[Block]:
     by_reason: dict[str, list[dict[str, Any]]] = {}
     for rejection in run["rejections"]:
         if isinstance(rejection, dict):
@@ -418,7 +485,7 @@ def _rejected(run: dict[str, Any], base: str | None) -> list[Block]:
             for e in entries
         )
         summary = f"{reason} ({len(entries)})" + (f": {description}" if description else "")
-        blocks.append(Details(3, summary, (Table(("commit", "date", "subject"), rows),)))
+        blocks.append(Details(level, summary, (Table(("commit", "date", "subject"), rows),)))
     if not blocks:
         blocks.append(Paragraph(("No commit was rejected.",)))
     return blocks
@@ -436,18 +503,24 @@ def _settings(run: dict[str, Any]) -> Table:
     return Table(("setting", "value"), tuple(rows))
 
 
-def build(export: Export, top: int | None = None) -> list[Block]:
-    """The report as blocks; ``top`` limits the ranked table and the candidate sections."""
+_SOURCES: Final = {
+    "clone": "a local clone",
+    "history": "a recorded history",
+    "pull-requests": "the merged pull requests",
+}
+
+
+def _base(run: dict[str, Any]) -> str | None:
+    return repo_web_url(run.get("url") if isinstance(run.get("url"), str) else None)
+
+
+def _run_blocks(export: Export, top: int | None, level: int) -> list[Block]:
+    """The sections of one run, with headings at ``level`` (collapsible parts one below)."""
     run = export.run
-    base = repo_web_url(run.get("url") if isinstance(run.get("url"), str) else None)
+    base = _base(run)
     shown = export.candidates if top is None else export.candidates[:top]
     ledger = isinstance(run.get("ledger"), dict)
-    sources = {
-        "clone": "a local clone",
-        "history": "a recorded history",
-        "pull-requests": "the merged pull requests",
-    }
-    intro: list[Cell] = [f"Source: {sources.get(run['source'], run['source'])}"]
+    intro: list[Cell] = [f"Source: {_SOURCES.get(run['source'], run['source'])}"]
     url = run.get("url")
     if isinstance(url, str) and url:
         intro += [" of ", Link(url, base)]
@@ -475,14 +548,13 @@ def build(export: Export, top: int | None = None) -> list[Block]:
         if top is None or len(export.candidates) <= top
         else f"The best {len(shown)} of {len(export.candidates)} exported candidates."
     )
-    blocks: list[Block] = [
-        Heading(1, f"CommitMiner report: {run['repo']}"),
+    return [
         Paragraph(tuple(intro)),
         *ledger_line,
-        Heading(2, "Funnel"),
+        Heading(level, "Funnel"),
         _funnel(run),
         Paragraph((_bands(run),)),
-        Heading(2, "Ranked candidates"),
+        Heading(level, "Ranked candidates"),
         Paragraph(
             (
                 f"{shown_text} Score columns are each feature's contribution "
@@ -490,13 +562,240 @@ def build(export: Export, top: int | None = None) -> list[Block]:
             )
         ),
         ranked,
-        Heading(2, "Candidates"),
-        *(_candidate_section(c, base) for c in shown),
-        Heading(2, "Rejected commits"),
-        *_rejected(run, base),
-        Heading(2, "Settings"),
+        Heading(level, "Candidates"),
+        *(_candidate_section(c, base, level + 1) for c in shown),
+        Heading(level, "Rejected commits"),
+        *_rejected(run, base, level + 1),
+        Heading(level, "Settings"),
         _settings(run),
     ]
+
+
+def build(export: Export | BatchExport, top: int | None = None) -> list[Block]:
+    """The report as blocks; ``top`` limits the ranked table and the candidate sections."""
+    if isinstance(export, BatchExport):
+        return build_batch(export, top)
+    return [Heading(1, f"CommitMiner report: {export.run['repo']}"), *_run_blocks(export, top, 2)]
+
+
+def outcome_of(candidate: dict[str, Any]) -> str:
+    """What the ledger said about an exported candidate, as :func:`commitminer.batch.outcome`."""
+    verdict = candidate.get("ledger")
+    status = verdict.get("status") if isinstance(verdict, dict) else None
+    matches = verdict.get("matches") if isinstance(verdict, dict) else None
+    if status not in ("duplicate", "overlap") or not isinstance(matches, list) or not matches:
+        return str(status or "unknown")
+    others = [m for m in matches if isinstance(m, dict)]
+    best = others[0] if others else {}
+    if best.get("repo") == candidate["repo"] and best.get("sha") == candidate["sha"]:
+        return "recorded"
+    if any(m.get("repo") != candidate["repo"] for m in others):
+        return "collision"
+    return "internal"
+
+
+_RESUMED: Final = {
+    "first": "first run",
+    "resumed": "resumed from {previous}",
+    "up-to-date": "up to date",
+    "full": "full walk",
+}
+
+
+def _stamp(date: Any) -> float:
+    """Epoch seconds of an ISO 8601 date, for newest-first ties; 0 if it is not one."""
+    try:
+        return datetime.fromisoformat(str(date)).timestamp()
+    except ValueError:
+        return 0.0
+
+
+def _short(position: Any) -> str:
+    if not isinstance(position, str) or not position:
+        return "-"
+    return position[:10] if re.fullmatch(r"[0-9a-f]{40,64}", position) else position
+
+
+def _repositories(batch: BatchExport) -> Table:
+    rows: list[tuple[Cell, ...]] = []
+    for export in batch.runs:
+        run = export.run
+        resume = run.get("resume")
+        if not isinstance(resume, dict):
+            resume = {}
+        mode = str(resume.get("mode", "-"))
+        how = _RESUMED.get(mode, mode).format(previous=_short(resume.get("previous")))
+        if resume.get("note"):
+            how += f" ({resume['note']})"
+        counts = [outcome_of(c) for c in export.candidates]
+        rows.append(
+            (
+                Link(str(run["repo"]), _base(run)),
+                str(run["source"]),
+                how,
+                str(run["walked"]),
+                str(resume.get("skipped", 0)),
+                str(run["candidates"]),
+                *(str(counts.count(k)) for k in ("new", "recorded", "internal", "collision")),
+                _short(resume.get("watermark")),
+            )
+        )
+    for failed in batch.batch["failed"]:
+        if isinstance(failed, dict):
+            error = f"failed: {failed.get('error', '?')}"
+            rows.append(
+                (str(failed.get("repo", "?")), str(failed.get("source", "?")), error) + ("",) * 8
+            )
+    headers = (
+        "repository",
+        "source",
+        "run",
+        "walked",
+        "evaluated before",
+        "candidates",
+        "new",
+        "already recorded",
+        "same repository",
+        "collisions",
+        "watermark",
+    )
+    return Table(headers, tuple(rows), frozenset(range(3, 10)))
+
+
+def _collisions(batch: BatchExport, bases: dict[str, str | None]) -> list[Block]:
+    collisions = [c for c in batch.batch["collisions"] if isinstance(c, dict)]
+    if not collisions:
+        return [Paragraph(("No candidate collides with a fix recorded under another repository.",))]
+    same = sum(1 for c in collisions if c.get("same_commit"))
+    rows: list[tuple[Cell, ...]] = []
+    for c in collisions:
+        match = c.get("match")
+        if not isinstance(match, dict):
+            match = {}
+        repo, other = str(c.get("repo", "?")), str(match.get("repo", "?"))
+        sha, other_sha = str(c.get("sha", "")), str(match.get("sha", ""))
+        kind = (
+            "same commit"
+            if c.get("same_commit")
+            else ("same fix" if match.get("exact") else "overlap")
+        )
+        shared = str(match.get("shared", "?"))
+        when = "this run" if match.get("source") == "run" else str(match.get("first_seen"))[:10]
+        rows.append(
+            (
+                repo,
+                _commit_link(sha, bases.get(repo), None),
+                kind,
+                other,
+                _commit_link(other_sha, bases.get(other), None),
+                shared,
+                _num(match.get("overlap"), 2),
+                when,
+                str(c.get("subject", "")),
+            )
+        )
+    text = (
+        f"{len(collisions)} candidates duplicate or overlap a fix recorded under another "
+        f"repository, earlier in this run or before it; {same} of them are the same commit "
+        "(a fork or a mirror shares its history). Shared counts the distinct source and test "
+        "hunks both fixes have; overlap divides it by the hunks of the smaller fix."
+    )
+    headers = (
+        "repository",
+        "commit",
+        "kind",
+        "matches",
+        "commit",
+        "shared",
+        "overlap",
+        "recorded",
+        "subject",
+    )
+    return [Paragraph((text,)), Table(headers, tuple(rows), frozenset({5, 6}))]
+
+
+def _best_new(batch: BatchExport, bases: dict[str, str | None], top: int | None) -> list[Block]:
+    found = [
+        candidate
+        for export in batch.runs
+        for candidate in export.candidates
+        if outcome_of(candidate) == "new"
+    ]
+    if not found:
+        return [Paragraph(("No new candidates.",))]
+    found.sort(key=lambda c: (-float(c["score"]), -_stamp(c["date"]), str(c["sha"])))
+    shown = found if top is None else found[:top]
+    rows = tuple(
+        (
+            str(position),
+            str(c["repo"]),
+            str(c["rank"]),
+            _commit_link(c["sha"], bases.get(str(c["repo"])), c.get("pull_request")),
+            str(c["date"])[:10],
+            _num(c["score"], 2),
+            f"{_num(c['difficulty'].get('value'), 2)} {c['difficulty'].get('band', '?')}",
+            str(c["subject"]),
+        )
+        for position, c in enumerate(shown, start=1)
+    )
+    text = (
+        f"All {len(found)} new candidates"
+        if len(shown) == len(found)
+        else f"The best {len(shown)} of {len(found)} new candidates"
+    )
+    return [
+        Paragraph((f"{text}, by score; rank is the rank within the repository's run.",)),
+        Table(
+            ("#", "repository", "rank", "commit", "date", "score", "difficulty", "subject"),
+            rows,
+            frozenset({0, 2, 5}),
+        ),
+    ]
+
+
+def build_batch(batch: BatchExport, top: int | None = None) -> list[Block]:
+    """The batch report: repositories, collisions, best new candidates, then each run."""
+    record = batch.batch
+    bases = {str(e.run["repo"]): _base(e.run) for e in batch.runs}
+    walked = sum(int(e.run["walked"]) for e in batch.runs)
+    candidates = sum(int(e.run["candidates"]) for e in batch.runs)
+    new = sum(1 for e in batch.runs for c in e.candidates if outcome_of(c) == "new")
+    flags = []
+    if record["dry_run"]:
+        flags.append("dry run: nothing was recorded")
+    if record["full"]:
+        flags.append("--full: the watermarks were ignored")
+    flag = f"; {'; '.join(flags)}" if flags else ""
+    failed = len(record["failed"])
+    intro = (
+        f"Batch file {record['config']}, ledger {record['ledger']} "
+        f"(min overlap {record['min_overlap']}{flag}). {len(batch.runs)} runs"
+        f"{f' ({failed} more failed)' if failed else ''}: {walked} commits and pull requests "
+        f"walked, {candidates} candidates, {new} new, {len(record['collisions'])} colliding "
+        f"with other repositories. CommitMiner {record['commitminer']}, export schema version "
+        f"{record['schema_version']}."
+    )
+    blocks: list[Block] = [
+        Heading(1, f"CommitMiner batch report: {record['config']}"),
+        Paragraph((intro,)),
+        Heading(2, "Repositories"),
+        Paragraph(
+            (
+                "One row per repository and source, in batch order. Walked counts only what "
+                "was new since the watermark; evaluated before counts what earlier runs had "
+                "already seen.",
+            )
+        ),
+        _repositories(batch),
+        Heading(2, "Collisions across repositories"),
+        *_collisions(batch, bases),
+        Heading(2, "Best new candidates"),
+        *_best_new(batch, bases, top),
+    ]
+    for export in batch.runs:
+        run = export.run
+        blocks.append(Heading(2, f"{run['repo']} ({run['source']})"))
+        blocks += _run_blocks(export, top, 3)
     return blocks
 
 
@@ -543,7 +842,7 @@ def _md_blocks(blocks: Iterable[Block]) -> list[str]:
     return out
 
 
-def render_markdown(export: Export, top: int | None = None) -> str:
+def render_markdown(export: Export | BatchExport, top: int | None = None) -> str:
     """The report as Markdown (GitHub-flavoured tables)."""
     return "\n".join(_md_blocks(build(export, top))).rstrip("\n") + "\n"
 
@@ -618,9 +917,13 @@ def _html_blocks(blocks: Iterable[Block]) -> list[str]:
     return out
 
 
-def render_html(export: Export, top: int | None = None) -> str:
+def render_html(export: Export | BatchExport, top: int | None = None) -> str:
     """The report as one self-contained HTML page (inline CSS, no scripts, everything escaped)."""
-    title = f"CommitMiner report: {export.run['repo']}"
+    title = (
+        f"CommitMiner batch report: {export.batch['config']}"
+        if isinstance(export, BatchExport)
+        else f"CommitMiner report: {export.run['repo']}"
+    )
     head = [
         "<!DOCTYPE html>",
         '<html lang="en">',
@@ -648,6 +951,6 @@ def format_for(out: Path | None, explicit: str | None) -> str:
     return "markdown"
 
 
-def render(export: Export, fmt: str, top: int | None = None) -> str:
+def render(export: Export | BatchExport, fmt: str, top: int | None = None) -> str:
     """Render in ``fmt`` (``markdown`` or ``html``)."""
     return render_html(export, top) if fmt == "html" else render_markdown(export, top)

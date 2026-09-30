@@ -1,0 +1,32 @@
+# The batch behind `make demo`: three recorded repositories and one set of recorded
+# pull requests, mined into one ledger with `commitminer batch`. Paths are relative to
+# this file. Order matters: a fix found in an earlier entry is a collision in a later one.
+
+[batch]
+# The ledger, export and report paths default to this directory; `make demo` passes
+# --ledger, --out and --report to keep them under .commitminer/ and out/.
+min_overlap = 0.5
+owner = "batch-demo"
+
+# Python: a TOML parser (312 commits).
+[[batch.repos]]
+name = "hukkin/tomli"
+history = "../tomli/history.jsonl.gz"
+
+# The same repository's 25 most recently updated merged pull requests. They were
+# squash-merged, so their fixes are the commits above: already recorded, not new.
+[[batch.repos]]
+name = "hukkin/tomli"
+github = "hukkin/tomli"
+limit = 25
+replay = "../tomli/prs"
+
+# Go: a struct decoder (236 commits) ...
+[[batch.repos]]
+name = "mitchellh/mapstructure"
+history = "../mapstructure/mitchellh.jsonl.gz"
+
+# ... and the fork that continued it (374 commits): every upstream fix collides.
+[[batch.repos]]
+name = "go-viper/mapstructure"
+history = "../mapstructure/go-viper.jsonl.gz"

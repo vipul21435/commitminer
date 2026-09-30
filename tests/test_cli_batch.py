@@ -63,7 +63,7 @@ def test_a_batch_records_every_repository_then_resumes(
     repos: tuple[Path, dict[str, dict[str, str]]], tmp_path: Path
 ) -> None:
     root, shas = repos
-    config = batch_file(tmp_path, root, 'out = "out/batch.jsonl"')
+    config = batch_file(tmp_path, root, 'out = "out/batch.jsonl"\nreport = "out/batch.md"')
     first = runner.invoke(app, ["batch", str(config), "--top", "2"])
     assert first.exit_code == 0, first.output
     lines = first.stdout.splitlines()
@@ -74,7 +74,11 @@ def test_a_batch_records_every_repository_then_resumes(
     assert lines[3].startswith("hukkin/tomli [pull-requests]: first run, walked 24 pull requests")
     assert "collisions with other repositories: 3 (3 same fix)" in lines
     assert "best new candidates across the batch (2 of 10):" in lines
-    assert lines[-1] == f"wrote 3 runs and 13 candidates to {tmp_path / 'out' / 'batch.jsonl'}"
+    assert lines[-2] == f"wrote 3 runs and 13 candidates to {tmp_path / 'out' / 'batch.jsonl'}"
+    assert lines[-1] == f"wrote the markdown report to {tmp_path / 'out' / 'batch.md'}"
+    report = (tmp_path / "out" / "batch.md").read_text(encoding="utf-8")
+    assert report.startswith("# CommitMiner batch report: ")
+    assert report.splitlines()[0].endswith("commitminer.toml")
     records = [json.loads(line) for line in (tmp_path / "out" / "batch.jsonl").open()]
     assert [r["kind"] for r in records].count("run") == 3
     with open_ledger(tmp_path / "team.sqlite3") as ledger:
@@ -91,7 +95,7 @@ def test_a_batch_records_every_repository_then_resumes(
     )
     assert "collisions with other repositories: none" in text
     assert "no new candidates" in text
-    assert text[-1] == f"wrote 3 runs and 0 candidates to {tmp_path / 'again.jsonl'}"
+    assert text[-2] == f"wrote 3 runs and 0 candidates to {tmp_path / 'again.jsonl'}"
 
 
 def test_new_commits_in_a_clone_are_the_only_ones_walked(tmp_path: Path) -> None:

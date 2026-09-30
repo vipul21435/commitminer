@@ -25,9 +25,12 @@ from commitminer.export import Run, write_jsonl
 from commitminer.ledger import Entry, Match, Status, Verdict
 from commitminer.models import Commit, FileChange, PatchStats
 from commitminer.report import (
+    BatchExport,
     Export,
     ReportError,
     format_for,
+    from_records,
+    outcome_of,
     read_export,
     render_html,
     render_markdown,
@@ -333,3 +336,150 @@ def test_read_export_accepts_blank_lines_and_missing_optional_fields(tmp_path: P
     assert "- fingerprint: none" in markdown
     assert "- ledger: not checked" in markdown
     assert "| ledger: new | 1 | 1 |" in markdown
+
+
+# --- batch reports --------------------------------------------------------------------------
+
+BATCH_FILE = """
+[batch]
+ledger = "ledger.sqlite3"
+
+[[batch.repos]]
+name = "demo/durations"
+clone = "repos/upstream"
+url = "https://example.invalid/demo/durations.git"
+
+[[batch.repos]]
+name = "demo/durations-fork"
+clone = "repos/fork"
+url = "https://example.invalid/demo/fork.git"
+
+[[batch.repos]]
+name = "demo/gone"
+history = "missing.jsonl.gz"
+"""
+
+
+@pytest.fixture(scope="module")
+def batch_export(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch_module: pytest.MonkeyPatch
+) -> Path:
+    """The ledger demo's upstream and fork, and a missing recording, mined as one batch."""
+    monkeypatch_module.setattr(ledger_module, "utc_now", lambda: "2026-01-02T03:04:05+00:00")
+    work = tmp_path_factory.mktemp("batch-report")
+    BUILDER.build(work / "repos")
+    (work / "batch.toml").write_text(BATCH_FILE, encoding="utf-8")
+    monkeypatch_module.chdir(work)  # relative paths in the export
+    result = runner.invoke(app, ["batch", "batch.toml", "--out", "batch.jsonl", "--top", "0"])
+    assert result.exit_code == 2, result.output  # the missing recording
+    return work / "batch.jsonl"
+
+
+def test_batch_report_golden(batch_export: Path, tmp_path: Path) -> None:
+    loaded = read_export(batch_export)
+    assert isinstance(loaded, BatchExport)
+    assert [run.run["repo"] for run in loaded.runs] == ["demo/durations", "demo/durations-fork"]
+    markdown = render_markdown(loaded)
+    _golden("report-batch.md", markdown)
+    html = render_html(loaded)
+    _golden("report-batch.html", html)
+    assert html.startswith("<!DOCTYPE html>\n")
+    assert "<title>CommitMiner batch report: batch.toml</title>" in html
+    assert "<script" not in html
+    hrefs = re.findall(r'href="([^"]*)"', html)
+    assert hrefs
+    assert all(href.startswith("https://example.invalid/demo/") for href in hrefs)
+    assert (
+        "| demo/gone | history | failed: missing.jsonl.gz: \\[Errno 2\\] No such file or "
+        "directory: 'missing.jsonl.gz' |" in markdown
+    )
+    assert markdown.count("\n## ") == 3 + 2  # the batch sections, then one per repository
+    assert "\n#### #1 " in markdown  # candidates one level down
+
+
+def test_batch_report_from_the_command_and_after_a_resume(
+    batch_export: Path, tmp_path: Path
+) -> None:
+    printed = runner.invoke(app, ["report", str(batch_export), "--top", "1"])
+    assert printed.exit_code == 0, printed.output
+    assert printed.stdout.startswith("# CommitMiner batch report: batch.toml\n")
+    assert "The best 1 of 4 new candidates, by score" in printed.stdout
+    # The next run finds nothing new; --report writes the report with the export.
+    again = runner.invoke(
+        app, ["batch", "batch.toml", "--only", "demo/durations", "--report", "again.html"]
+    )
+    assert again.exit_code == 0, again.output
+    assert again.stdout.splitlines()[-1] == "wrote the html report to again.html"
+    html = Path("again.html").read_text(encoding="utf-8")
+    assert "No candidate collides with a fix recorded under another repository." in html
+    assert "No new candidates." in html
+    assert "<td>up to date</td>" in html
+
+
+def _batch_lines(batch_export: Path) -> list[str]:
+    return batch_export.read_text(encoding="utf-8").splitlines()
+
+
+def test_batch_exports_are_checked(batch_export: Path, tmp_path: Path) -> None:
+    batch, run, *rest = _batch_lines(batch_export)
+    bad = tmp_path / "bad.jsonl"
+    for lines, message in [
+        ([batch], "the batch record says 2 runs, the file has 0"),
+        ([batch, rest[0]], "line 2: expected a run record after the batch"),
+        ([batch.replace('"dry_run": false', '"dry_run": 0')], "line 1.dry_run: expected bool"),
+        ([batch.replace('"runs": 2', '"runs": true')], "line 1.runs: expected int, got bool"),
+        ([batch, run], "the run record of demo/durations says 3 candidates, the file has 0"),
+    ]:
+        bad.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        with pytest.raises(ReportError, match=re.escape(message)):
+            read_export(bad)
+    with pytest.raises(ReportError, match="the batch export: empty file"):
+        from_records([], "the batch export")
+
+
+def test_batch_report_tolerates_odd_records(batch_export: Path) -> None:
+    records = [json.loads(line) for line in _batch_lines(batch_export)]
+    batch, first_run = records[0], records[1]
+    batch["collisions"][0]["match"] = "not an object"
+    batch["failed"].append("not an object")
+    batch["dry_run"] = batch["full"] = True
+    first_run["resume"] = {"mode": "someday", "previous": None, "watermark": 7, "note": "odd"}
+    records[3]["date"] = "not a date"  # a new candidate: ranked as if oldest
+    records[2]["ledger"] = {
+        "status": "duplicate",
+        "matches": [
+            {
+                "source": "ledger",
+                "repo": records[2]["repo"],
+                "sha": records[2]["sha"],
+                "exact": True,
+                "status": "proposed",
+                "owner": None,
+                "first_seen": "2026-01-02T03:04:05+00:00",
+            }
+        ],
+    }
+    loaded = from_records(records, "x")
+    assert isinstance(loaded, BatchExport)
+    markdown = render_markdown(loaded)
+    assert "| someday (odd) |" in markdown
+    assert "dry run: nothing was recorded; --full: the watermarks were ignored" in markdown
+    assert "- ledger: duplicate: already in the ledger (proposed on 2026-01-02)" in markdown
+    first_run["resume"] = None
+    assert "| clone | - | 4 | 0 | 3 |" in render_markdown(from_records(records, "x"))
+
+
+def test_outcome_of_exported_candidates() -> None:
+    def candidate(status: str | None, *matches: dict[str, str]) -> dict[str, object]:
+        verdict = None if status is None else {"status": status, "matches": list(matches)}
+        return {"repo": "r", "sha": "a", "ledger": verdict}
+
+    assert outcome_of(candidate(None)) == "unknown"
+    assert outcome_of(candidate("new")) == "new"
+    assert outcome_of(candidate("unknown")) == "unknown"
+    assert outcome_of(candidate("duplicate")) == "duplicate"  # no matches to tell
+    assert outcome_of(candidate("duplicate", {"repo": "r", "sha": "a"})) == "recorded"
+    assert outcome_of(candidate("overlap", {"repo": "r", "sha": "b"})) == "internal"
+    assert outcome_of(candidate("overlap", {"repo": "x", "sha": "b"})) == "collision"
+    odd = {"repo": "r", "sha": "a", "ledger": {"status": "overlap", "matches": [1]}}
+    assert outcome_of(odd) == "internal"

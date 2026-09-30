@@ -1,11 +1,16 @@
-.PHONY: help install lint fmt typecheck test cov check demo demo-explain demo-classify \
-	demo-ledger demo-prs demo-report record-prs rules-doc docker verify-recording
+.PHONY: help install lint fmt typecheck test cov check demo demo-batch demo-explain \
+	demo-classify demo-ledger demo-prs demo-report record-prs rules-doc docker verify-recording
 
 UV ?= uv
 IMAGE ?= commitminer:local
 HISTORY := examples/tomli/history.jsonl.gz
 TOMLI_URL := https://github.com/hukkin/tomli
 TOMLI_REV := 5a77b12a7a9f052ce5a20c335d2825658f6aea52
+MAPSTRUCTURE := examples/mapstructure
+MITCHELLH_URL := https://github.com/mitchellh/mapstructure
+MITCHELLH_REV := 8508981c8b6c964e6986dd8aa85490e70ce3c2e2
+GOVIPER_URL := https://github.com/go-viper/mapstructure
+GOVIPER_REV := 52aa5c6dc1d27226460807054ca2107b2d54fb2d
 WORK := .commitminer
 
 help: ## List the targets
@@ -34,9 +39,27 @@ cov: ## Run the tests with the coverage gate (fail_under in pyproject.toml)
 
 check: lint typecheck cov ## Everything CI runs except Docker
 
-demo: ## Mine the recorded tomli history offline; writes out/tomli-candidates.jsonl
+demo: ## Mine the recorded tomli history, then batch-mine it with a Go fork pair (offline)
 	$(UV) run commitminer mine --history $(HISTORY) --top 10 --explain 1 \
 		--out out/tomli-candidates.jsonl
+	@echo
+	@$(MAKE) --no-print-directory demo-batch
+
+BATCH := examples/batch/commitminer.toml
+BATCH_DEMO := $(WORK)/batch-demo
+BATCH_LEDGER := --ledger $(BATCH_DEMO)/ledger.sqlite3
+
+demo-batch: ## Batch-mine tomli and mapstructure and its fork into one ledger, then resume
+	rm -rf $(BATCH_DEMO)
+	$(UV) run commitminer batch $(BATCH) $(BATCH_LEDGER) --top 5 \
+		--out out/batch-candidates.jsonl --report out/batch-report.md
+	@echo
+	@echo "Again: every watermark is up to date, so nothing is walked."
+	$(UV) run commitminer batch $(BATCH) $(BATCH_LEDGER) --top 0
+	@echo
+	@echo "The best Go candidate, classified by the Go rules:"
+	$(UV) run commitminer explain 1d69ed7aa0 --history $(MAPSTRUCTURE)/mitchellh.jsonl.gz \
+		| sed -n '1,12p'
 
 demo-explain: ## Explain one candidate and one rejected commit of the recorded tomli history
 	$(UV) run commitminer explain 948211d852 --history $(HISTORY)
@@ -105,15 +128,30 @@ rules-doc: ## Regenerate the rule table in docs/rules.md
 docker: ## Build the image, run the demo in it, prune this project's dangling images
 	docker build -t $(IMAGE) .
 	docker run --rm $(IMAGE) mine --history $(HISTORY) --top 5 --explain 1
+	docker run --rm --network none --entrypoint sh $(IMAGE) -c 'commitminer batch $(BATCH) \
+		--ledger /tmp/l.sqlite3 --top 3 && commitminer batch $(BATCH) --ledger /tmp/l.sqlite3 \
+		--top 0'
 	docker run --rm --network none $(IMAGE) prs $(PRS_ARGS) --top 5 --explain 0
 	docker run --rm --entrypoint sh $(IMAGE) -c 'commitminer mine --history $(HISTORY) --top 0 \
 		--explain 0 --out /tmp/c.jsonl && commitminer report /tmp/c.jsonl --top 3 | head -20'
 	docker image prune -f --filter label=project=commitminer
 
-verify-recording: ## Re-record tomli from GitHub and compare with the bundled file (network)
-	rm -rf $(WORK)/tomli $(WORK)/verify
+verify-recording: ## Re-record tomli and mapstructure from GitHub and compare (network)
+	rm -rf $(WORK)/tomli $(WORK)/mitchellh $(WORK)/go-viper $(WORK)/verify
 	git clone -q $(TOMLI_URL) $(WORK)/tomli
 	$(UV) run commitminer record $(WORK)/tomli --rev $(TOMLI_REV) --repo-name hukkin/tomli \
 		--url $(TOMLI_URL) --out $(WORK)/verify/history.jsonl
 	gzip -dc $(HISTORY) | cmp - $(WORK)/verify/history.jsonl
 	@echo "recording matches $(TOMLI_URL) at $(TOMLI_REV)"
+	git clone -q $(MITCHELLH_URL) $(WORK)/mitchellh
+	$(UV) run commitminer record $(WORK)/mitchellh --rev $(MITCHELLH_REV) \
+		--repo-name mitchellh/mapstructure --url $(MITCHELLH_URL) \
+		--out $(WORK)/verify/mitchellh.jsonl
+	gzip -dc $(MAPSTRUCTURE)/mitchellh.jsonl.gz | cmp - $(WORK)/verify/mitchellh.jsonl
+	@echo "recording matches $(MITCHELLH_URL) at $(MITCHELLH_REV)"
+	git clone -q $(GOVIPER_URL) $(WORK)/go-viper
+	$(UV) run commitminer record $(WORK)/go-viper --rev $(GOVIPER_REV) \
+		--repo-name go-viper/mapstructure --url $(GOVIPER_URL) \
+		--out $(WORK)/verify/go-viper.jsonl
+	gzip -dc $(MAPSTRUCTURE)/go-viper.jsonl.gz | cmp - $(WORK)/verify/go-viper.jsonl
+	@echo "recording matches $(GOVIPER_URL) at $(GOVIPER_REV)"
