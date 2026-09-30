@@ -163,6 +163,36 @@ def test_fixes_to_tests_with_wrapped_signatures_name_them(
     ]
 
 
+def test_without_contents_a_method_whose_class_is_not_in_the_diff_is_not_named(
+    git_repo: GitRepo, tmp_path: Path
+) -> None:
+    header = "from pkg.calc import add\n\n\nclass TestCalc:\n"
+    old_test = "    def test_one(self):\n        assert add(0, 1) == 1\n"
+    new_test = "\n    def test_two(self):\n        assert add(1, 1) == 2\n"
+    git_repo.commit(
+        "Add add",
+        {
+            "src/pkg/calc.py": "def add(a, b):\n    return b\n",
+            "tests/test_calc.py": header + old_test,
+        },
+    )
+    git_repo.commit(
+        "Fix add",
+        {
+            "src/pkg/calc.py": "def add(a, b):\n    return a + b\n",
+            "tests/test_calc.py": header + old_test + new_test,
+        },
+    )
+    out = tmp_path / "c.jsonl"
+    ids = {}
+    for flag in ("--content", "--no-content"):
+        args = ["mine", str(git_repo.root), flag, "--out", str(out), "--top", "0"]
+        assert runner.invoke(app, args).exit_code == 0
+        (record,) = [r for r in read_export(out)[1] if r["subject"] == "Fix add"]
+        ids[flag] = record["fail_to_pass"]
+    assert ids == {"--content": ["tests/test_calc.py::TestCalc::test_two"], "--no-content": []}
+
+
 def test_record_then_replay_matches_mining_the_clone(small_repo: GitRepo, tmp_path: Path) -> None:
     recording = tmp_path / "history.jsonl.gz"
     recorded = runner.invoke(

@@ -322,8 +322,28 @@ def test_without_contents_only_added_definitions_are_named() -> None:
     # The attribute must come first; a plain fn is not a test.
     assert defined_tests(("fn plain() {}", "#[test]"), syntax) == set()
     assert defined_tests(("def test_a():", "def helper():"), SYNTAX[Language.PYTHON]) == {"test_a"}
-    assert defined_tests(("@Test", "void builds() {"), SYNTAX[Language.JAVA]) == {"builds"}
-    assert defined_tests(("@Test void one() { }",), SYNTAX[Language.JAVA]) == {"one"}
+    # A Java method or an indented Python def needs its class among the same lines: a bare
+    # method name is not an id pytest or JUnit accepts.
+    java, python = SYNTAX[Language.JAVA], SYNTAX[Language.PYTHON]
+    assert defined_tests(("@Test", "void builds() {"), java) == set()
+    assert defined_tests(("@Test void one() { }",), java) == set()
+    new_file = ("public class XTest {", "    @Test", "    void builds() {", "    }", "}")
+    assert defined_tests(new_file, java) == {"XTest#builds"}
+    nested = ("class Outer {", "  static class Inner {", "    @Test void one() {}", "  }", "}")
+    assert defined_tests(nested, java) == {"Inner#one"}
+    assert defined_tests(("    def test_lazy_import(self):",), python) == set()
+    classes = (
+        "class TestA:",
+        "    def test_m(self):",
+        "        pass",
+        "",
+        "    class Inner:",
+        "        def test_n(self):",
+        "            pass",
+        "def test_top():",
+        "    def test_nested_helper():",
+    )
+    assert defined_tests(classes, python) == {"TestA::test_m", "TestA::Inner::test_n", "test_top"}
     assert defined_tests(("test('x', () => {",), SYNTAX[Language.JAVASCRIPT]) == {"x"}
     patch = FilePatch((Hunk(1, 1, (), added),))
     assert touched_tests(patch, syntax, None) == ("halves",)

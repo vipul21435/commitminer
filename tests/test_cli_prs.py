@@ -67,6 +67,16 @@ def test_replay_ignores_an_enterprise_api_url_from_the_environment(
     assert read_export(out)[0]["url"] == "https://github.com/hukkin/tomli"
 
 
+def test_pull_requests_name_no_test_whose_class_they_cannot_see(tmp_path: Path) -> None:
+    # #295 and #286 add methods to tomli's TestMiscellaneous class; without the file the
+    # class is unknown, and the bare 'tests/test_misc.py::test_lazy_import' they used to
+    # get makes pytest collect 0 items.
+    out = tmp_path / "prs.jsonl"
+    assert runner.invoke(app, [*REPLAY, "--top", "0", "--out", str(out)]).exit_code == 0
+    ids = {r["pull_request"]["number"]: r["fail_to_pass"] for r in read_export(out)[1]}
+    assert ids == {200: [], 295: [], 286: [], 202: [], 201: [], 203: []}
+
+
 def test_pull_requests_score_like_the_squashed_commits_they_became(tmp_path: Path) -> None:
     out = tmp_path / "prs.jsonl"
     assert runner.invoke(app, [*REPLAY, "--top", "0", "--out", str(out)]).exit_code == 0

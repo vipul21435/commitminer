@@ -258,6 +258,15 @@ class Syntax:
     """``/.../`` regular expression literals (JavaScript), whose ``//`` is not a comment."""
     test_attribute: re.Pattern[str] | None = None
     """An attribute or annotation that makes the next definition a test (``#[test]``, ``@Test``)."""
+    test_scope: re.Pattern[str] | None = None
+    """A class whose name is part of the ids of the tests inside it, with a ``name`` group.
+
+    Python joins every enclosing class (``TestA::test_x``), Java takes the
+    innermost (``ATest#x``); a test in such a language whose class is unknown
+    cannot be named (see :func:`defined_tests`).
+    """
+    top_level_tests: bool = True
+    """Whether a test can stand outside any class (Python functions, but no Java method)."""
 
 
 _IDENT_JS = r"[A-Za-z_$][\w$]*"
@@ -281,6 +290,7 @@ SYNTAX: Final[dict[Language, Syntax]] = {
             (re.compile(r"^class\s+(?P<name>[A-Za-z]\w*)\b"), "class {name}"),
         ),
         test_def=re.compile(r"^\s*(?:async\s+)?def\s+(?P<name>test\w*)\s*\("),
+        test_scope=re.compile(r"^[ \t]*class\s+(?P<name>\w+)\b"),
     ),
     Language.RUST: Syntax(
         line_comment="//",
@@ -352,6 +362,11 @@ SYNTAX: Final[dict[Language, Syntax]] = {
             r"^\s*@(?:Test|ParameterizedTest|RepeatedTest|TestFactory|TestTemplate)\b"
             r"(?:\([^)]*\))?"
         ),
+        test_scope=re.compile(
+            r"^\s*(?:(?:public|protected|private|static|final|abstract|sealed|non-sealed|strictfp)"
+            r"\s+)*(?:class|interface|enum|record)\s+(?P<name>\w+)\b"
+        ),
+        top_level_tests=False,
     ),
 }
 
@@ -561,11 +576,25 @@ def defined_tests(lines: Iterable[str], syntax: Syntax) -> set[str]:
     """Names of the tests defined on ``lines`` (added lines of one hunk, without the file).
 
     A language with a test attribute (``#[test]``, ``@Test``) names a
-    definition only when the attribute came first on these lines.
+    definition only when the attribute came first on these lines. In a
+    language whose ids include the class (:attr:`Syntax.test_scope`), the class
+    must be declared on these lines too, above the test and less indented (a
+    new test file, a new test class); otherwise the id is left out, since a
+    bare method name is not an id any runner accepts. A Python function at
+    the top level (no indentation) needs no class.
     """
     found: set[str] = set()
     armed = syntax.test_attribute is None
+    scopes: list[tuple[int, str]] = []  # (indentation, name) of the classes around the line
     for line in lines:
+        if syntax.test_scope is not None and line.strip():
+            indent = len(line) - len(line.lstrip(" \t"))
+            while scopes and scopes[-1][0] >= indent:
+                scopes.pop()
+            scope = syntax.test_scope.match(line)
+            if scope is not None:
+                scopes.append((indent, scope.group("name")))
+                continue
         if syntax.test_attribute is not None:
             attribute = syntax.test_attribute.match(line)
             if attribute is not None:
@@ -573,10 +602,23 @@ def defined_tests(lines: Iterable[str], syntax: Syntax) -> set[str]:
                 line = line[attribute.end() :]  # "@Test void x() {" on one line
         match = syntax.test_def.match(line)
         if match is not None:
-            if armed:
-                found.add(match.group("name"))
+            name = _qualified(match.group("name"), line, scopes, syntax)
+            if armed and name is not None:
+                found.add(name)
             armed = syntax.test_attribute is None
     return found
+
+
+def _qualified(name: str, line: str, scopes: list[tuple[int, str]], syntax: Syntax) -> str | None:
+    """``name`` with the classes around it, or ``None`` when they are not known."""
+    if syntax.test_scope is None:
+        return name
+    if scopes:
+        if syntax.top_level_tests:
+            return "::".join([*(scope for _, scope in scopes), name])
+        return f"{scopes[-1][1]}#{name}"
+    top_level = syntax.top_level_tests and not line[:1].isspace()
+    return name if top_level else None
 
 
 def touched_tests(

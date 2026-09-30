@@ -154,7 +154,9 @@ the flip is the downstream builder's job.
   `src/lib.rs::tests::name`, `pkg/x_test.go::TestName`, `.../XTest.java::XTest#method`,
   `x.test.js::test name`. 30 of tomli's 44 candidates get ids (the other 14 change only
   `.toml`/`.json` test data). Without file contents (pull requests, `--no-content`) only
-  test definitions among the added lines are named.
+  test definitions among the added lines are named, and a Python method or a Java test
+  only when its class is declared on those lines too: a bare method name is not an id
+  pytest or JUnit takes.
 - **Export** (schema version 6, [JSON Schema](src/commitminer/schemas/export-v6.schema.json)
   committed, printed by `commitminer schema`, every export validated against it in the
   tests and in CI): a run record first (source, URL, funnel counts, every rejected commit
@@ -1103,7 +1105,7 @@ flowchart LR
 | Replay of the recording | same with `--history examples/tomli/history.jsonl.gz` | 0.19 to 0.22 s (3 runs, with test ids; 0.18 to 0.20 s before them; httpx and the GitHub client are imported only by `prs`) |
 | Report | `/usr/bin/time -p uv run commitminer report out/tomli-candidates.jsonl --out r.html` | 0.08 to 0.11 s (3 runs); `ls -l out/`: 102355 bytes of Markdown, 151400 of HTML for 44 candidates and 268 rejections |
 | Batch report | `/usr/bin/time -p uv run commitminer report out/batch-candidates.jsonl --out out/batch-report.html` after `make demo` | 0.11 to 0.15 s (3 runs); 590554 bytes of Markdown (`make demo`), 897204 of HTML, from a 1156110-byte export of 4 runs and 293 candidates |
-| Likely fail-to-pass ids | `make demo-report`, then count `fail_to_pass` in the export | 30 of 44 tomli candidates (the other 14 change only `.toml`/`.json` test data); 2 of the 6 pull-request candidates (no file contents there) |
+| Likely fail-to-pass ids | `make demo-report`, then count `fail_to_pass` in the export | 30 of 44 tomli candidates (the other 14 change only `.toml`/`.json` test data); 0 of the 6 pull-request candidates: their new tests are methods of classes the diff does not show (2 got bare method names before, such as `tests/test_misc.py::test_lazy_import`, for which pytest collects 0 items) |
 | Replay of the pull requests | `uv run commitminer prs hukkin/tomli --limit 25 --replay examples/tomli/prs --top 0 --explain 0` | 0.12 to 0.14 s (3 runs), 52 requests answered from 52 fixture files |
 | Live pull requests | same without `--replay`, with `GITHUB_TOKEN` and a fresh `--cache-dir`, twice | 24.65 s, 52 requests, rate limit 4700 of 5000 left; again: 23.79 s, 52 answered 304, still 4700 left |
 | Fixture size | `du -sh examples/tomli/prs`; `ls -lS` | 396 KB in 52 files, the largest 82378 bytes (the first page of 100 closed pull requests, about 1.5 MB before trimming) |
@@ -1402,9 +1404,11 @@ flowchart LR
   ids) is not named; a changed line right after a Rust, Go, Java or JavaScript function's
   closing brace is attributed to that function; a function nested in a Python test whose
   name starts with `test` is named as a test of its own and cuts its parent's range;
-  JavaScript `describe` names are not part of the id; Rust `#[test]` functions in pull
-  requests (no contents) lose their module path; a Go `t.Run` subtest is not separated
-  from its parent. The builder must run the tests to confirm the flip in any case.
+  JavaScript `describe` names are not part of the id; without file contents (pull
+  requests, `--no-content`) Rust `#[test]` functions lose their module path, and a Python
+  method or Java test whose class the diff does not show gets no id at all (tomli's six
+  pull-request candidates have none); a Go `t.Run` subtest is not separated from its
+  parent. The builder must run the tests to confirm the flip in any case.
 - **A pull-request watermark hides older pull requests beyond `limit`.** The listing stops at
   the newest update time of the last run, so pull requests that were past `limit` then
   (older updates) are not read by later runs; raise `limit` and run with `--full`, which
