@@ -581,7 +581,11 @@ def defined_tests(lines: Iterable[str], syntax: Syntax) -> set[str]:
     must be declared on these lines too, above the test and less indented (a
     new test file, a new test class); otherwise the id is left out, since a
     bare method name is not an id any runner accepts. A Python function at
-    the top level (no indentation) needs no class.
+    the top level (no indentation) needs no class. Python ids name every
+    class around the test, so the outermost class on the lines must be at the
+    top level too: an indented one sits in a class (or a function) that the
+    hunk does not show. The added lines of a ``--unified=0`` hunk are
+    contiguous in the new file, so nothing between them is missing.
     """
     found: set[str] = set()
     armed = syntax.test_attribute is None
@@ -615,6 +619,8 @@ def _qualified(name: str, line: str, scopes: list[tuple[int, str]], syntax: Synt
         return name
     if scopes:
         if syntax.top_level_tests:
+            if scopes[0][0] > 0:
+                return None  # the outermost class is nested in one the lines do not show
             return "::".join([*(scope for _, scope in scopes), name])
         return f"{scopes[-1][1]}#{name}"
     top_level = syntax.top_level_tests and not line[:1].isspace()

@@ -377,6 +377,14 @@ def test_without_contents_only_added_definitions_are_named() -> None:
         "    def test_nested_helper():",
     )
     assert defined_tests(classes, python) == {"TestA::test_m", "TestA::Inner::test_n", "test_top"}
+    # A class added inside one the lines do not show (or inside a function): the outer
+    # scope is unknown, so no id, rather than one that leaves it out.
+    nested_in_unseen = ("    class TestPositive:", "        def test_small(self):")
+    assert defined_tests(nested_in_unseen, python) == set()
+    in_a_function = ("def test_f():", "    class Helper:", "        def test_x(self):")
+    assert defined_tests(in_a_function, python) == {"test_f"}
+    then_top = (*nested_in_unseen, "            pass", "class TestTop:", "    def test_y(self):")
+    assert defined_tests(then_top, python) == {"TestTop::test_y"}
     assert defined_tests(("test('x', () => {",), SYNTAX[Language.JAVASCRIPT]) == {"x"}
     patch = FilePatch((Hunk(1, 1, (), added),))
     assert touched_tests(patch, syntax, None) == ("halves",)

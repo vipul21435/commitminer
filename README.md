@@ -155,8 +155,9 @@ the flip is the downstream builder's job.
   `x.test.js::test name`. 30 of tomli's 44 candidates get ids (the other 14 change only
   `.toml`/`.json` test data). Without file contents (pull requests, `--no-content`) only
   test definitions among the added lines are named, and a Python method or a Java test
-  only when its class is declared on those lines too: a bare method name is not an id
-  pytest or JUnit takes.
+  only when its class is declared on those lines too (for Python, every class around it,
+  so the outermost one must start at column 0): a bare method name, or a Python id
+  that leaves out an enclosing class, is not an id pytest or JUnit takes.
 - **Export** (schema version 6, [JSON Schema](src/commitminer/schemas/export-v6.schema.json)
   committed, printed by `commitminer schema`, every export validated against it in the
   tests and in CI): a run record first (source, URL, funnel counts, every rejected commit
@@ -1417,8 +1418,9 @@ flowchart LR
   name starts with `test` is named as a test of its own and cuts its parent's range;
   JavaScript `describe` names are not part of the id; without file contents (pull
   requests, `--no-content`) Rust `#[test]` functions lose their module path, and a Python
-  method or Java test whose class the diff does not show gets no id at all (tomli's six
-  pull-request candidates have none); a Go `t.Run` subtest is not separated from its
+  method or Java test whose class the diff does not show (for Python, any class around
+  it, such as the existing class a new nested test class is added to) gets no id at all
+  (tomli's six pull-request candidates have none); a Go `t.Run` subtest is not separated from its
   parent. The builder must run the tests to confirm the flip in any case.
 - **A pull-request watermark hides older pull requests beyond `limit`.** The listing stops at
   the newest update time of the last run, so pull requests that were past `limit` then

@@ -455,6 +455,11 @@ Its output (JSONL) is the input for downstream environment builders.
   URL but still showed the raw one as the link text. The report now strips the text too
   (`Link(strip_credentials(url), base)`), tested on such an export in Markdown and HTML,
   single-run and batch.
+- (3) Without file contents, a test class added inside an existing test class got an id
+  without the outer class (pytest runs nothing for it). A Python chain of classes taken
+  from a hunk now counts only when its outermost class starts at column 0; otherwise the
+  test gets no id. The added lines of a `--unified=0` hunk are contiguous, so no class
+  can be missing between them.
 
 ## Core (deliverable)
 

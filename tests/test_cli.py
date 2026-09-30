@@ -209,6 +209,43 @@ def test_an_export_that_cannot_be_written_is_an_error(tmp_path: Path) -> None:
         assert result.stderr.count("\n") == 1
 
 
+def test_without_contents_a_class_nested_in_an_unseen_class_is_not_named(
+    git_repo: GitRepo, tmp_path: Path
+) -> None:
+    header = "from pkg.calc import add\n\n\nclass TestCalc:\n"
+    old_test = "    def test_zero(self):\n        assert add(0, 0) == 0\n"
+    nested = (
+        "\n    class TestPositive:\n"
+        "        def test_small(self):\n"
+        "            assert add(1, 2) == 3\n"
+    )
+    git_repo.commit(
+        "Add add",
+        {
+            "src/pkg/calc.py": "def add(a, b):\n    return a - b\n",
+            "tests/test_calc.py": header + old_test,
+        },
+    )
+    git_repo.commit(
+        "Fix add",
+        {
+            "src/pkg/calc.py": "def add(a, b):\n    return a + b\n",
+            "tests/test_calc.py": header + old_test + nested,
+        },
+    )
+    out = tmp_path / "c.jsonl"
+    ids = {}
+    for flag in ("--content", "--no-content"):
+        args = ["mine", str(git_repo.root), flag, "--out", str(out), "--top", "0"]
+        assert runner.invoke(app, [*args, "--explain", "0"]).exit_code == 0
+        (record,) = [r for r in read_export(out)[1] if r["subject"] == "Fix add"]
+        ids[flag] = record["fail_to_pass"]
+    assert ids == {
+        "--content": ["tests/test_calc.py::TestCalc::TestPositive::test_small"],
+        "--no-content": [],
+    }
+
+
 def test_record_then_replay_matches_mining_the_clone(small_repo: GitRepo, tmp_path: Path) -> None:
     recording = tmp_path / "history.jsonl.gz"
     recorded = runner.invoke(
