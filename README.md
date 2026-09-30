@@ -644,7 +644,10 @@ requests an hour, which is about 29 pull requests (1 + 2 requests each); with it
 The API root is `--api-url`, else `$GITHUB_API_URL` (GitHub Enterprise runners set it to
 `https://<host>/api/v3`), else `https://api.github.com`. `--replay` ignores
 `$GITHUB_API_URL`: fixtures are keyed by the request path of the API they were recorded
-from, so replaying a GitHub Enterprise recording needs its `--api-url` again.
+from, so replaying a GitHub Enterprise recording needs its `--api-url` again. Live
+requests (and `--record`) go through the proxies in `HTTP_PROXY`, `HTTPS_PROXY`,
+`ALL_PROXY` and `NO_PROXY`, as a plain httpx client would (checked in
+`tests/test_cli_prs.py` against a local proxy).
 
 Output of `make demo-prs` (unedited from the first command on; it replays the 52 recorded
 responses in `examples/tomli/prs/`, so the rate-limit counters are the recorded ones):

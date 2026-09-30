@@ -191,6 +191,29 @@ class ResponseCache:
             raise
 
 
+class NetworkTransport(httpx.BaseTransport):
+    """The real network, reached the way a plain ``httpx.get`` would reach it.
+
+    httpx applies ``HTTP_PROXY``, ``HTTPS_PROXY``, ``ALL_PROXY`` and
+    ``NO_PROXY`` only to a client built without a transport, so a client given
+    a bare ``httpx.HTTPTransport`` goes straight to the host and fails behind a
+    mandatory proxy. This transport sends every request through such a
+    default client (environment proxies, ``SSL_CERT_FILE``), so it can be
+    wrapped by the recorder and passed to :class:`GitHubClient` like any other.
+    """
+
+    def __init__(self) -> None:
+        self._client = httpx.Client()
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        """Send ``request`` through the default client; the caller reads the stream."""
+        return self._client.send(request, stream=True)
+
+    def close(self) -> None:
+        """Close the default client's connection pools."""
+        self._client.close()
+
+
 def default_cache_dir() -> Path:
     """``$XDG_CACHE_HOME/commitminer/github``, else ``~/.cache/commitminer/github``."""
     base = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")

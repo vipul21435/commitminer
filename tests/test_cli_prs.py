@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import threading
+from collections.abc import Iterator
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import ClassVar
 
 import httpx
 import pytest
@@ -180,10 +184,63 @@ def test_prs_uses_a_config_file(tmp_path: Path) -> None:
     assert "linked_reference   0.500   0.00   0.000" in result.stdout
 
 
-def test_the_network_transport_is_plain_httpx() -> None:
-    transport = cli._network_transport()
-    assert isinstance(transport, httpx.HTTPTransport)
-    transport.close()
+class _ProxyHandler(BaseHTTPRequestHandler):
+    """A forward proxy that answers every GET itself with an empty JSON list."""
+
+    seen: ClassVar[list[str]] = []
+
+    def do_GET(self) -> None:
+        self.seen.append(f"{self.command} {self.path}")
+        body = b"[]"
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, format: str, *args: object) -> None:
+        """Keep the test output quiet."""
+
+
+@pytest.fixture
+def http_proxy(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[str]]:
+    """A local forward proxy set as HTTP_PROXY; yields the request lines it received."""
+    for name in ("http_proxy", "https_proxy", "all_proxy", "no_proxy"):
+        monkeypatch.delenv(name, raising=False)
+        monkeypatch.delenv(name.upper(), raising=False)
+    _ProxyHandler.seen = []
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _ProxyHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    monkeypatch.setenv("HTTP_PROXY", f"http://127.0.0.1:{server.server_address[1]}")
+    try:
+        yield _ProxyHandler.seen
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_live_requests_go_through_the_environment_proxy(http_proxy: list[str]) -> None:
+    # example.invalid never resolves: only the proxy can answer.
+    args = ["prs", "o/r", "--api-url", "http://example.invalid", "--no-cache", "--top", "0"]
+    result = runner.invoke(app, [*args, "--max-wait", "0.5"])
+    assert result.exit_code == 0, result.output
+    assert "o/r: read 0 merged pull requests" in result.stdout
+    assert http_proxy == [
+        "GET http://example.invalid/repos/o/r/pulls"
+        "?state=closed&sort=updated&direction=desc&per_page=100"
+    ]
+
+
+def test_recording_goes_through_the_environment_proxy(
+    tmp_path: Path, http_proxy: list[str]
+) -> None:
+    recorded = tmp_path / "recorded"
+    args = ["prs", "o/r", "--api-url", "http://example.invalid", "--record", str(recorded)]
+    result = runner.invoke(app, [*args, "--max-wait", "0.5"])
+    assert result.exit_code == 0, result.output
+    assert len(http_proxy) == 1
+    assert len(list(recorded.glob("*.json"))) == 1
 
 
 def test_the_cli_copies_of_the_defaults_match() -> None:

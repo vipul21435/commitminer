@@ -382,10 +382,10 @@ def _print_candidates(
 
 
 def _network_transport() -> httpx.BaseTransport:
-    """The real network (the tests replace it)."""
-    import httpx
+    """The real network, through the environment's proxies (the tests replace it)."""
+    from commitminer.github import NetworkTransport
 
-    return httpx.HTTPTransport()
+    return NetworkTransport()
 
 
 @app.command(name="prs")
