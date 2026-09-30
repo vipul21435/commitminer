@@ -316,7 +316,10 @@ def test_render_commit_without_patch_data_with_binaries_and_renames() -> None:
     settings = Settings()
     rows = render_commit(evaluate(commit, settings), settings).splitlines()
     assert rows[1] == "base     (root commit)"
-    assert rows[5] == "patch    fingerprint unknown (no hunk hashes)"
+    assert rows[5] == (
+        "patch    fingerprint unknown (no hunk hashes recorded, or only indentation "
+        "and blank lines changed)"
+    )
     assert rows[9].split() == [
         "source",
         "py-source",

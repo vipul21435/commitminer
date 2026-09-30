@@ -23,6 +23,7 @@ from typer.testing import CliRunner
 from commitminer import cli
 from commitminer import ledger as ledger_module
 from commitminer.cli import app
+from gitrepo import GitRepo
 
 ROOT = Path(__file__).resolve().parent.parent
 runner = CliRunner()
@@ -334,6 +335,40 @@ def test_a_ledger_that_cannot_be_written_is_a_plain_error(
     listed = runner.invoke(app, ["ledger", "list", str(read_only)])
     assert listed.exit_code == 0, listed.output
     assert "3 entries" in listed.stdout
+
+
+def test_a_fix_to_the_spaces_inside_a_string_is_fingerprinted(
+    git_repo: GitRepo, tmp_path: Path
+) -> None:
+    """Regression: such a fix had no fingerprint, --new-only dropped it, ledger add refused it."""
+    src, test = "src/pkg/fmt.py", "tests/test_fmt.py"
+    code = 'def pair(a, b):\n    return f"{a}  {b}"\n'
+    check = 'from pkg.fmt import pair\n\n\ndef test_pair():\n    assert pair(1, 2) == "1  2"\n'
+    git_repo.commit("Add pair()", {src: code, test: check})
+    fixed = git_repo.commit(
+        "Fix double space in pair() output (fixes #4)",
+        {src: code.replace("{a}  {b}", "{a} {b}"), test: check.replace('"1  2"', '"1 2"')},
+    )
+    ledger = tmp_path / "ledger.sqlite3"
+    ledger.write_bytes(b"")
+    out = tmp_path / "all.jsonl"
+    text = mine(
+        str(git_repo.root), "--repo-name", "demo/ws", "--ledger", str(ledger), "--new-only",
+        "--out", str(out),
+    )  # fmt: skip
+    assert f"ledger {ledger}: 2 new" in text
+    assert "unknown" not in text
+    assert "showing the 2 new candidates (--new-only)" in text
+    (first, _) = [json.loads(line) for line in out.read_text().splitlines()]
+    assert first["sha"] == fixed
+    assert first["fingerprint"]["version"] == 2
+    assert len(first["fingerprint"]["hunks"]) == 2
+    added = runner.invoke(app, ["ledger", "add", str(ledger), str(out), "--sha", fixed[:8]])
+    assert added.exit_code == 0, added.output
+    assert added.stdout.splitlines()[0] == f"added    #1 demo/ws {fixed[:10]}  claimed"
+    explained = runner.invoke(app, ["explain", fixed, "--repo", str(git_repo.root)])
+    assert "patch    fingerprint " in explained.stdout
+    assert "(2 source and test hunks)" in explained.stdout
 
 
 def test_the_builder_refuses_an_existing_directory(tmp_path: Path) -> None:

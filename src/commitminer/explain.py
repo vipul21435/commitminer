@@ -106,7 +106,8 @@ def render_commit(outcome: Candidate | Rejection, settings: Settings) -> str:
     )
     printed = outcome.fingerprint
     rows.append(
-        "patch    fingerprint unknown (no hunk hashes)"
+        "patch    fingerprint unknown (no hunk hashes recorded, or only indentation "
+        "and blank lines changed)"
         if printed is None
         else f"patch    fingerprint {printed.patch} ({len(printed.hunks)} source and test "
         f"hunk{'' if len(printed.hunks) == 1 else 's'})"

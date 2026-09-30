@@ -105,13 +105,16 @@ the flip is the downstream builder's job.
   [Configuration](#configuration).
 - **`commitminer classify PATH...`** and **`commitminer rules`** show how paths are
   classified and the effective rule table.
-- **Patch fingerprints**: every hunk of every walked patch gets a 64-bit hash of its
-  changed lines with leading and trailing whitespace dropped, inner runs of whitespace
-  collapsed and blank lines left out; the file path and the hunk's line numbers are not
-  hashed. A candidate's fingerprint is its source and test hunk hashes, sorted, plus a patch
-  hash over them, so a cherry-pick onto a shifted file, a re-indented copy and a renamed or
-  moved file all get the same fingerprint, and a cherry-pick with a resolved conflict
-  shares most of its hunks.
+- **Patch fingerprints** (version 2): every hunk of every walked patch gets a 64-bit hash
+  of its changed lines with leading and trailing whitespace dropped, inner runs of
+  whitespace collapsed and blank lines left out; the file path and the hunk's line numbers
+  are not hashed. A hunk whose lines are equal after that (`"1  2"` to `"1 2"`, a change
+  inside a string literal) is hashed with its inner whitespace kept, so it still has a
+  fingerprint; only hunks that change nothing but indentation, trailing whitespace or blank
+  lines have none. A candidate's fingerprint is its source and test hunk hashes, sorted,
+  plus a patch hash over them, so a cherry-pick onto a shifted file, a re-indented copy and
+  a renamed or moved file all get the same fingerprint, and a cherry-pick with a resolved
+  conflict shares most of its hunks.
 - **Dedupe ledger** (`commitminer ledger add|check|list`, `mine --ledger`): one SQLite file
   (standard library `sqlite3`, versioned schema) records proposed fixes by fingerprint with
   repository, sha, status, owner and first-seen time. A candidate is a `duplicate` (same
@@ -726,7 +729,7 @@ flowchart LR
 | Checking an export | `uv run commitminer ledger check <that ledger> <semver export>` | 0.08 s (3 runs) |
 | Concurrent claims | `tests/test_ledger.py`: 8 threads, 8 connections, one fix | exactly 1 added, 7 refused |
 | Live vs replay | `mine <clone> --repo-name hukkin/tomli --out a.jsonl`, `make demo`, `cmp` | identical |
-| Recording size | `ls -l examples/tomli/history.jsonl.gz` | 125311 bytes (1043013 uncompressed) with hunk hashes; 67715 before them, 63697 before patch measurements |
+| Recording size | `ls -l examples/tomli/history.jsonl.gz` | 125342 bytes (1043068 uncompressed) with version 2 hunk hashes; 125311 with version 1, 67715 without hashes, 63697 before patch measurements |
 | Recording integrity | `make verify-recording` (also in CI) | byte-identical to a fresh recording from GitHub |
 | Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 112840949 bytes (110897309 before httpx) |
 
@@ -810,12 +813,17 @@ flowchart LR
   whitespace is dropped and inner runs are collapsed (re-indentation, tabs, realigned
   columns), but a space where there was none still counts. Removing all whitespace was
   tried first: semver's top candidate `5e87530d55` changes `"{} {}"` to `"{}{}"`, and it
-  was left with nothing to hash. Only source and test hunks count, because a fork or a
-  backport usually has its own changelog and CI edits.
+  was left with nothing to hash. A review then found the same gap one step further: a fix
+  of `f"{a}  {b}"` to `f"{a} {b}"` collapsed to identical lines and had no fingerprint, so
+  `--new-only` silently dropped it and `ledger add` refused it for ever. Such a hunk is
+  now hashed a second way, with inner whitespace kept (fingerprint version 2; the version
+  is stored in ledgers and exports, and both refuse the other version). Only source and
+  test hunks count, because a fork or a backport usually has its own changelog and CI
+  edits.
 - **Hunk hashes are measurements.** Like the other patch measurements they are computed
   while walking and stored in recordings (64 bits per hunk; the tomli recording grew from
-  67715 to 125311 bytes), so replay needs no patch text. Their absence in an old recording
-  means "unknown", never "no hunks".
+  67715 to 125311 bytes, 125342 with fingerprint version 2), so replay needs no patch
+  text. Their absence in an old recording means "unknown", never "no hunks".
 - **Check in memory, claim in one transaction.** `mine --ledger` and `ledger check` copy the
   ledger into memory with SQLite's backup API and add each checked candidate to the copy,
   so duplicates inside one run and against the ledger are found by the same query and the
@@ -899,7 +907,11 @@ flowchart LR
 - **Fingerprints are textual.** The same fix written differently (other variable names, a
   formatter that adds spaces around operators) gets other hunk hashes; hunk boundaries come
   from git's diff, so a cherry-pick onto code that changed around the fix can split or
-  merge hunks and share fewer of them. Hunks that only change whitespace are left out.
+  merge hunks and share fewer of them. Hunks that change only indentation, trailing
+  whitespace or blank lines are left out, so a Python fix that only re-indents a block
+  (moving statements into an `if`, a real change there) has no fingerprint and is
+  reported as `unknown` by the ledger. A comment realigned inside a verbose regex
+  (tomli's `81c4eec444`) counts as a changed string and gets a hash.
 - **Overlap counts hunks, not lines.** A one-line hunk weighs as much as a 40-line one:
   pflag's `13e924deb5` and `b027180f68` apply the same one-line fix to two files with
   different tests and are reported as overlapping (1 of 2 hunks) at the default 0.5; raise

@@ -123,11 +123,26 @@ def test_hunk_hashes_ignore_whitespace_but_not_content() -> None:
     assert hunk_hash(["x"], []) != hunk_hash([], ["x"])
 
 
-def test_whitespace_only_hunks_have_no_hash() -> None:
+def test_indentation_and_blank_line_hunks_have_no_hash() -> None:
     assert hunk_hash(["    return x"], ["\treturn x"]) is None
-    assert hunk_hash(["x = {a:  1,"], ["x = {a: 1,  "]) is None
+    assert hunk_hash(["x = 1"], ["x = 1   "]) is None
     assert hunk_hash([], ["", "   "]) is None
     assert hunk_hash(["a", "", "b"], ["a", "b"]) is None
+
+
+def test_a_change_of_whitespace_inside_a_line_keeps_a_hash() -> None:
+    """Regression: a fix to the spaces inside a string literal had no hash at all."""
+    inner = hunk_hash(['    return f"{a}  {b}"'], ['    return f"{a} {b}"'])
+    assert inner is not None
+    assert len(inner) == HASH_CHARS
+    # The same fix re-indented, with tabs, or with trailing blanks: the same hash.
+    assert inner == hunk_hash(['return f"{a}  {b}"'], ['\t\treturn f"{a} {b}"  ', "   "])
+    # Not the hash of the fix that removes the space altogether (a collapsed hash).
+    assert inner != hunk_hash(['return f"{a}  {b}"'], ['return f"{a}{b}"'])
+    # The direction matters: -/+ swapped is another change.
+    assert inner != hunk_hash(['    return f"{a} {b}"'], ['    return f"{a}  {b}"'])
+    # A realigned column is the same kind of change: inner whitespace is content.
+    assert hunk_hash(["x = {a:  1,"], ["x = {a: 1,  "]) is not None
 
 
 def test_patch_hash_ignores_order_but_keeps_repeats() -> None:
@@ -136,7 +151,7 @@ def test_patch_hash_ignores_order_but_keeps_repeats() -> None:
     value = Fingerprint.of(["b", "a", "a"])
     assert value.hunks == ("a", "a", "b")
     assert value.distinct == frozenset({"a", "b"})
-    assert FINGERPRINT_VERSION == 1
+    assert FINGERPRINT_VERSION == 2
 
 
 def test_overlap_is_measured_against_the_smaller_set() -> None:

@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from commitminer import ledger as ledger_module
-from commitminer.fingerprint import Fingerprint
+from commitminer.fingerprint import FINGERPRINT_VERSION, Fingerprint
 from commitminer.ledger import (
     APPLICATION_ID,
     SCHEMA_VERSION,
@@ -65,7 +65,7 @@ def test_a_new_ledger_gets_the_versioned_schema(path: Path) -> None:
     assert db.execute("PRAGMA application_id").fetchone()[0] == APPLICATION_ID
     tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert tables == {"meta", "entries", "hunks"}
-    assert db.execute("SELECT value FROM meta").fetchall() == [("1",)]
+    assert db.execute("SELECT value FROM meta").fetchall() == [(str(FINGERPRINT_VERSION),)]
     db.close()
     # Opening again keeps what is there.
     with open_ledger(path) as again:
@@ -535,7 +535,7 @@ def _line(**overrides: object) -> str:
         "repo": "r",
         "sha": "a" * 40,
         "subject": "fix",
-        "fingerprint": {"version": 1, "patch": fp("h1").patch, "hunks": ["h1"]},
+        "fingerprint": {"version": FINGERPRINT_VERSION, "patch": fp("h1").patch, "hunks": ["h1"]},
     }
     record.update(overrides)
     return json.dumps(record)
@@ -560,10 +560,10 @@ def test_read_candidates(tmp_path: Path) -> None:
         (_line(rank="1"), "rank: expected int"),
         (_line(repo=None), "repo: expected str"),
         (_line(fingerprint=[]), "fingerprint: expected an object or null"),
-        (_line(fingerprint={"version": 2}), "fingerprint: version 2, expected 1"),
-        (_line(fingerprint={"version": 1, "hunks": []}), "non-empty list of strings"),
+        (_line(fingerprint={"version": 1}), "fingerprint: version 1, expected 2"),
+        (_line(fingerprint={"version": 2, "hunks": []}), "non-empty list of strings"),
         (
-            _line(fingerprint={"version": 1, "patch": "x", "hunks": ["h1"]}),
+            _line(fingerprint={"version": 2, "patch": "x", "hunks": ["h1"]}),
             "the patch hash does not match its hunks",
         ),
     ],

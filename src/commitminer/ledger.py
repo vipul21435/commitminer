@@ -171,7 +171,10 @@ class Verdict:
         if self.status is Status.NEW:
             return "new"
         if self.status is Status.UNKNOWN:
-            return "unknown: no fingerprint (no hunk hashes for its source and test changes)"
+            return (
+                "unknown: no fingerprint (hunk hashes were not recorded, or every source "
+                "and test hunk changed only indentation or blank lines)"
+            )
         best = self.matches[0]
         entry, where = best.entry, f"{best.entry.repo} {best.entry.sha[:10]}"
         more = len(self.matches) - 1
