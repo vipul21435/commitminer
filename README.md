@@ -1063,7 +1063,7 @@ flowchart LR
 | `fixtures.py` | httpx transports that record responses as fixture files and replay them offline |
 | `pulls.py` | merged pull requests with their files and commits as `Commit` records, linked issues |
 | `history.py` | writes and validates recorded histories (JSONL, optional reproducible gzip) |
-| `urls.py` | removes credentials (`user:password@`) from repository URLs before they are written |
+| `sanitize.py` | strings made safe for files that are handed on: no credentials (`user:password@`) in repository URLs, no lone surrogates in reports and the ledger |
 | `languages.py` | the six languages and extension detection |
 | `signals.py` | content-signal detectors over file bytes |
 | `globs.py` | glob syntax, pattern checks, linear-time component and path matching |
@@ -1334,6 +1334,11 @@ flowchart LR
   (CI's re-recording check fails until the bundled one is refreshed). A recording does
   not say which fingerprint version its hunk hashes have.
 - **English keywords only** for `fix_keyword` and closing references.
+- **Text that is not UTF-8 is kept as escapes.** git output is decoded with
+  `surrogateescape`, so a commit message or path with bytes that are not UTF-8 (a Latin-1
+  subject from an old git or a repository converter) is exported as lone surrogate
+  escapes (`r\udce9gression`), which Python reads back but a strict JSON parser may
+  refuse. Reports and the ledger show those characters as U+FFFD.
 - **Directory rules match any path component.** A Go or Python package directory named
   `tools`, `scripts`, `examples`, `docs` or `test` is classified by that directory rule
   (Java package directories below `src/<set>/java/` are skipped). Override with

@@ -736,9 +736,10 @@ def report_command(
 
 
 def _write_report(out: Path, text: str) -> None:
+    data = text.encode("utf-8")  # before the file is opened, so a failure cannot empty it
     try:
         out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(text, encoding="utf-8", newline="\n")
+        out.write_bytes(data)
     except OSError as exc:
         raise _fail(f"{out}: cannot write: {exc}") from exc
 

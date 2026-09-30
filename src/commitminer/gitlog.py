@@ -63,6 +63,7 @@ from commitminer.patch import (
     rust_test_regions,
     star_sides,
 )
+from commitminer.sanitize import strip_credentials
 from commitminer.signals import (
     MAX_CONTENT,
     RUST_INLINE_TESTS,
@@ -71,7 +72,6 @@ from commitminer.signals import (
     rust_tests_added,
 )
 from commitminer.testids import test_functions
-from commitminer.urls import strip_credentials
 
 MARKER = "commitminer:v1"
 _FORMAT = f"--format=%x00{MARKER}%x00%H%x00%P%x00%aI%x00%B"

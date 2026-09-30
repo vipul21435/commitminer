@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from commitminer.urls import strip_credentials
+from commitminer.sanitize import strip_credentials, without_surrogates
 
 
 @pytest.mark.parametrize(
@@ -32,3 +32,10 @@ def test_strip_credentials(url: str, expected: str) -> None:
 
 def test_strip_credentials_passes_none_through() -> None:
     assert strip_credentials(None) is None
+
+
+def test_without_surrogates_replaces_only_lone_surrogates() -> None:
+    assert without_surrogates("r\udce9gression \ud800 ok \U0001f600") == (
+        "r�gression � ok \U0001f600"
+    )
+    assert without_surrogates("plain") == "plain"

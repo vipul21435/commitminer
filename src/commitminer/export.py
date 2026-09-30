@@ -29,10 +29,10 @@ from commitminer.classify import Category
 from commitminer.fingerprint import FINGERPRINT_VERSION, Fingerprint
 from commitminer.ledger import Status, Verdict, ledger_verdict_to_json
 from commitminer.models import Commit, PatchStats, PullRequest
+from commitminer.sanitize import strip_credentials
 from commitminer.scoring import Candidate, Feature, MineResult
 from commitminer.settings import Settings
 from commitminer.stats import ClassifiedFile
-from commitminer.urls import strip_credentials
 
 SCHEMA_VERSION = 6
 """Version of the export records; bumped on incompatible changes.

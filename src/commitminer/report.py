@@ -34,7 +34,7 @@ from typing import Any, Final
 
 from commitminer.export import SCHEMA_VERSION
 from commitminer.filters import RejectReason
-from commitminer.urls import strip_credentials
+from commitminer.sanitize import strip_credentials, without_surrogates
 
 FORMATS: Final = ("markdown", "html")
 _SUFFIXES: Final = {".md": "markdown", ".markdown": "markdown", ".html": "html", ".htm": "html"}
@@ -953,5 +953,9 @@ def format_for(out: Path | None, explicit: str | None) -> str:
 
 
 def render(export: Export | BatchExport, fmt: str, top: int | None = None) -> str:
-    """Render in ``fmt`` (``markdown`` or ``html``)."""
-    return render_html(export, top) if fmt == "html" else render_markdown(export, top)
+    """Render in ``fmt`` (``markdown`` or ``html``), always encodable as UTF-8.
+
+    Text that was not UTF-8 in git (lone surrogates in the export) shows as U+FFFD.
+    """
+    text = render_html(export, top) if fmt == "html" else render_markdown(export, top)
+    return without_surrogates(text)

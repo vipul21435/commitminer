@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from commitminer.models import Commit, FileChange, PatchStats
-from commitminer.urls import strip_credentials
+from commitminer.sanitize import strip_credentials
 
 FORMAT = "commitminer-history"
 VERSION = 1

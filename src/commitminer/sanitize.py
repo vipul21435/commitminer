@@ -1,9 +1,19 @@
-"""Repository URLs as they may be written to exports, recordings and reports."""
+"""Strings made safe to write into files that are handed on.
+
+- :func:`strip_credentials`: repository URLs without ``user:password@``, for
+  exports, recordings and reports.
+- :func:`without_surrogates`: text without lone surrogates, for reports and
+  the ledger, which store UTF-8.
+"""
 
 from __future__ import annotations
 
 import re
 from typing import Final, overload
+
+_SURROGATE: Final = re.compile("[\ud800-\udfff]")
+"""A lone surrogate: a code point that UTF-8 (and so SQLite) cannot store."""
+REPLACEMENT: Final = "\ufffd"
 
 _AUTHORITY_USER: Final = re.compile(
     r"^(?P<scheme>[A-Za-z][A-Za-z0-9+.-]*://)(?P<userinfo>[^/?#]*)@"
@@ -40,3 +50,15 @@ def strip_credentials(url: str | None) -> str | None:
         user = userinfo.split(":", 1)[0]
         kept = f"{user}@" if user else ""
     return f"{scheme}{kept}{url[match.end() :]}"
+
+
+def without_surrogates(text: str) -> str:
+    """``text`` with every lone surrogate replaced by U+FFFD, so it can be encoded as UTF-8.
+
+    The walker decodes git's output with ``surrogateescape``, so a commit
+    message or a path with bytes that are not UTF-8 (a Latin-1 subject from an
+    old git or a repository converter) keeps them as lone surrogates such as
+    ``\\udce9``. The JSON export writes them as escapes; a report file, the
+    terminal and SQLite need UTF-8, and would fail on them.
+    """
+    return _SURROGATE.sub(REPLACEMENT, text)

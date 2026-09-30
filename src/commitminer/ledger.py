@@ -71,6 +71,7 @@ from types import TracebackType
 from typing import Any, Final
 
 from commitminer.fingerprint import FINGERPRINT_VERSION, Fingerprint
+from commitminer.sanitize import without_surrogates
 
 APPLICATION_ID: Final = 0x434D4C47
 SCHEMA_VERSION: Final = 2
@@ -154,12 +155,21 @@ class Entry:
 
 @dataclass(frozen=True, slots=True)
 class Proposal:
-    """A candidate to check or add: where it comes from and its fingerprint."""
+    """A candidate to check or add: where it comes from and its fingerprint.
+
+    Lone surrogates (bytes of a commit message or a directory name that are
+    not UTF-8, decoded with ``surrogateescape``) become U+FFFD: SQLite stores
+    UTF-8 and cannot bind them.
+    """
 
     repo: str
     sha: str
     subject: str
     fingerprint: Fingerprint | None
+
+    def __post_init__(self) -> None:
+        for name in ("repo", "sha", "subject"):
+            object.__setattr__(self, name, without_surrogates(getattr(self, name)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,6 +262,11 @@ class Verdict:
         )
 
 
+def _owner(owner: str | None) -> str | None:
+    """``owner`` as SQLite can store it (see :class:`Proposal`)."""
+    return None if owner is None else without_surrogates(owner)
+
+
 def _entry(row: Sequence[Any]) -> Entry:
     return Entry(*row)
 
@@ -314,7 +329,9 @@ class Ledger:
             rows = (
                 self._db.execute(query + " ORDER BY first_seen, id")
                 if repo is None
-                else self._db.execute(query + " WHERE repo = ? ORDER BY first_seen, id", (repo,))
+                else self._db.execute(
+                    query + " WHERE repo = ? ORDER BY first_seen, id", (without_surrogates(repo),)
+                )
             )
             return [_entry(row) for row in rows]
 
@@ -381,7 +398,7 @@ class Ledger:
                 proposal.sha,
                 proposal.subject,
                 status,
-                owner,
+                _owner(owner),
                 self._now(),
                 len(distinct),
             ),
@@ -413,7 +430,7 @@ class Ledger:
         """Turn a ``proposed`` entry into a ``claimed`` one (inside a transaction)."""
         self._db.execute(
             "UPDATE entries SET status = 'claimed', owner = ? WHERE id = ? AND status = 'proposed'",
-            (owner, entry.id),
+            (_owner(owner), entry.id),
         )
         return self._by_id(entry.id)
 
