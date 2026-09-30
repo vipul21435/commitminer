@@ -134,12 +134,15 @@ the flip is the downstream builder's job.
   keeps a watermark per repository and source, and the shas each run evaluated: a clone
   walks only `watermark..head` (its whole history, passing over what was evaluated, when
   the watermark is no longer an ancestor), a recording passes over the commits evaluated
-  before, and the pull-request listing stops at the newest update time seen. Each
-  repository is recorded in one transaction (new fixes as `proposed`, walked shas,
-  watermark), so an interrupted batch resumes where it stopped. Candidates that duplicate
+  before, and the pull-request listing stops at the newest update time seen. Every
+  repository is walked first; then all of them are recorded (new fixes as `proposed`,
+  walked shas, watermarks) in one transaction that commits only after the export and the
+  report are written, so a batch that fails or is interrupted leaves the ledger as it was
+  and no fix is recorded without being exported. Candidates that duplicate
   or overlap a fix recorded under another repository are reported as collisions: the same
   commit (a fork shares its upstream's history) or the same fix in another commit.
-  `--full` ignores the watermarks, `--dry-run` records into an in-memory copy, `--only`
+  `--full` ignores the watermarks, `--dry-run` records into an in-memory copy (the file is
+  opened read-only and never migrated), `--only`
   picks repositories, a repository that fails is reported and the others still run;
   `commitminer ledger watermarks` lists where each one stopped.
 - **Likely fail-to-pass test ids**: the test functions a patch touches, found by their
@@ -253,9 +256,10 @@ start).
 
 Exit codes: 0 on success; 1 is an outcome, not an error (`ledger add` refused a candidate,
 `ledger check` found one that is not new), so scripts can tell that a fix was already
-taken; 2 for every error (usage, an unreadable file, git or GitHub failures, a ledger that
-is read-only or locked longer than the 10 s timeout, a batch repository that could not be
-walked), printed as one `error:` line. A batch that finds collisions exits 0: they are
+taken; 2 for every error (usage, an unreadable file, git or GitHub failures, a ledger
+that a writing command finds read-only or locked longer than the 10 s timeout, a batch
+repository that could not be walked, an export or report that cannot be written),
+printed as one `error:` line. A batch that finds collisions exits 0: they are
 outcomes, reported in the output.
 
 Output of `make demo` up to the batch (the recorded tomli history, unedited; the batch that
@@ -862,14 +866,25 @@ commits in 0.59 to 0.62 s. 236 + 138 is the 374 of a full walk, and the overlapp
 follow-up is now `matching other commits of this repository` (same repository, other
 commit), not a collision.
 
-Each repository is recorded in one SQLite transaction after it is walked: its new fixes
-(as `proposed`, with the batch's `owner`), its walked shas and its new watermark. A batch
-killed in the middle leaves the finished repositories recorded and the interrupted one
-untouched, so the next run picks up there. A repository that cannot be walked (a missing
-clone, a broken recording, a GitHub error) is reported as `failed` and the others still
-run; the batch then exits with 2. `--dry-run` runs the same code against an in-memory copy
-of the ledger (or an empty one, if the file does not exist), so its verdicts are those of a
-real run and nothing is written. `--full` ignores the watermarks and walks everything
+Every repository is walked first, without holding the ledger's lock. Then each is
+recorded, in order, inside one SQLite transaction: its new fixes (as `proposed`, with the
+batch's `owner`), its walked shas and its new watermark. The transaction commits only
+after the export (`--out`) and the report (`--report`) are written. A batch that cannot
+write them, or is killed before that point, leaves the ledger unchanged (`error: <path>:
+cannot write: ...; nothing was recorded in the ledger`), and the next run does the whole
+batch again, so a fix is never recorded without having been exported. The window between
+writing the export and the commit is small; a batch killed exactly there exports its
+candidates again on the next run (at least once, never lost). A repository that cannot be
+walked (a missing clone, a broken, truncated or non-UTF-8 recording, a GitHub error, a
+`cache_dir` that cannot be written) is reported as `failed` and the others still run; the
+batch then exits with 2. `--dry-run` runs the same code against an in-memory copy of the
+ledger (or an empty one, if the file does not exist), so its verdicts are those of a real
+run and nothing is written: the file is opened read-only, and an older schema is migrated
+in the copy, not in the file. `ledger list`, `ledger check`, `ledger watermarks`,
+`mine --ledger` and `prs --ledger` open the ledger read-only too, so they work on a
+read-only file and leave an older one at its version. Relative paths in a batch file
+are resolved against the batch file's directory the way the OS resolves them (`..` after
+a symlinked directory goes to the symlink target's parent). `--full` ignores the watermarks and walks everything
 again; fixes recorded before under the same repository come back as `already recorded`.
 To take a proposed fix, `ledger add` it as usual (`--status claimed`, the default): the
 proposed entry becomes `claimed` by the new owner instead of being refused.
@@ -1041,7 +1056,7 @@ flowchart LR
 | `scoring.py` | score and difficulty features, ranking |
 | `fingerprint.py` | hunk hashes (whitespace, path and position insensitive) and commit fingerprints |
 | `ledger.py` | the SQLite ledger: schema and migrations, verdicts, atomic claims, batch runs with watermarks and walked shas, reading exported candidates |
-| `batch.py` | the batch file, walking each source from its watermark, recording each repository in one transaction, collisions, the batch export and terminal output |
+| `batch.py` | the batch file, walking each source from its watermark, recording the batch in one transaction that commits after the export is written, collisions, the batch export and terminal output |
 | `export.py` | the run record and candidate JSONL export, the JSON Schema accessor, the terminal renderers |
 | `schemas/` | `export-v6.schema.json`, the committed JSON Schema of the export records |
 | `report.py` | reads an export (of one run or of a batch) and renders the Markdown and self-contained HTML reports |
@@ -1053,12 +1068,12 @@ flowchart LR
 
 | What | Command | Result |
 | --- | --- | --- |
-| Tests and coverage | `make cov` | 1027 passed, 100.00% line and branch coverage (gate 90%) |
+| Tests and coverage | `make cov` | 1036 passed, 100.00% line and branch coverage (gate 90%) |
 | Types | `make typecheck` | `mypy --strict`: no issues in 27 source files |
 | Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |
 | Demo batch | `make demo` (its `demo-batch` part) | 4 runs, 946 commits and pull requests walked, 293 candidates, 181 new, 6 already recorded, 106 collisions (105 same commit, 1 overlap); run again: 0 walked, 1 GitHub request instead of 52 |
-| Batch run time | `/usr/bin/time -p uv run commitminer batch examples/batch/commitminer.toml --ledger <new file> --top 0`, then again on the same ledger | first run 0.29 to 0.52 s (3 runs; 0.52 s was the first, with a cold cache), second run 0.15 s (3 runs) |
+| Batch run time | `/usr/bin/time -p uv run commitminer batch examples/batch/commitminer.toml --ledger <new file> --top 0`, then again on the same ledger | first run 0.35 to 0.45 s, second run 0.23 to 0.24 s (3 runs each, re-measured after the batch became one transaction; 0.29 to 0.52 s and 0.15 s when first measured) |
 | Resuming a live clone | a batch entry for a fresh go-viper/mapstructure clone at `8508981c8b`, then at `52aa5c6dc1`, then again | 236 commits in 0.35 to 0.38 s, the 138 new ones in 0.35 s, none in 0.09 s (3 runs each); `mine` walks all 374 at the new head in 0.59 to 0.62 s |
 | Live walk of the tomli clone | `/usr/bin/time -p uv run commitminer mine <tomli clone> --top 0 --explain 0` | 0.40 to 0.44 s with content signals, 0.35 to 0.42 s with `--no-content` (3 runs each; 0.39 to 0.42 s and 0.37 s before slice 4) |
 | Live walk of the semver clone | same on dtolnay/semver (572 commits) | 0.67 s with content signals, 0.27 to 0.28 s with `--no-content` (3 runs each; 0.63 to 0.66 s and 0.36 s before slice 4) |
@@ -1366,9 +1381,19 @@ flowchart LR
   (older updates) are not read by later runs; raise `limit` and run with `--full`, which
   walks everything again and reports what was recorded before as `already recorded`.
 - **Batch runs are sequential.** Repositories are walked one after another, and two batch
-  processes on one ledger are not coordinated: each repository's record is atomic and a
-  fix is never recorded twice, but both may walk the same new commits and add them to the
-  walked counts.
+  processes on one ledger are not coordinated: each batch's record is atomic and a fix is
+  never recorded twice, but both may walk the same new commits and add them to the walked
+  counts. A batch holds the ledger's write lock from its first record until the export
+  and report are written (a fraction of a second for the demo), so another writer waits
+  up to its 10 s timeout meanwhile.
+- **A failed export redoes the whole batch.** Nothing is recorded until the export and the
+  report are written, so a batch that fails to write them, or is interrupted, walks every
+  repository again on the next run (GitHub responses come from the cache as 304s). An
+  export written just before the process is killed, and before the commit, is written
+  again with the same candidates on the next run.
+- **A read-only open of an older ledger reports the new schema.** `ledger list` on a
+  schema 1 file prints `schema version 2`: it describes the in-memory copy it migrated,
+  while the file stays at version 1 until a writing command opens it.
 - **A clone's own `commitminer.toml` is not read by a batch.** The batch file's tables
   apply to every entry unless the entry names another file with `config`, so a clone's
   classifier overrides have to be listed there (explicit, but unlike `mine <clone>`).

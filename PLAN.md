@@ -386,6 +386,32 @@ Its output (JSONL) is the input for downstream environment builders.
   236, then only the 138 new commits (0.35 s each), then none (0.09 s), where `mine`
   takes 0.59 to 0.62 s for all 374.
 
+### Review fixes committed after slice 6
+
+- No stashed work: `git stash list` was empty and PLAN.md had no "Stashed work" note.
+- Five confirmed review findings, each fixed in its own commit with regression tests
+  (1036 tests, 100% line and branch coverage):
+  (1) Export loss: each repository was committed to the ledger before the export was
+  written, so a failed write or an interrupt left fixes recorded as `proposed` that no
+  export ever carried. Decision: walk every repository first (no lock), then record all
+  of them in one `Ledger.transaction()` (each `record_run` a savepoint) and call the
+  CLI's `finish` (export, then report) before the commit. Chosen over per-repository
+  export files or an "exported" flag in the ledger because it keeps the ledger and the
+  export consistent with no schema change; the cost is that a failed batch redoes all
+  repositories and the write lock is held while recording and writing (listed under
+  Known issues). A kill between writing the export and the commit exports the same
+  candidates again: at least once, never lost.
+  (2) A truncated `.gz` or non-UTF-8 recording raised `EOFError`/`UnicodeDecodeError`,
+  which aborted the batch with exit 1; `read_history` now raises `HistoryError`.
+  (3) Read-only commands migrated a schema 1 ledger in place (and failed on a read-only
+  file); `open_ledger(readonly=True)` opens with `mode=ro` and migrates an in-memory copy.
+  Used by `ledger list/check/watermarks`, `mine/prs --ledger` and `batch --dry-run`.
+  (4) An `OSError` in one repository's walk (an unwritable `cache_dir`) aborted the batch
+  and blamed the ledger's directory; walkers convert it to a source error, and only
+  `mkdir` of the ledger's directory reports that message.
+  (5) Batch-file paths were normalized lexically; the short form is now kept only when
+  `realpath` agrees with the joined path, otherwise `dir/..` is left for the OS.
+
 ## Core (deliverable)
 
 - [x] Core: done on 2026-09-30. 127 tests, 100% line and branch coverage, CI green
