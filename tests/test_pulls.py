@@ -255,6 +255,32 @@ def test_fix_keyword_reads_labels(labels: tuple[str, ...], value: float, detail:
     assert fix_keyword("Tidy the parser", labels) == (value, detail)
 
 
+@pytest.mark.parametrize(
+    ("title", "body", "detail"),
+    [
+        ("Closes #12: handle empty keys", None, "#12"),
+        (
+            "Handle empty keys",
+            "Closes https://github.com/o/r/pull/2",
+            "https://github.com/o/r/pull/2",
+        ),
+        ("Handle empty keys", "Fixes: #", "pull request #7, no closing keyword"),
+    ],
+)
+def test_a_pull_requests_score_agrees_with_its_exported_linked_issues(
+    title: str, body: str | None, detail: str
+) -> None:
+    # A closing keyword in the title, or before a pull-request URL, links no
+    # issue (GitHub reads the description and the commit messages), so the
+    # score must not give the 1.0 the export cannot back: 0.5 for the bare
+    # reference at most.
+    commit = pull_commit(pull(title=title, body=body), [COMMITS[1]], FILES, "o/r")
+    (candidate,) = mine([commit]).candidates
+    (feature,) = [f for f in candidate.features if f.name == "linked_reference"]
+    assert (feature.value, feature.detail) == (0.5, detail)
+    assert candidate_to_json(candidate, 1, "o/r")["pull_request"]["linked_issues"] == []
+
+
 def test_a_pull_request_is_a_reference_of_its_own() -> None:
     info = pull_commit(pull(body=None), [], [], "o/r").pull_request
     assert linked_reference("Tidy", info) == (0.5, "pull request #7, no closing keyword")

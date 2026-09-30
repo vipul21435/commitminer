@@ -102,15 +102,18 @@ _FIX_LABEL = re.compile(r"\b(?:bugs?|bugfix|fix(?:es)?|regression|crash(?:es)?)\
 def linked_reference(message: str, pull: PullRequest | None = None) -> tuple[float, str]:
     """1.0 for a closing keyword with a reference, 0.5 for a bare reference, else 0.0.
 
-    For a pull request, the issues it closes (from its description and its
-    commit messages) count as closing references, and the pull request itself
+    For a pull request, only the issues it closes (from its description and its
+    commit messages, as :func:`commitminer.pulls.linked_issues` reads them) count
+    as closing references, so the score agrees with the exported
+    ``linked_issues``: a closing keyword in the title, or one before a
+    pull-request URL, is a bare reference at most. The pull request itself
     counts as a bare reference: a squash-merged commit that ends in ``(#123)``
     gets 0.5 for pointing at the same discussion.
     """
-    if pull is not None and pull.linked_issues:
-        return 1.0, f"pull request #{pull.number} closes {', '.join(pull.linked_issues)}"
-    closing = _CLOSING_REF.search(message)
-    if closing is not None:
+    if pull is not None:
+        if pull.linked_issues:
+            return 1.0, f"pull request #{pull.number} closes {', '.join(pull.linked_issues)}"
+    elif (closing := _CLOSING_REF.search(message)) is not None:
         return 1.0, closing.group(0)
     bare = _BARE_REF.search(message)
     if bare is not None:
