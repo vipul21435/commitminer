@@ -193,6 +193,22 @@ def test_without_contents_a_method_whose_class_is_not_in_the_diff_is_not_named(
     assert ids == {"--content": ["tests/test_calc.py::TestCalc::test_two"], "--no-content": []}
 
 
+def test_an_export_that_cannot_be_written_is_an_error(tmp_path: Path) -> None:
+    # --out names a directory, or a path below a file: one error line and exit 2, as for
+    # report --out and batch --out; this was a traceback with the outcome code 1.
+    history = Path(__file__).resolve().parent.parent / "examples" / "tomli" / "history.jsonl.gz"
+    directory = tmp_path / "d.jsonl"
+    directory.mkdir()
+    below_a_file = tmp_path / "file" / "x.jsonl"
+    below_a_file.parent.write_text("x")
+    for out in (directory, below_a_file):
+        args = ["mine", "--history", str(history), "--top", "0", "--explain", "0"]
+        result = runner.invoke(app, [*args, "--out", str(out)])
+        assert result.exit_code == 2, result.output
+        assert result.stderr.startswith(f"error: {out}: cannot write: ")
+        assert result.stderr.count("\n") == 1
+
+
 def test_record_then_replay_matches_mining_the_clone(small_repo: GitRepo, tmp_path: Path) -> None:
     recording = tmp_path / "history.jsonl.gz"
     recorded = runner.invoke(

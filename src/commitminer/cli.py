@@ -360,7 +360,13 @@ def _report(
             min_overlap=None if ledger is None else output.min_overlap,
             new_only=new_only,
         )
-        count = write_jsonl(output.out, shown, label, verdicts, ranks, run, result, all_verdicts)
+        try:
+            count = write_jsonl(
+                output.out, shown, label, verdicts, ranks, run, result, all_verdicts
+            )
+        except OSError as exc:
+            # A directory at that path, a read-only location, a full disk.
+            raise _fail(f"{output.out}: cannot write: {exc}") from exc
         typer.echo("")
         typer.echo(f"wrote {count} candidates to {output.out}")
 

@@ -77,6 +77,14 @@ def test_pull_requests_name_no_test_whose_class_they_cannot_see(tmp_path: Path) 
     assert ids == {200: [], 295: [], 286: [], 202: [], 201: [], 203: []}
 
 
+def test_a_pull_request_export_that_cannot_be_written_is_an_error(tmp_path: Path) -> None:
+    out = tmp_path / "d.jsonl"
+    out.mkdir()
+    result = runner.invoke(app, [*REPLAY, "--top", "0", "--explain", "0", "--out", str(out)])
+    assert result.exit_code == 2, result.output
+    assert result.stderr.startswith(f"error: {out}: cannot write: ")
+
+
 def test_pull_requests_score_like_the_squashed_commits_they_became(tmp_path: Path) -> None:
     out = tmp_path / "prs.jsonl"
     assert runner.invoke(app, [*REPLAY, "--top", "0", "--out", str(out)]).exit_code == 0
