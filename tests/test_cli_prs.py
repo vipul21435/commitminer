@@ -159,3 +159,10 @@ def test_the_network_transport_is_plain_httpx() -> None:
     transport = cli._network_transport()
     assert isinstance(transport, httpx.HTTPTransport)
     transport.close()
+
+
+def test_the_cli_copies_of_the_defaults_match() -> None:
+    from commitminer import github, pulls
+
+    assert cli.API_URL == github.API_URL
+    assert cli.DEFAULT_MAX_FILES == pulls.DEFAULT_MAX_FILES

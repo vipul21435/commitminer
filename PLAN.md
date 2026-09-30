@@ -225,6 +225,47 @@ Its output (JSONL) is the input for downstream environment builders.
   gson, ky; 7363 commits): no verdict changed, and two gson files gained one code line
   each (`*/package ...` after a license header, which was dropped before). gson mines in
   3.8 s either way.
+- A merged pull request becomes a `Commit` with a `PullRequest` attached (merge commit sha,
+  GitHub's `base.sha` as the only parent, merge date, title and description as the
+  message), so filters, score, difficulty, fingerprints, ledger and export are shared
+  instead of duplicated. `base.sha` follows the usual convention for tasks built from pull
+  requests; its caveat (it can be ahead of the branch point) is a known issue.
+- Endpoints: `pulls?state=closed&sort=updated&direction=desc&per_page=100` (merged ones
+  kept, `--limit` of them), then per pull request `files` and `commits`. Files come first,
+  so one with more than `--max-files` (300) changed files costs at most 3 requests and is
+  skipped (tomli's #278 has 1397). The list endpoint has no `changed_files`, so it cannot
+  be skipped earlier.
+- GitHub's per-file patches have three context lines. `hunks_from_unified` splits them at
+  context lines and numbers an empty side by the line before it, as git does; a test
+  compares it with `git diff --unified=0` on a real repository. All six tomli candidates
+  have the same fingerprint (and score) as the squashed commits they became, so the
+  ledger flags them as duplicates of the mined history.
+- Linked issues: GitHub's nine closing keywords with `#N`, `owner/repo#N` or an issue URL,
+  in the description or commit messages (not the title, and not pull-request URLs). The
+  scorer reads them (`linked_reference` 1.0), counts the pull request itself as a bare
+  reference (0.5, like a squashed `(#123)` subject, which kept tomli's scores equal
+  across both sources), and lets a bug/fix/regression/crash label set `fix_keyword`.
+- The client is httpx (new dependency) with an injectable transport and clock. Record and
+  replay are transports, so the cache, rate-limit and retry code runs unchanged offline.
+  Fixtures are one JSON file per request key (method, path, sorted query) with a list of
+  answers served in order, so sequences such as 403-then-200 can be scripted. Bodies are
+  trimmed to the fields CommitMiner reads (a raw page of 100 pull requests is 1.48 MB;
+  the tomli fixtures are 396 KB in 52 files), headers to validators, links and rate-limit
+  counters; request headers are never stored. The recorder hands the client the trimmed
+  answer, so live and replayed runs see the same data (checked: identical JSONL).
+- Rate limits: the budget from `X-RateLimit-*` is honoured before each request;
+  `Retry-After` on 403/429 first, then the reset when the budget is zero, then a
+  secondary-limit backoff from 60 s (GitHub's guidance), then 1, 2, 4 s for 5xx and
+  network errors; `--max-wait` (300 s) turns a long wait into an error with a
+  `GITHUB_TOKEN` hint. No jitter, so the waits are testable with a fake clock.
+- The ETag cache defaults to `~/.cache/commitminer/github` (XDG), is off with `--replay`
+  unless `--cache-dir` is given (the demo uses one to show 52 of 52 answers as 304), and
+  is refused with `--record`, which must capture full answers. Live, a second cached run
+  left the rate limit where the first left it (4700 of 5000).
+- `prs` imports httpx and the client lazily, so the other commands keep their start-up
+  time (replay of the tomli recording 0.18 to 0.20 s, 0.21 to 0.22 s with eager imports).
+- Export schema 4 adds `pull_request`; the ledger reads schema 3 and 4. Tables name pull
+  requests `#123` in a `pull` column.
 
 ## Core (deliverable)
 
@@ -301,7 +342,12 @@ The smallest end-to-end path, from a git history to a ranked JSONL file:
   and cherry-picks, so the same fix is never proposed twice. Claiming a candidate is atomic
   (unique constraint in one transaction), so two authors cannot take the same fix. Tests
   build a repository with a cherry-pick, a re-indented copy and a rename-only variant.
-- [ ] 4. GitHub merged pull-request walker with cache, rate limits and recorded fixtures.
+- [x] 4. GitHub merged pull-request walker with cache, rate limits and recorded fixtures.
+  Done on 2026-09-30: `commitminer prs`, httpx client with an ETag cache, rate limits and
+  retries on an injectable clock, record/replay transports, 52 recorded tomli responses,
+  `make demo-prs`, export schema 4; four review fixes first (type changes, NUL bytes in
+  patches, pinned git settings, `*` lines); 890 tests, 100% coverage. See "Decisions made
+  while building slice 4".
   `commitminer prs OWNER/REPO` lists merged pull requests through the REST API (httpx), with
   their commits, changed files and linked issues (closing keywords in the body). An on-disk
   cache keyed by URL stores ETags, so repeat runs use conditional requests. Rate-limit

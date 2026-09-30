@@ -14,8 +14,10 @@ transparent score. A separate difficulty estimate puts each candidate in an easy
 hard band. Each feature's value, weight and contribution are printed and exported, so a
 reviewer can see why a commit ranked where it did. Every candidate gets a patch
 fingerprint, and a shared SQLite ledger marks fixes that were already proposed: the same fix
-in a fork, a cherry-pick, a re-indented or moved copy. The output is JSON Lines for
-downstream environment builders.
+in a fork, a cherry-pick, a re-indented or moved copy. Merged pull requests can be mined
+from the GitHub REST API the same way (ETag cache, rate-limit handling, recorded fixtures),
+and their fixes collide in the ledger with the commits they became. The output is JSON
+Lines for downstream environment builders.
 
 CommitMiner proposes and ranks. It does not build environments or run the tests; verifying
 the flip is the downstream builder's job.
@@ -24,10 +26,26 @@ the flip is the downstream builder's job.
 
 - **History walker** over a local clone: one streamed
   `git log --no-merges -M -z --numstat -p --unified=0` call with a fixed environment and
-  command-line config (diff algorithm, inter-hunk context and indent heuristic pinned),
-  parsed one commit at a time from NUL-separated output. Renames keep both paths, binary
-  files have no line counts, and paths with spaces or non-UTF-8 bytes parse exactly. Each
-  file's patch block is matched to its numstat entry and its line counts are checked.
+  command-line config (diff algorithm, inter-hunk context, indent heuristic, submodule
+  format and file order pinned; `GIT_DIFF_OPTS`, `GIT_CONFIG_*` and `GIT_DIR` from the
+  caller dropped), parsed one commit at a time from NUL-separated output. Renames keep both
+  paths, binary files have no line counts, and paths with spaces or non-UTF-8 bytes parse
+  exactly. Each file's patch block is matched to its numstat entry and its line counts are
+  checked; type changes (a file that became a symlink or a submodule) and NUL bytes inside
+  text patches are handled.
+- **GitHub merged pull-request walker** (`commitminer prs OWNER/REPO`): the `--limit` most
+  recently updated merged pull requests, each with its commits and changed files, through
+  the REST API (httpx). An on-disk ETag cache turns repeat runs into conditional requests
+  (`304 Not Modified` is served from the cache and does not count against the rate
+  limit). `X-RateLimit-Remaining`/`Reset` are read from every answer, `Retry-After` is
+  honoured on 403 and 429, secondary limits back off from 60 s, server and network errors
+  back off 1, 2, 4 s, all through an injectable clock; a wait over `--max-wait` fails
+  instead of hanging. `--record DIR` saves every response as a fixture, `--replay DIR`
+  answers from fixtures without network. Linked issues come from closing keywords in the
+  description and commit messages; labels and linked issues feed the score. GitHub's
+  per-file patches (three context lines) are split into `--unified=0` hunks, so pull
+  requests get the same measurements and fingerprints as commits. `GITHUB_TOKEN` is
+  optional.
 - **Patch measurements per file** (Python, Rust, JavaScript/TypeScript, Go, Java): hunks;
   code hunks and code lines, leaving out blank lines, comment-only lines and hunks that
   only change comments or (outside Python) indentation; added assertion lines (`assert`,
@@ -101,15 +119,17 @@ the flip is the downstream builder's job.
   hunks of the smaller fix), or `new`. Adding is one `BEGIN IMMEDIATE` transaction backed by
   a unique constraint on the fingerprint, so two authors cannot claim the same fix;
   checking never writes and also compares the candidates of one run with each other.
-- **Export**: every candidate as one JSON object per line (schema version 3: base commit,
+- **Export**: every candidate as one JSON object per line (schema version 4: base commit,
   fix commit, source, test and inline-test files, per-file category, rule, signals and
   patch measurements, line counts, public API touched, score and difficulty breakdowns,
-  fingerprint, and the ledger verdict with its matches), plus a terminal table and
-  per-candidate contribution tables.
+  fingerprint, the ledger verdict with its matches, and for pull requests their number,
+  URL, labels, linked issues, base, head and merge shas and commits), plus a terminal
+  table and per-candidate contribution tables.
 - **Offline demo** on the recorded history of [hukkin/tomli](https://github.com/hukkin/tomli)
   (MIT, 312 non-merge commits), bundled in [`examples/tomli/`](examples/tomli/) with its
   license and provenance. CI re-records it from GitHub on every push and checks it still
-  matches byte for byte.
+  matches byte for byte. Next to it, 52 recorded API responses for tomli's 25 most
+  recently updated merged pull requests (`examples/tomli/prs/`) drive `make demo-prs`.
 - **Docker image** on digest-pinned `python:3.12-slim` and `uv` bases, running as uid 10001,
   with `LABEL project=commitminer`.
 
@@ -124,7 +144,9 @@ make demo           # mine the bundled tomli history offline
 make demo-explain   # explain one candidate and one rejected tomli commit
 make demo-classify  # classify the multi-language sample tree in examples/classify
 make demo-ledger    # claim upstream fixes, then find them again in a release branch and a fork
+make demo-prs       # rank tomli's merged pull requests from recorded GitHub responses
 uv run commitminer mine /path/to/a/clone --out out/candidates.jsonl --ledger team.sqlite3
+GITHUB_TOKEN=... uv run commitminer prs OWNER/REPO --limit 30 --out out/prs.jsonl
 uv run commitminer ledger add team.sqlite3 out/candidates.jsonl --sha <sha> --owner <name>
 uv run commitminer explain <sha> --repo /path/to/a/clone
 ```
@@ -147,6 +169,11 @@ commitminer ledger list LEDGER [--repo NAME] [--json]
 commitminer explain SHA [--repo DIR | --history FILE] [--max-lines N] [--max-source-files N]
                     [--test-lines-cap N] [--config FILE] [--no-content] [--json]
 commitminer record REPO --out FILE [--rev REV] [--max-count N] [--repo-name NAME] [--url URL]
+commitminer prs OWNER/REPO [--limit 30] [--max-files 300] [--record DIR | --replay DIR]
+                [--cache-dir DIR | --no-cache] [--api-url URL] [--max-wait 300] [--top 10]
+                [--explain 1] [--out FILE] [--config FILE] [--max-lines N]
+                [--max-source-files N] [--test-lines-cap N]
+                [--ledger FILE [--min-overlap 0.5] [--new-only]]
 commitminer classify PATH... [--root DIR] [--config FILE] [--no-content] [--json]
 commitminer rules [--root DIR] [--config FILE] [--markdown]
 commitminer version
@@ -203,7 +230,7 @@ wrote 44 candidates to out/tomli-candidates.jsonl
 The first line of `out/tomli-candidates.jsonl`, with each feature and file on one line and
 the file lists cut to the source and test file (the commit also changes `CHANGELOG.md` and
 `README.md`). The fingerprint covers the 13 hunks of those two files; `ledger` is `null`
-because the demo mines without `--ledger`:
+because the demo mines without `--ledger`, and `pull_request` because it is a commit:
 
 ```json
 {
@@ -233,9 +260,10 @@ because the demo mines without `--ledger`:
   "ledger": null,
   "lines": {"changed": 62, "source_added": 13, "source_deleted": 8, "test_added": 35, "test_deleted": 6},
   "public_api": ["def loads"],
+  "pull_request": null,
   "rank": 1,
   "repo": "hukkin/tomli",
-  "schema_version": 3,
+  "schema_version": 4,
   "score": 6.885,
   "sha": "5ab9ec926d9dc1ef79e66215edd51285371fe8a0",
   "source_files": ["tomli/_parser.py"],
@@ -516,11 +544,96 @@ with `b027180f68` ("Fix square bracket handling in string_array"): the same one-
 the smaller fix, and stay new under the default `--min-overlap 0.5`. No two candidates have
 the same patch hash, and every candidate of the three histories has a fingerprint.
 
+### Merged pull requests
+
+`commitminer prs OWNER/REPO` reads `GET /repos/{owner}/{repo}/pulls?state=closed&sort=updated`
+page by page, keeps the first `--limit` merged pull requests, and for each reads
+`pulls/{number}/files` (first, 100 per request; a pull request with more than
+`--max-files` changed files is skipped after at most 3 requests) and `pulls/{number}/commits`.
+Each one becomes a commit: the merge commit sha, GitHub's base sha as its parent (the base
+commit a task starts from), the merge date, the title and description as its message. The
+same filters, score, difficulty, fingerprint and ledger apply. Pull-request metadata feeds
+two score features: `linked_reference` is 1.0 when the description or a commit message
+closes an issue (`Fixes #12`, `owner/repo#12`, an issue URL) and 0.5 for the pull request
+itself; `fix_keyword` is also set by a `bug`, `fix`, `regression` or `crash` label
+(`type: bug`, `C-bug`, `kind/regression`). Without `GITHUB_TOKEN` GitHub allows 60
+requests an hour, which is about 29 pull requests (1 + 2 requests each); with it, 5000.
+
+Output of `make demo-prs` (unedited from the first command on; it replays the 52 recorded
+responses in `examples/tomli/prs/`, so the rate-limit counters are the recorded ones):
+
+```text
+github: 52 requests (0 answered 304 from the cache), 0 retries, waited 0 s; rate limit 4759 of 5000 left, resets 2026-09-30 01:25:39 UTC (replayed from examples/tomli/prs)
+hukkin/tomli: read 24 merged pull requests (6 closed without merging passed over; skipped #278: more than 300 changed files)
+hukkin/tomli: walked 24 pull requests, 6 candidates (easy 4, medium 2), 18 rejected (docs-only 1, no-source 11, source-cosmetic 1, no-test 5)
+
+rank   score         diff  pull        date        lines  src  test  subject
+   1    6.55  2.10 medium  #200        2026-01-10     60    1     5  Allow newlines and trailing comma in inli...
+   2    6.06    0.53 easy  #295        2026-04-10     25    1     1  Use Python 3.15 lazy import
+   3    5.84    0.95 easy  #286        2026-03-25     28    1     1  Limit number of parts of a key
+   4    5.37    0.76 easy  #202        2026-01-10     17    1     3  Add \xHH Unicode escape code to basic str...
+   5    5.12    0.63 easy  #201        2025-12-21      4    1     2  Add shorthand for escape character
+   6    5.02  2.67 medium  #203        2026-01-10     44    1     5  Make seconds optional in Date-Time and Time
+```
+
+followed by the contribution tables of #200. In `out/tomli-prs.jsonl` each candidate
+carries a `pull_request` object; the first one's, with its seven commit shas cut to two:
+
+```json
+{
+  "base_ref": "master",
+  "base_sha": "38297f82cd0ef067f1afd2ffb8dfa73b65c398da",
+  "commits": ["aae9af0b62e4c289fc53c73d6e593fd23a9b7813", "...", "4133dde4238f0ab6e3edd166170f824751ca1d71"],
+  "head_sha": "4133dde4238f0ab6e3edd166170f824751ca1d71",
+  "labels": [],
+  "linked_issues": [],
+  "merge_commit_sha": "2a2aa62f1bc71b89b74d41dd2ab67b5dd24bc129",
+  "merged_at": "2026-01-10T12:41:08+00:00",
+  "number": 200,
+  "title": "Allow newlines and trailing comma in inline tables",
+  "url": "https://github.com/hukkin/tomli/pull/200"
+}
+```
+
+The second run uses the same ETag cache:
+
+```text
+github: 52 requests (52 answered 304 from the cache), 0 retries, waited 0 s; rate limit 4759 of 5000 left, resets 2026-09-30 01:25:39 UTC (replayed from examples/tomli/prs)
+```
+
+Then the recorded commit history is mined and its 44 candidates are claimed in a ledger,
+and the pull requests are checked against it:
+
+```text
+44 added, 0 refused: .commitminer/prs-demo/ledger.sqlite3
+ledger .commitminer/prs-demo/ledger.sqlite3: 6 duplicate
+  #1 #200 duplicate: already in the ledger (claimed by demo on 2026-09-30)
+  #2 #295 duplicate: already in the ledger (claimed by demo on 2026-09-30)
+  #3 #286 duplicate: already in the ledger (claimed by demo on 2026-09-30)
+  #4 #202 duplicate: already in the ledger (claimed by demo on 2026-09-30)
+  #5 #201 duplicate: already in the ledger (claimed by demo on 2026-09-30)
+  #6 #203 duplicate: already in the ledger (claimed by demo on 2026-09-30)
+```
+
+tomli squash-merges, so each pull request's merge commit is one of the recorded commits,
+and its patch, rebuilt from GitHub's three-line-context patches, has the same fingerprint
+as `git log --unified=0` gives that commit (`tests/test_cli_prs.py` checks all six, and
+that their scores are equal too). Three of the 24 pull requests close an issue
+(#272 closes #271, #276 #253, #280 #273); two change only the CI workflow (`no-source`)
+and #280 is a version bump without tests (`no-test`). #278 ("Update external test data") changes 1397 files (`gh api repos/hukkin/tomli/pulls/278 --jq .changed_files`) and is skipped.
+
+Live, with a token (`GITHUB_TOKEN=$(gh auth token) uv run commitminer prs hukkin/tomli
+--limit 25 --cache-dir <dir>`, run twice): the first run sent 52 requests in 24.65 s and
+left 4700 of 5000; the second got 52 answers of 304 from the cache in 23.79 s and still
+left 4700. Without a token, `--limit 3 --no-cache` sent 7 requests and left 53 of 60.
+
 Docker (the image contains the recorded history and the sample tree, so this runs offline):
 
 ```sh
 make docker   # build, run the demo inside the image, prune this project's dangling images
 docker run --rm commitminer:local explain 948211d852 --history examples/tomli/history.jsonl.gz
+docker run --rm --network none commitminer:local prs hukkin/tomli --limit 25 \
+  --replay examples/tomli/prs
 # Mine a clone on the host; -u keeps git's ownership check happy on Linux.
 docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/repo:ro" commitminer:local mine /repo
 ```
@@ -535,6 +648,12 @@ flowchart LR
     signals --> commits
     patch --> commits[Commit + FileChange + PatchStats]
     commits -->|commitminer record| rec[(history.jsonl.gz)]
+    api[GitHub REST API] -->|"httpx: ETag cache, rate limits, retries"| client[github: client]
+    fixtures[(recorded fixtures)] -->|--replay| client
+    client -->|--record| fixtures
+    client --> pulls[pulls: merged PRs, files, commits, linked issues]
+    pulls -->|"U3 patches split to U0 hunks"| patch
+    pulls --> commits
     rec -->|history.read_history| commits
     toml[(commitminer.toml)] --> classify
     toml --> settings[settings: limits, caps, weights, bands]
@@ -557,9 +676,12 @@ flowchart LR
 
 | Module | Role |
 | --- | --- |
-| `models.py` | frozen dataclasses `Commit`, `FileChange` and `PatchStats` |
-| `gitlog.py` | builds the git command, streams and parses the NUL-separated output, matches patches to numstat; reads file contents for signals with `git cat-file --batch` |
-| `patch.py` | `--unified=0` patch parser, per-language comment, assertion and declaration rules, Rust test-module lexer |
+| `models.py` | frozen dataclasses `Commit`, `PullRequest`, `FileChange` and `PatchStats` |
+| `gitlog.py` | builds the git command and its environment, streams and parses the NUL-separated output, matches patches to numstat; reads file contents for signals with `git cat-file --batch` |
+| `patch.py` | `--unified=0` patch parser (and a splitter for patches with context), per-language comment, assertion and declaration rules, a C-like lexer for block comments and Rust test modules |
+| `github.py` | REST client: ETag cache on disk, rate limits, retries and backoff with an injectable clock, pagination |
+| `fixtures.py` | httpx transports that record responses as fixture files and replay them offline |
+| `pulls.py` | merged pull requests with their files and commits as `Commit` records, linked issues |
 | `history.py` | writes and validates recorded histories (JSONL, optional reproducible gzip) |
 | `languages.py` | the six languages and extension detection |
 | `signals.py` | content-signal detectors over file bytes |
@@ -575,20 +697,24 @@ flowchart LR
 | `export.py` | JSONL export and the terminal renderers |
 | `explain.py` | the `explain` output, text and JSON |
 | `ruletable.py` | `classify` and `rules` command output, `docs/rules.md` |
-| `cli.py` | Typer commands `mine`, `explain`, `record`, `classify`, `rules`, `ledger add/check/list`, `version` |
+| `cli.py` | Typer commands `mine`, `prs`, `explain`, `record`, `classify`, `rules`, `ledger add/check/list`, `version` |
 
 ## Measured
 
 | What | Command | Result |
 | --- | --- | --- |
-| Tests and coverage | `make cov` | 752 passed, 100.00% line and branch coverage (gate 90%) |
-| Types | `make typecheck` | `mypy --strict`: no issues in 21 source files |
+| Tests and coverage | `make cov` | 890 passed, 100.00% line and branch coverage (gate 90%) |
+| Types | `make typecheck` | `mypy --strict`: no issues in 24 source files |
 | Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |
-| Live walk of the tomli clone | `/usr/bin/time -p uv run commitminer mine <tomli clone> --top 0 --explain 0` | 0.39 to 0.42 s with content signals, 0.37 s with `--no-content` (3 runs each; 0.35 s and 0.33 s before fingerprints and the glob matcher) |
-| Live walk of the semver clone | same on dtolnay/semver (572 commits) | 0.63 to 0.66 s with content signals, 0.36 s with `--no-content` (3 runs each) |
-| Live walk of the pflag clone | same on spf13/pflag (285 commits) | 0.32 s (3 runs) |
-| Replay of the recording | same with `--history examples/tomli/history.jsonl.gz` | 0.17 s (3 runs; 0.16 s before, 0.21 s before the plain-component precheck) |
+| Live walk of the tomli clone | `/usr/bin/time -p uv run commitminer mine <tomli clone> --top 0 --explain 0` | 0.40 to 0.44 s with content signals, 0.35 to 0.42 s with `--no-content` (3 runs each; 0.39 to 0.42 s and 0.37 s before slice 4) |
+| Live walk of the semver clone | same on dtolnay/semver (572 commits) | 0.67 s with content signals, 0.27 to 0.28 s with `--no-content` (3 runs each; 0.63 to 0.66 s and 0.36 s before slice 4) |
+| Live walk of the pflag clone | same on spf13/pflag (285 commits) | 0.30 to 0.31 s (3 runs) |
+| Live walk of the serde clone | same on serde-rs/serde at `6693a89c` (3542 commits; aborted on a symlink type change before slice 4) | 8.47 to 9.48 s (3 runs): 484 candidates |
+| Replay of the recording | same with `--history examples/tomli/history.jsonl.gz` | 0.18 to 0.20 s (3 runs; 0.17 s before slice 4; httpx and the GitHub client are imported only by `prs`) |
+| Replay of the pull requests | `uv run commitminer prs hukkin/tomli --limit 25 --replay examples/tomli/prs --top 0 --explain 0` | 0.12 to 0.14 s (3 runs), 52 requests answered from 52 fixture files |
+| Live pull requests | same without `--replay`, with `GITHUB_TOKEN` and a fresh `--cache-dir`, twice | 24.65 s, 52 requests, rate limit 4700 of 5000 left; again: 23.79 s, 52 answered 304, still 4700 left |
+| Fixture size | `du -sh examples/tomli/prs`; `ls -lS` | 396 KB in 52 files, the largest 82378 bytes (the first page of 100 closed pull requests, about 1.5 MB before trimming) |
 | One explanation | `uv run commitminer explain 55bf7fb619 --repo <semver clone>` | 0.10 s (3 runs) |
 | Mining against a ledger | semver walk with `--ledger` holding its 66 candidates | 0.66 to 0.67 s (3 runs): 65 duplicate, 1 overlap |
 | Checking an export | `uv run commitminer ledger check <that ledger> <semver export>` | 0.08 s (3 runs) |
@@ -596,7 +722,7 @@ flowchart LR
 | Live vs replay | `mine <clone> --repo-name hukkin/tomli --out a.jsonl`, `make demo`, `cmp` | identical |
 | Recording size | `ls -l examples/tomli/history.jsonl.gz` | 125311 bytes (1043013 uncompressed) with hunk hashes; 67715 before them, 63697 before patch measurements |
 | Recording integrity | `make verify-recording` (also in CI) | byte-identical to a fresh recording from GitHub |
-| Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 110897309 bytes |
+| Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 112840949 bytes (110897309 before httpx) |
 
 ## Design decisions
 
@@ -690,9 +816,30 @@ flowchart LR
   shared file is never written. `ledger add` checks and inserts inside `BEGIN IMMEDIATE`,
   and `UNIQUE (fingerprint)` and `UNIQUE (repo, sha)` refuse a second claim even from a
   writer that skipped the check.
+- **A pull request is a commit with metadata.** Rather than a second pipeline, each merged
+  pull request becomes a `Commit` (merge commit sha, GitHub's base sha as parent, merge
+  date, title and description) with a `PullRequest` attached, so filters, score,
+  difficulty, fingerprints, ledger, export and tables are shared. The base is GitHub's
+  `base.sha`, the usual starting point for a task built from a pull request.
+- **Same hunks from both sources.** GitHub sends per-file patches with three context lines;
+  splitting them at context lines and numbering empty sides as git does gives the hunks of
+  `git diff --unified=0` (a test compares both on a real repository), so a pull request
+  and the commit it became have the same fingerprint.
+- **The HTTP layer is swappable, the client is not.** Recording and replay are `httpx`
+  transports, so cache, rate-limit, retry and pagination code runs unchanged on live,
+  recorded and replayed traffic. A recording run hands the client exactly what a replay
+  will serve (kept headers, trimmed body). Replay answers `304` when `If-None-Match` equals
+  a recorded ETag, which lets the cache be tested offline. Fixtures are keyed by method,
+  path and sorted query, one readable JSON file per request, with scripted sequences
+  (`403` then `200`) for retry tests.
+- **Spend the rate limit on candidates.** Files are read before commits and at most
+  `--max-files` of them, conditional requests are free, a pull request costs 1 + 2
+  requests, and waiting is bounded by `--max-wait` so an unauthenticated run fails with a
+  hint to set `GITHUB_TOKEN` instead of sleeping for an hour.
 - **Fresh repository, not a fork.** PyDriller (Apache-2.0) was considered; CommitMiner
   needs only a narrow, typed parse of `git log`, and calling the git CLI keeps the
-  dependency set to Typer and `mypy --strict` clean. See [PLAN.md](PLAN.md).
+  dependency set small (Typer, and httpx for the GitHub API) and `mypy --strict` clean.
+  See [PLAN.md](PLAN.md).
 
 ## Known issues
 
@@ -724,7 +871,7 @@ flowchart LR
   against how often agents solve such tasks. Hunk-heavy commits rank as hard even when each
   hunk is one line (`5ab9ec926d` threads one parameter through 10 hunks).
 - **Rust test modules need contents.** With `--no-content`, or in a recording made with it,
-  lines inside `#[cfg(test)]` modules count as source code, so semver drops from 68 to 18
+  lines inside `#[cfg(test)]` modules count as source code, so semver drops from 66 to 16
   candidates. Detection looks at the first 1 MiB of a file.
 - **Content limits.** Paths containing a newline cannot be requested from
   `git cat-file --batch` and get no signals. Kotlin, C/C++ and other languages have no
@@ -758,14 +905,34 @@ flowchart LR
 - **SQLite locking on network drives.** Concurrent claims rely on SQLite's file locks,
   which some network filesystems do not implement correctly; the concurrency test runs on a
   local disk.
-- **No GitHub walker, no HTML report yet** (see Roadmap).
+- **Pull-request files are classified by path only.** File contents are not fetched, so
+  content signals (generated headers, minified JavaScript) and Rust `#[cfg(test)]`
+  modules are not seen: a Rust pull request whose tests are inline is rejected as
+  `no-test`, as with `--no-content`. A `*` line is judged without the file (see the
+  comment rule above).
+- **Patches GitHub leaves out are unmeasured.** GitHub omits the patch of very large or
+  binary files; such a file keeps its line counts but has no patch measurements, so the
+  commit's features read "unknown: no patch data" and it has no fingerprint when that file
+  is source or test.
+- **`--limit` follows GitHub's update order.** The pull requests read are the most
+  recently updated closed ones that were merged, not the most recently merged; a comment
+  on an old pull request brings it forward. Requests are sequential (about 0.47 s each in
+  the live run above).
+- **Linked issues are keyword links only.** Issues linked in GitHub's "Development"
+  sidebar without a closing keyword are not found (the REST API does not list them), and
+  a closing keyword in a pull-request title is not read (GitHub documents the description
+  and commit messages as the places that link).
+- **Base sha is GitHub's.** `base.sha` is the base branch commit GitHub recorded for the
+  pull request; for a long-lived pull request it can be ahead of the commit the branch
+  started from, so a task built on it may need the base branch at merge time instead.
+- **Backoff has no jitter.** Retries wait fixed exponential times (1, 2, 4 s; 60, 120 s for
+  secondary limits), which is deterministic to test but can synchronise parallel clients.
+- **No HTML report yet** (see Roadmap).
 
 ## Roadmap
 
-Planned in [PLAN.md](PLAN.md), not built yet (slices 1 to 3 are done):
+Planned in [PLAN.md](PLAN.md), not built yet (slices 1 to 4 are done):
 
-4. GitHub merged pull-request walker with an ETag cache, rate-limit handling and recorded
-   fixtures.
 5. A versioned export schema (JSON Schema) and Markdown/HTML reports.
 6. Multi-repository batch mining with incremental resume.
 
@@ -774,11 +941,12 @@ Planned in [PLAN.md](PLAN.md), not built yet (slices 1 to 3 are done):
 ```sh
 make check              # lint, typecheck, tests with the coverage gate
 make verify-recording   # re-record tomli from GitHub and compare (network)
+make record-prs         # re-record the pull-request fixtures from GitHub (network)
 UPDATE_GOLDEN=1 uv run pytest tests/test_explain.py   # refresh the explain golden files
 ```
 
 ## License
 
-MIT, see [LICENSE](LICENSE). The recorded tomli history in `examples/tomli/` comes from
-tomli (MIT, Copyright (c) 2021 Taneli Hukkinen); its license is in
-[examples/tomli/LICENSE](examples/tomli/LICENSE).
+MIT, see [LICENSE](LICENSE). The recorded tomli history and pull-request responses in
+`examples/tomli/` come from tomli (MIT, Copyright (c) 2021 Taneli Hukkinen); its license is
+in [examples/tomli/LICENSE](examples/tomli/LICENSE).

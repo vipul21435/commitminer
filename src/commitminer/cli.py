@@ -6,9 +6,8 @@ import json
 import os
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
-import httpx
 import typer
 
 from commitminer import __version__
@@ -20,14 +19,6 @@ from commitminer.export import (
     render_summary,
     render_table,
     write_jsonl,
-)
-from commitminer.fixtures import RecordingTransport, ReplayTransport
-from commitminer.github import (
-    API_URL,
-    GitHubClient,
-    GitHubError,
-    ResponseCache,
-    default_cache_dir,
 )
 from commitminer.gitlog import GitError, head_sha, resolve_commit, walk
 from commitminer.history import HistoryError, read_history, write_history
@@ -46,7 +37,6 @@ from commitminer.ledger import (
     read_candidates,
 )
 from commitminer.models import Commit
-from commitminer.pulls import DEFAULT_MAX_FILES, merged_pulls
 from commitminer.ruletable import (
     classify_file,
     render_rules,
@@ -56,6 +46,14 @@ from commitminer.ruletable import (
 )
 from commitminer.scoring import Candidate, MineResult, evaluate, mine
 from commitminer.settings import Settings
+
+if TYPE_CHECKING:
+    import httpx
+
+# The GitHub client (and httpx) is imported by the prs command only, so the other
+# commands start faster; tests check that these copies match the modules' values.
+API_URL = "https://api.github.com"
+DEFAULT_MAX_FILES = 300
 
 app = typer.Typer(
     name="commitminer",
@@ -313,6 +311,8 @@ def _print_candidates(
 
 def _network_transport() -> httpx.BaseTransport:
     """The real network (the tests replace it)."""
+    import httpx
+
     return httpx.HTTPTransport()
 
 
@@ -399,6 +399,15 @@ def prs_command(
         raise _fail("give --record or --replay, not both", code=2)
     if record_dir is not None and cache_dir is not None:
         raise _fail("--record fetches every response in full; drop --cache-dir", code=2)
+    from commitminer.fixtures import RecordingTransport, ReplayTransport
+    from commitminer.github import (
+        GitHubClient,
+        GitHubError,
+        ResponseCache,
+        default_cache_dir,
+    )
+    from commitminer.pulls import merged_pulls
+
     loaded = _config(config, None)
     settings = loaded.settings(
         max_lines=max_lines, max_source_files=max_source_files, test_lines_cap=test_lines_cap
