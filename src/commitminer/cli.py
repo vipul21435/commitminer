@@ -204,10 +204,14 @@ MinOverlapOption = Annotated[
 
 
 @contextmanager
-def _ledger(path: Path, create: bool = False) -> Iterator[Ledger]:
-    """Open a ledger for one command; any ledger error is a plain message and exit 2."""
+def _ledger(path: Path, create: bool = False, readonly: bool = False) -> Iterator[Ledger]:
+    """Open a ledger for one command; any ledger error is a plain message and exit 2.
+
+    ``readonly`` for commands that only read: the file is never written, not even to
+    migrate an older schema (see :func:`commitminer.ledger.open_ledger`).
+    """
     try:
-        with open_ledger(path, create=create) as opened:
+        with open_ledger(path, create=create, readonly=readonly) as opened:
             yield opened
     except LedgerError as exc:
         raise _fail(str(exc)) from exc
@@ -330,7 +334,7 @@ def _report(
     ledger, new_only = output.ledger, output.new_only
     verdicts: list[Verdict] | None = None
     if ledger is not None:
-        with _ledger(ledger) as opened:
+        with _ledger(ledger, readonly=True) as opened:
             proposals = [_proposal(c, label) for c in result.candidates]
             verdicts = check_all(opened, proposals, output.min_overlap)
     typer.echo(render_summary(result, label, unit))
@@ -645,7 +649,11 @@ def _run_batch(
                     where.parent.mkdir(parents=True)
                 except OSError as exc:
                     raise _fail(f"{where}: cannot create the ledger's directory: {exc}") from exc
-            opened = stack.enter_context(_ledger(path, create=True))
+            # A dry run reads the file only (read-only, never migrated) and records into
+            # an in-memory copy; a missing ledger is stood in for by an empty one.
+            opened = stack.enter_context(
+                _ledger(path, create=True, readonly=path == where and dry_run)
+            )
             result = run_batch(
                 batch,
                 opened,
@@ -966,7 +974,7 @@ def ledger_check(
 ) -> None:
     """Check candidates against the ledger without writing (exit 1 if any is not new)."""
     chosen = _read_candidates(candidates)
-    with _ledger(ledger) as opened:
+    with _ledger(ledger, readonly=True) as opened:
         verdicts = check_all(opened, [proposal for _, proposal in chosen], min_overlap)
     for (rank, proposal), verdict in zip(chosen, verdicts, strict=True):
         if as_json:
@@ -990,7 +998,7 @@ def ledger_list(
     ),
 ) -> None:
     """List the recorded fixes, oldest first."""
-    with _ledger(ledger) as opened:
+    with _ledger(ledger, readonly=True) as opened:
         entries = opened.entries(repo)
         version = opened.schema_version
     if as_json:
@@ -1020,7 +1028,7 @@ def ledger_watermarks(
     ] = False,
 ) -> None:
     """List where the batch runs of each repository stopped."""
-    with _ledger(ledger) as opened:
+    with _ledger(ledger, readonly=True) as opened:
         marks = opened.watermarks()
     if as_json:
         for mark in marks:

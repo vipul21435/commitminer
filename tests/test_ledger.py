@@ -387,6 +387,50 @@ def _version_1_ledger(path: Path) -> None:
     db.close()
 
 
+def test_a_read_only_open_never_writes_or_migrates_the_file(path: Path, tmp_path: Path) -> None:
+    # Regression: every open migrated a version 1 ledger in place, so a read-only command
+    # (or a dry run) rewrote it, locked out teammates on the previous commitminer, and
+    # failed outright on a read-only file.
+    _version_1_ledger(path)
+    before = path.read_bytes()
+    with open_ledger(path, readonly=True) as opened:
+        assert opened.schema_version == SCHEMA_VERSION
+        assert [(e.sha[0], e.owner) for e in opened.entries()] == [("a", "alice")]
+        assert opened.watermarks() == []
+        assert opened.verdict(fp("h1"), 0.5).status is Status.DUPLICATE
+    assert path.read_bytes() == before
+    path.chmod(0o444)
+    try:
+        with open_ledger(path, readonly=True) as opened:
+            assert len(opened.entries()) == 1
+        # A current ledger that is read-only reads directly from the file.
+        current = tmp_path / "current.sqlite3"
+        with open_ledger(current, now=clock) as created:
+            created.add(proposal("b", "h2"))
+        current.chmod(0o444)
+        with open_ledger(current, readonly=True) as opened:
+            assert [e.sha[0] for e in opened.entries()] == ["b"]
+            with pytest.raises(LedgerError, match="readonly"):
+                opened.add(proposal("c", "h3"))
+    finally:
+        path.chmod(0o644)
+    assert path.read_bytes() == before
+    empty = tmp_path / "empty.sqlite3"
+    empty.write_bytes(b"")
+    with open_ledger(empty, readonly=True) as opened:
+        assert opened.entries() == []
+    assert empty.read_bytes() == b""
+    with pytest.raises(LedgerError, match="no such ledger"):
+        open_ledger(tmp_path / "missing.sqlite3", readonly=True)
+    other = tmp_path / "other.sqlite3"
+    db = sqlite3.connect(other)
+    db.execute("CREATE TABLE t (x)")
+    db.commit()
+    db.close()
+    with pytest.raises(LedgerError, match="not a commitminer ledger"):
+        open_ledger(other, readonly=True)
+
+
 def test_a_version_1_ledger_gains_watermarks_and_keeps_its_entries(path: Path) -> None:
     _version_1_ledger(path)
     with open_ledger(path, now=clock) as migrated:

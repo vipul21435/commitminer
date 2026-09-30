@@ -42,7 +42,9 @@ the current schema needs no write). Creating the schema or migrating it forward
 happens under ``BEGIN IMMEDIATE``, and the decision is taken again once the
 lock is held, so processes that open a new or an old ledger at the same time
 create or migrate it exactly once. Every SQLite error after that surfaces as a
-:class:`LedgerError` naming the file, never as a bare traceback.
+:class:`LedgerError` naming the file, never as a bare traceback. Commands that
+only read open the file read-only and never migrate it: an older ledger is
+migrated in an in-memory copy instead (see :func:`open_ledger`).
 
 Batch runs (:mod:`commitminer.batch`) keep a **watermark** per repository and
 source: where the last run stopped (the head commit walked, or for pull
@@ -638,10 +640,9 @@ def _setup(db: sqlite3.Connection, where: str) -> None:
 
 def _prepare(db: sqlite3.Connection, where: str) -> None:
     db.execute("PRAGMA foreign_keys = ON")
-    application, version = _identity(db)
-    if application == 0 or (application == APPLICATION_ID and version < SCHEMA_VERSION):
+    if _needs_setup(db):
         _setup(db, where)
-        application, version = _identity(db)
+    application, version = _identity(db)
     if application != APPLICATION_ID:
         raise LedgerError(f"{where}: an SQLite file, but not a commitminer ledger")
     if version > SCHEMA_VERSION:
@@ -658,12 +659,19 @@ def _prepare(db: sqlite3.Connection, where: str) -> None:
         )
 
 
+def _needs_setup(db: sqlite3.Connection) -> bool:
+    """An empty file, or a ledger at an older schema version."""
+    application, version = _identity(db)
+    return application == 0 or (application == APPLICATION_ID and version < SCHEMA_VERSION)
+
+
 def open_ledger(
     path: Path,
     *,
     timeout: float = 10.0,
     now: Callable[[], str] | None = None,
     create: bool = True,
+    readonly: bool = False,
 ) -> Ledger:
     """Open the ledger at ``path``; with ``create``, a missing file becomes a new ledger.
 
@@ -671,16 +679,32 @@ def open_ledger(
     checked against an empty ledger. ``timeout`` is how long a write waits for
     another writer's lock; ``now`` gives the ``first_seen`` time of new entries
     (default :func:`utc_now`).
+
+    ``readonly`` (for commands that only read: listing, checking, dry runs)
+    opens an existing file without ever writing to it, so a read-only file
+    works and an older schema is not migrated in place (a teammate on the
+    previous commitminer can still open it): an older ledger is copied into
+    memory and the copy is migrated. Nothing written to a read-only ledger
+    reaches the file.
     """
     if path.is_dir():
         raise LedgerError(f"{path}: is a directory")
-    if not create and not path.exists():
+    if (readonly or not create) and not path.exists():
         raise LedgerError(f"{path}: no such ledger (ledger add creates one)")
     try:
-        db = sqlite3.connect(path, timeout=timeout, isolation_level=None)
+        if readonly:
+            uri = f"{path.absolute().as_uri()}?mode=ro"
+            db = sqlite3.connect(uri, timeout=timeout, isolation_level=None, uri=True)
+        else:
+            db = sqlite3.connect(path, timeout=timeout, isolation_level=None)
     except sqlite3.Error as exc:
         raise LedgerError(f"{path}: cannot open: {exc}") from exc
     try:
+        if readonly and _needs_setup(db):
+            memory = sqlite3.connect(":memory:", isolation_level=None)
+            db.backup(memory)
+            db.close()
+            db = memory
         _prepare(db, str(path))
     except sqlite3.DatabaseError as exc:
         db.close()

@@ -239,3 +239,33 @@ def test_a_repository_whose_cache_cannot_be_written_fails_alone(tmp_path: Path) 
     assert "ledger's directory" not in result.stderr
     with open_ledger(tmp_path / "ledger.sqlite3") as ledger:
         assert [m.source for m in ledger.watermarks()] == ["history"]
+
+
+def test_a_dry_run_and_read_only_commands_leave_an_old_ledger_alone(tmp_path: Path) -> None:
+    # Regression: batch --dry-run and ledger list migrated a version 1 ledger in place
+    # (and could not open a read-only one at all).
+    from test_ledger import _version_1_ledger
+
+    old = tmp_path / "v1.sqlite3"
+    _version_1_ledger(old)
+    before = old.read_bytes()
+    config = tmp_path / "batch.toml"
+    config.write_text(
+        f'[[batch.repos]]\nname = "hukkin/tomli"\nhistory = "{TOMLI / "history.jsonl.gz"}"\n'
+    )
+    old.chmod(0o444)
+    try:
+        dry = runner.invoke(app, ["batch", str(config), "--ledger", str(old), "--dry-run"])
+        assert dry.exit_code == 0, dry.output
+        assert "(dry run: the ledger is not changed)" in dry.stdout
+        assert "hukkin/tomli [history]: first run" in dry.stdout
+        for command in (["ledger", "list"], ["ledger", "watermarks"]):
+            listed = runner.invoke(app, [*command, str(old)])
+            assert listed.exit_code == 0, listed.output
+        assert (
+            "1 entries (schema version 2)"
+            in runner.invoke(app, ["ledger", "list", str(old)]).stdout
+        )
+    finally:
+        old.chmod(0o644)
+    assert old.read_bytes() == before
