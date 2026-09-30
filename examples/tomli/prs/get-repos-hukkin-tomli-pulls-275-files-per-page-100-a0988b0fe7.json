@@ -1,0 +1,46 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/275/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"8085c1117c1acacfedd094ff032deac41470f735a117b6bee9af0c8096f3cee1\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4770",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "230"
+   },
+   "json": [
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": ".flake8",
+     "patch": "@@ -1,6 +1,5 @@\n [flake8]\n max-line-length = 88\n-max-complexity = 10\n extend-ignore =\n     # E203: Whitespace before ':' (violates PEP8 and black style)\n     E203,",
+     "sha": "5abef8365ed20d5bf58b10b342bb4443452cdc20",
+     "status": "modified"
+    },
+    {
+     "additions": 2,
+     "deletions": 2,
+     "filename": "src/tomli/_parser.py",
+     "patch": "@@ -145,7 +145,7 @@ def load(__fp: IO[bytes], *, parse_float: ParseFloat = float) -> dict[str, Any]:\n     return loads(s, parse_float=parse_float)\n \n \n-def loads(__s: str, *, parse_float: ParseFloat = float) -> dict[str, Any]:  # noqa: C901\n+def loads(__s: str, *, parse_float: ParseFloat = float) -> dict[str, Any]:\n     \"\"\"Parse TOML from a string.\"\"\"\n \n     # The spec allows converting \"\\r\\n\" to \"\\n\", even in string\n@@ -676,7 +676,7 @@ def parse_basic_str(src: str, pos: Pos, *, multiline: bool) -> tuple[Pos, str]:\n         pos += 1\n \n \n-def parse_value(  # noqa: C901\n+def parse_value(\n     src: str, pos: Pos, parse_float: ParseFloat, nest_lvl: int\n ) -> tuple[Pos, Any]:\n     if nest_lvl > MAX_INLINE_NESTING:",
+     "sha": "85f1c357c755f1fbfcd1459bb58c7c0526dde92c",
+     "status": "modified"
+    },
+    {
+     "additions": 1,
+     "deletions": 1,
+     "filename": "tests/burntsushi.py",
+     "patch": "@@ -19,7 +19,7 @@\n }\n \n \n-def convert(obj):  # noqa: C901\n+def convert(obj):\n     if isinstance(obj, str):\n         return {\"type\": \"string\", \"value\": obj}\n     elif isinstance(obj, bool):",
+     "sha": "09728e0767ae67aa65900e3c916abe244c1f8cf1",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

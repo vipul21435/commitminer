@@ -26,3 +26,23 @@ upstream, including any `Co-authored-by` trailers.
 tomli is Copyright (c) 2021 Taneli Hukkinen and distributed under the MIT license; the
 license text is in [LICENSE](LICENSE) next to this file. The commit messages in the
 recording are tomli's.
+
+## Recorded pull requests: `prs/`
+
+`prs/` holds 52 GitHub REST API responses for tomli's 25 most recently updated merged pull
+requests (#200 to #297; the first page of closed pull requests, and each one's files and
+commits, except #278, whose file list was read only up to its first 300 files), recorded
+on 2026-09-30 with:
+
+```sh
+make record-prs   # commitminer prs hukkin/tomli --limit 25 --record examples/tomli/prs
+```
+
+One JSON file per request (method, path and sorted query), in the format described in
+`src/commitminer/fixtures.py`. Bodies are cut to the fields CommitMiner reads (numbers,
+titles, descriptions, merge dates, labels, base and head refs and shas, commit shas and
+messages, file names, statuses, line counts and patches), and headers to ETags,
+pagination links and rate-limit counters. Request headers, and so tokens, are never
+stored. `commitminer prs hukkin/tomli --limit 25 --replay examples/tomli/prs` (and
+`make demo-prs`) runs on these files without network access. The patches and messages are
+tomli's, under the license above.

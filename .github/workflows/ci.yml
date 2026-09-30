@@ -39,6 +39,8 @@ jobs:
         run: make demo-classify
       - name: Ledger demo (cherry-picks, a re-indented and moved fork)
         run: make demo-ledger
+      - name: Pull-request demo (recorded GitHub responses, offline)
+        run: make demo-prs
       - name: Recording still matches upstream tomli
         run: make verify-recording
 
@@ -72,6 +74,10 @@ jobs:
             commitminer ledger add /tmp/ledger.sqlite3 /tmp/up.jsonl --owner ci
             commitminer mine /tmp/demo/fork --top 5 --explain 0 --ledger /tmp/ledger.sqlite3
             commitminer ledger list /tmp/ledger.sqlite3'
+      - name: Pull requests inside the image (recorded GitHub responses, no network)
+        run: |
+          docker run --rm --network none commitminer:ci prs hukkin/tomli --limit 25 \
+            --replay examples/tomli/prs --top 5 --explain 0
       - name: Mine this repository's own history inside the image
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/repo:ro" commitminer:ci \

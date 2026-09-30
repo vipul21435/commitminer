@@ -1,0 +1,54 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/202/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"5d6c1968efd7e8fbd17f17b3fdfbe576dab9274b7950863de816d4c161f9ed42\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4785",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "215"
+   },
+   "json": [
+    {
+     "additions": 2,
+     "deletions": 0,
+     "filename": "src/tomli/_parser.py",
+     "patch": "@@ -580,6 +580,8 @@ def parse_basic_str_escape(\n             pos += 1\n         pos = skip_chars(src, pos, TOML_WS_AND_NEWLINE)\n         return pos, \"\"\n+    if escape_id == \"\\\\x\":\n+        return parse_hex_char(src, pos, 2)\n     if escape_id == \"\\\\u\":\n         return parse_hex_char(src, pos, 4)\n     if escape_id == \"\\\\U\":",
+     "sha": "3038891afec8d4e6608ae4209365cf31f94b7f41",
+     "status": "modified"
+    },
+    {
+     "additions": 6,
+     "deletions": 2,
+     "filename": "tests/data/valid/multiline-basic-str/replacements.json",
+     "patch": "@@ -1,2 +1,6 @@\n-{\"escape\":\n-  {\"type\":\"string\",\"value\":\"\\u001B\"}}\n+{\n+  \"escape\": {\"type\":\"string\",\"value\":\"\\u001B\"},\n+  \"tab\": {\"type\":\"string\",\"value\":\"\\t\"},\n+  \"upper-j\": {\"type\":\"string\",\"value\":\"J\"},\n+  \"upper-j-2\": {\"type\":\"string\",\"value\":\"J\"}\n+}",
+     "sha": "699f556248d8802df7669bfa2a42bef8cc0f75c5",
+     "status": "modified"
+    },
+    {
+     "additions": 4,
+     "deletions": 1,
+     "filename": "tests/data/valid/multiline-basic-str/replacements.toml",
+     "patch": "@@ -1 +1,4 @@\n-escape = \"\\e\"\n\\ No newline at end of file\n+escape = \"\\e\"\n+tab = \"\\x09\"\n+upper-j = \"\\x4a\"\n+upper-j-2 = \"\\x4A\"",
+     "sha": "fa5647e5938ee494864e0a60343f8692ce076ec9",
+     "status": "modified"
+    },
+    {
+     "additions": 0,
+     "deletions": 2,
+     "filename": "tests/test_data.py",
+     "patch": "@@ -46,11 +46,9 @@ def test_valid(self):\n                 # compatible with yet.\n                 if valid.stem in {\n                     \"no-seconds\",\n-                    \"hex-escape\",\n                     \"common-34\",\n                     \"common-31\",\n                     \"common-29\",\n-                    \"common-12\",\n                 }:\n                     with self.assertRaises(tomllib.TOMLDecodeError):\n                         tomllib.loads(toml_str)",
+     "sha": "f268ce9f555205495664bf00e60fe9a9e32157bc",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

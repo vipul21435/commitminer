@@ -1,0 +1,30 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/293/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"bf794d149cc27c9ee3ca494a7545512fffb840f4ffdee1cc62059c2668cddd39\"",
+    "last-modified": "Mon, 28 Sep 2026 07:37:44 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4807",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "193"
+   },
+   "json": [
+    {
+     "additions": 1,
+     "deletions": 1,
+     "filename": ".github/workflows/tests.yaml",
+     "patch": "@@ -75,7 +75,7 @@ jobs:\n         rm -rf tests/data/valid/_external/\n         rm -rf tests/data/invalid/_external/\n         coverage run -m unittest\n-        coverage report --fail-under=100\n+        coverage report --fail-under=100 --show-missing\n     - name: Report coverage\n       uses: codecov/codecov-action@v5\n       with:",
+     "sha": "c9a1c660349727d668a5ab8eea595a7e1e117bbe",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

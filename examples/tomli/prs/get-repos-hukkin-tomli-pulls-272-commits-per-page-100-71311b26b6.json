@@ -1,0 +1,71 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/272/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"12bf1ddecd568e0eec66c39956f5bf700afea022a8e045c6d4bcec11d53128af\"",
+    "last-modified": "Sat, 12 Sep 2026 06:30:06 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4775",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "225"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "add arm64 windows tests and builds"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/8972cceb8fc475464b0cb0cb60809f41827e8496",
+     "sha": "8972cceb8fc475464b0cb0cb60809f41827e8496"
+    },
+    {
+     "commit": {
+      "message": "run on fork"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/12836c4d9bbd09c5755615d5b1498d093ecca008",
+     "sha": "12836c4d9bbd09c5755615d5b1498d093ecca008"
+    },
+    {
+     "commit": {
+      "message": "add arm64 to job name"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/ee68a2ed942e30dafa67419b23415fba11bedb4d",
+     "sha": "ee68a2ed942e30dafa67419b23415fba11bedb4d"
+    },
+    {
+     "commit": {
+      "message": "remove fork branch trigger"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/41c648145d23818326d70a1faa7cc7564558cfc6",
+     "sha": "41c648145d23818326d70a1faa7cc7564558cfc6"
+    },
+    {
+     "commit": {
+      "message": "Merge branch 'master' into arm64-runner"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/59073b0cf9eb68aab32f266e11c71b83efa41b43",
+     "sha": "59073b0cf9eb68aab32f266e11c71b83efa41b43"
+    },
+    {
+     "commit": {
+      "message": "Update .github/workflows/tests.yaml"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/d4806d3e58717164d4f4c05f287e08308ef68e91",
+     "sha": "d4806d3e58717164d4f4c05f287e08308ef68e91"
+    },
+    {
+     "commit": {
+      "message": "Merge branch 'master' into arm64-runner"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/7fac058854db08d7f64097f00bcbf6d6588782f0",
+     "sha": "7fac058854db08d7f64097f00bcbf6d6588782f0"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

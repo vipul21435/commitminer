@@ -1,0 +1,54 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/266/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"0535362512917883bb9cf5d6b045606ad4011485c1a2147737bc6772ab42bdd5\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4764",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "236"
+   },
+   "json": [
+    {
+     "additions": 1,
+     "deletions": 1,
+     "filename": ".bumpversion.cfg",
+     "patch": "@@ -2,7 +2,7 @@\n commit = True\n tag = True\n tag_name = {new_version}\n-current_version = 2.2.1\n+current_version = 2.3.0\n \n [bumpversion:file:pyproject.toml]\n search = version = \"{current_version}\"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT",
+     "sha": "22490de50b7bf8cb8c211d1348b60699f591e46f",
+     "status": "modified"
+    },
+    {
+     "additions": 7,
+     "deletions": 0,
+     "filename": "CHANGELOG.md",
+     "patch": "@@ -1,5 +1,12 @@\n # Changelog\n \n+## 2.3.0\n+\n+- Added\n+  - Binary wheels for Python 3.14 (also free-threaded)\n+- Performance\n+  - Reduced import time\n+\n ## 2.2.1\n \n - Fixed",
+     "sha": "c96cd8c4f3960dd9a2270e53b1211f99fd9310b8",
+     "status": "modified"
+    },
+    {
+     "additions": 1,
+     "deletions": 1,
+     "filename": "pyproject.toml",
+     "patch": "@@ -4,7 +4,7 @@ build-backend = \"flit_core.buildapi\"\n \n [project]\n name = \"tomli\"\n-version = \"2.2.1\"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT\n+version = \"2.3.0\"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT\n description = \"A lil' TOML parser\"\n authors = [\n     { name = \"Taneli Hukkinen\", email = \"hukkin@users.noreply.github.com\" },",
+     "sha": "7cc5591d8407becd36ea0da6e193ee4967b544cc",
+     "status": "modified"
+    },
+    {
+     "additions": 1,
+     "deletions": 1,
+     "filename": "src/tomli/__init__.py",
+     "patch": "@@ -3,6 +3,6 @@\n # Licensed to PSF under a Contributor Agreement.\n \n __all__ = (\"loads\", \"load\", \"TOMLDecodeError\")\n-__version__ = \"2.2.1\"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT\n+__version__ = \"2.3.0\"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT\n \n from ._parser import TOMLDecodeError, load, loads",
+     "sha": "9395b0438270bb760c9526d9c1651d29f7acd20a",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

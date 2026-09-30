@@ -1,0 +1,29 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/274/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"b4c5da241cfcaa64ee54e15114b185f06e05e3f000926f019197ad1cfca6d4c9\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4767",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "233"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Disable failing flake8 warning"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/c20839b71db793495a0856cd0fadcc68ef1c58e6",
+     "sha": "c20839b71db793495a0856cd0fadcc68ef1c58e6"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

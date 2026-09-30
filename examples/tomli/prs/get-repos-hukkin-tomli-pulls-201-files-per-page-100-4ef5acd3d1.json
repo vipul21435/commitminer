@@ -1,0 +1,46 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/201/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"0ca2ced84c1b34bb716f2ca4524e2ffe550cb6f6bbf30c0eb78d6fb61e43dc66\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4772",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "228"
+   },
+   "json": [
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "src/tomli/_parser.py",
+     "patch": "@@ -61,6 +61,7 @@\n         \"\\\\n\": \"\\u000a\",  # linefeed\n         \"\\\\f\": \"\\u000c\",  # form feed\n         \"\\\\r\": \"\\u000d\",  # carriage return\n+        \"\\\\e\": \"\\u001b\",  # escape\n         '\\\\\"': \"\\u0022\",  # quote\n         \"\\\\\\\\\": \"\\u005c\",  # backslash\n     }",
+     "sha": "32a1ba0d098f34bf9f353da33c2bdc4bdfeb60a1",
+     "status": "modified"
+    },
+    {
+     "additions": 2,
+     "deletions": 0,
+     "filename": "tests/data/valid/multiline-basic-str/replacements.json",
+     "patch": "@@ -0,0 +1,2 @@\n+{\"escape\":\n+  {\"type\":\"string\",\"value\":\"\\u001B\"}}",
+     "sha": "0afb39d915f3c5ea067e9662ef7ce711912df61a",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/valid/multiline-basic-str/replacements.toml",
+     "patch": "@@ -0,0 +1 @@\n+escape = \"\\e\"\n\\ No newline at end of file",
+     "sha": "10d95090e39d9adb465f216587aba357e3d6e078",
+     "status": "added"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

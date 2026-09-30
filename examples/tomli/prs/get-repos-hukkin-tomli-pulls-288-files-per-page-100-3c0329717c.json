@@ -1,0 +1,46 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/288/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"6f6cd5facac8c3063aae0c89862b3e86dcc39cf12687cd5091a2ca3acbfe9d28\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4799",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "201"
+   },
+   "json": [
+    {
+     "additions": 1,
+     "deletions": 1,
+     "filename": ".bumpversion.cfg",
+     "patch": "@@ -2,7 +2,7 @@\n commit = True\n tag = True\n tag_name = {new_version}\n-current_version = 2.4.0\n+current_version = 2.4.1\n \n [bumpversion:file:pyproject.toml]\n search = version = \"{current_version}\"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT",
+     "sha": "9fead90104684fb7502c4629052c46afcf2310fe",
+     "status": "modified"
+    },
+    {
+     "additions": 1,
+     "deletions": 1,
+     "filename": "pyproject.toml",
+     "patch": "@@ -4,7 +4,7 @@ build-backend = \"flit_core.buildapi\"\n \n [project]\n name = \"tomli\"\n-version = \"2.4.0\"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT\n+version = \"2.4.1\"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT\n description = \"A lil' TOML parser\"\n authors = [\n     { name = \"Taneli Hukkinen\", email = \"hukkin@users.noreply.github.com\" },",
+     "sha": "2e979bfe34ccbcda539e34789f2275708416a701",
+     "status": "modified"
+    },
+    {
+     "additions": 1,
+     "deletions": 1,
+     "filename": "src/tomli/__init__.py",
+     "patch": "@@ -3,6 +3,6 @@\n # Licensed to PSF under a Contributor Agreement.\n \n __all__ = (\"loads\", \"load\", \"TOMLDecodeError\")\n-__version__ = \"2.4.0\"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT\n+__version__ = \"2.4.1\"  # DO NOT EDIT THIS LINE MANUALLY. LET bump2version UTILITY DO IT\n \n from ._parser import TOMLDecodeError, load, loads",
+     "sha": "ebe90013092f032a79946b153eea68ef9865b0f2",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

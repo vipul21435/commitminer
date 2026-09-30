@@ -1,0 +1,30 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/274/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"a9a29dc5ae18e3d8960e682020ce05e321b4b57ff2d29b80c032c85467976a55\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4768",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "232"
+   },
+   "json": [
+    {
+     "additions": 5,
+     "deletions": 2,
+     "filename": ".flake8",
+     "patch": "@@ -1,6 +1,9 @@\n [flake8]\n max-line-length = 88\n max-complexity = 10\n-# These checks violate PEP8 so let's ignore them\n-extend-ignore = E203\n+extend-ignore =\n+    # E203: Whitespace before ':' (violates PEP8 and black style)\n+    E203,\n+    # B042: Requires calling super().__init__ in custom exceptions\n+    B042,\n extend-exclude = */site-packages/*",
+     "sha": "0ecf5117057478aec4ee7eb5dd0120f1e263153a",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

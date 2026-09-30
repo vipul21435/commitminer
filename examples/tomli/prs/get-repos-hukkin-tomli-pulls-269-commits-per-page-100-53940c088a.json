@@ -1,0 +1,29 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/269/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"221b5950e087b3d7437f59c9bffe02c6a4d88eec71ca52c139c998e508f77cf0\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4765",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "235"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Test Python 3.15-dev"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/271de002e7888011774e4cc696a8afde580b9643",
+     "sha": "271de002e7888011774e4cc696a8afde580b9643"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

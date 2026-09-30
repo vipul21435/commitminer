@@ -1,0 +1,29 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/280/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"607a4790cfd7ee50b914a405e57716266e37a3727c6c42bc2c0e575e03bb10ce\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4790",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "210"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Bump version: 2.3.0 \u2192 2.4.0"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/a678e6fdeffa89bd28e4ecc148b926a4e1bbbc7b",
+     "sha": "a678e6fdeffa89bd28e4ecc148b926a4e1bbbc7b"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

@@ -15,6 +15,7 @@ from commitminer.export import (
     SCHEMA_VERSION,
     candidate_to_json,
     file_to_json,
+    pull_request_to_json,
     render_features,
 )
 from commitminer.filters import RejectReason, oversize_detail
@@ -135,6 +136,7 @@ def explain_json(outcome: Candidate | Rejection, settings: Settings, repo: str) 
         "reason": outcome.reason.value,
         "reason_description": outcome.reason.description,
         "files": [file_to_json(item) for item in outcome.stats.files],
+        "pull_request": pull_request_to_json(commit.pull_request),
     }
     if outcome.reason is RejectReason.OVERSIZE:
         record["reason_detail"] = oversize_detail(outcome.stats, settings)

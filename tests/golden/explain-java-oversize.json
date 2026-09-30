@@ -39,11 +39,12 @@
       "rule": "java-test-dir"
     }
   ],
+  "pull_request": null,
   "reason": "oversize",
   "reason_description": "more source+test lines or source files than the limits allow",
   "reason_detail": "429 source+test lines (max 400)",
   "repo": "calc",
-  "schema_version": 3,
+  "schema_version": 4,
   "sha": "02fc86b14a4a407aa4969edb267e05898b9cf13f",
   "subject": "Add the report generator",
   "verdict": "rejected"

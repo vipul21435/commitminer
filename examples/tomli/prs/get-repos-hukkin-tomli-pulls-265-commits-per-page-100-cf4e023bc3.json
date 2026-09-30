@@ -1,0 +1,29 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/265/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"4d86eb68ecf4b767627468d0b9cc35c63277018d3fd39ce59c4ed8ef561f879b\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4761",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "239"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Remove now off-by-default PyPy from cibuildwheel skip list"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/f656b352148838c95f8c898ccfbcf24a80b051a1",
+     "sha": "f656b352148838c95f8c898ccfbcf24a80b051a1"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

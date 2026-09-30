@@ -1,0 +1,38 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/295/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"1774d345ec94c58287db7085f874bd5a2b71c2428779f8e28f285e113076c5b2\"",
+    "last-modified": "Thu, 10 Sep 2026 14:20:56 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4805",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "195"
+   },
+   "json": [
+    {
+     "additions": 4,
+     "deletions": 0,
+     "filename": "src/tomli/_parser.py",
+     "patch": "@@ -4,6 +4,10 @@\n \n from __future__ import annotations\n \n+# Defer loading regular expressions until we actually need them in\n+# parse_value().\n+__lazy_modules__ = [\"tomli._re\"]\n+\n import sys\n from types import MappingProxyType\n ",
+     "sha": "1151c8ea3ae141d35c0cb1d0253ea399f6b848ad",
+     "status": "modified"
+    },
+    {
+     "additions": 21,
+     "deletions": 0,
+     "filename": "tests/test_misc.py",
+     "patch": "@@ -7,8 +7,10 @@\n from decimal import Decimal as D\n import importlib\n from pathlib import Path\n+import subprocess\n import sys\n import tempfile\n+import textwrap\n import unittest\n \n from . import tomllib\n@@ -154,3 +156,22 @@ def test_types_import(self):\n         never imported by tests.\n         \"\"\"\n         importlib.import_module(f\"{tomllib.__name__}._types\")\n+\n+    @unittest.skipUnless(sys.version_info >= (3, 15), \"need Python 3.15+\")\n+    def test_lazy_import(self):\n+        # Test the TOML file can be parsed without importing regular\n+        # expressions (tomli._re)\n+        code = textwrap.dedent(\"\"\"\n+            import sys, tomli, textwrap\n+            document = textwrap.dedent('''\n+                [metadata]\n+                key = \"text\"\n+                array = [\"array\", \"of\", \"text\"]\n+                booleans = [true, false]\n+            ''')\n+            tomli.loads(document)\n+            print(\"lazy import?\", 'tomli._re' not in sys.modules)\n+        \"\"\")\n+        cmd = [sys.executable, \"-c\", code]\n+        proc = subprocess.run(cmd, check=True, capture_output=True)\n+        self.assertIn(b\"lazy import? True\", proc.stdout.rstrip())",
+     "sha": "c267ce3b06d9d78ed3a8c9c312aefd6f151fccd5",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

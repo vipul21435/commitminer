@@ -1,0 +1,71 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/200/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"f5323a99192c116aea9ee09eac726e840e5e575bd4a0fe6a4938295f059a9964\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4782",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "218"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Allow newlines and trailing comma in inline tables"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/aae9af0b62e4c289fc53c73d6e593fd23a9b7813",
+     "sha": "aae9af0b62e4c289fc53c73d6e593fd23a9b7813"
+    },
+    {
+     "commit": {
+      "message": "Merge branch 'master' into ml-inline-table"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/a44f7fbe3b7c7497e5e1805142cac7bcefc294ba",
+     "sha": "a44f7fbe3b7c7497e5e1805142cac7bcefc294ba"
+    },
+    {
+     "commit": {
+      "message": "Merge branch 'master' into ml-inline-table"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/3ddbdb0cd7f660859d7d59125d67c8b2ef2859d4",
+     "sha": "3ddbdb0cd7f660859d7d59125d67c8b2ef2859d4"
+    },
+    {
+     "commit": {
+      "message": "[pre-commit.ci] auto fixes from pre-commit.com hooks\n\nfor more information, see https://pre-commit.ci"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/77c9456a10e83042a009ba6f3e7f2775d768e194",
+     "sha": "77c9456a10e83042a009ba6f3e7f2775d768e194"
+    },
+    {
+     "commit": {
+      "message": "Merge branch 'master' into ml-inline-table"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/b2ae59eec485482de3036b5d38e9558cdbba90ac",
+     "sha": "b2ae59eec485482de3036b5d38e9558cdbba90ac"
+    },
+    {
+     "commit": {
+      "message": "Remove multiline inline table tests from xfail list"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/f20b96030d854db1eaf8e90f2b3405c2e5384fe0",
+     "sha": "f20b96030d854db1eaf8e90f2b3405c2e5384fe0"
+    },
+    {
+     "commit": {
+      "message": "Add multiline inline table test"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/4133dde4238f0ab6e3edd166170f824751ca1d71",
+     "sha": "4133dde4238f0ab6e3edd166170f824751ca1d71"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

@@ -1,0 +1,1922 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls?direction=desc&per_page=100&sort=updated&state=closed",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"b4c38ac1f187942fe88f5ff331e7c9905fada50d2f210aad785413653a995da7\"",
+    "link": "<https://api.github.com/repositories/370616797/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=2>; rel=\"next\", <https://api.github.com/repositories/370616797/pulls?state=closed&sort=updated&direction=desc&per_page=100&page=3>; rel=\"last\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4810",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "190"
+   },
+   "json": [
+    {
+     "base": {
+      "ref": "master",
+      "sha": "50d7e476e7573b5515178957ca5284233d7fb711"
+     },
+     "body": "On Python 3.15, use the new built-in type frozendict, instead of types.MappingProxyType, for BASIC_STR_ESCAPE_REPLACEMENTS constant.",
+     "head": {
+      "ref": "frozendict2",
+      "sha": "a83c904f2f922eb0e7e6a23edb40541aca52373e"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/297",
+     "labels": [],
+     "merge_commit_sha": "5a77b12a7a9f052ce5a20c335d2825658f6aea52",
+     "merged_at": "2026-04-14T16:51:06Z",
+     "number": 297,
+     "state": "closed",
+     "title": "Use frozendict on Python 3.15",
+     "updated_at": "2026-04-14T16:51:36Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "bbca44b6abbe4713cee9035fd4a21ef5686df05d"
+     },
+     "body": "On Python 3.15, use the new built-in type frozendict, instead of types.MappingProxyType, for BASIC_STR_ESCAPE_REPLACEMENTS constant.",
+     "head": {
+      "ref": "frozendict",
+      "sha": "b0995276ca340d7d004e8c8d43b31c4f43db209f"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/294",
+     "labels": [],
+     "merge_commit_sha": "fa2f71ac65fb0697d67c114deb0ca53df1390c0b",
+     "merged_at": null,
+     "number": 294,
+     "state": "closed",
+     "title": "Use frozendict on Python 3.15",
+     "updated_at": "2026-04-14T12:03:17Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "bbca44b6abbe4713cee9035fd4a21ef5686df05d"
+     },
+     "body": null,
+     "head": {
+      "ref": "macos-x86",
+      "sha": "70a2315af2dd8182536b61f6e6d680a1125fd27b"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/296",
+     "labels": [],
+     "merge_commit_sha": "d57a0df090f061edd2beb7439be0208bc7c051a1",
+     "merged_at": null,
+     "number": 296,
+     "state": "closed",
+     "title": "Fix macOS x86_64",
+     "updated_at": "2026-04-11T18:25:48Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "b7e1bcccb9b5ec8f1bd3ca8ce2b940b37531204e"
+     },
+     "body": "When coverage is missing, the CI report doesn't tell you what to fix -- see for example: https://github.com/hukkin/tomli/actions/runs/23948589205/job/69850336226?pr=292\r\n\r\nWith `--show-missing`, it'll list the missed lines/branches.",
+     "head": {
+      "ref": "cover-missing",
+      "sha": "d9128bd159a89083704ea1f1baa1d40a7ddfb8b6"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/293",
+     "labels": [],
+     "merge_commit_sha": "50d7e476e7573b5515178957ca5284233d7fb711",
+     "merged_at": "2026-04-10T19:39:07Z",
+     "number": 293,
+     "state": "closed",
+     "title": "Show missing lines in CI coverage report",
+     "updated_at": "2026-04-10T19:39:18Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "bbca44b6abbe4713cee9035fd4a21ef5686df05d"
+     },
+     "body": "Use Python 3.15 lazy imports to only load regular expressions when needed: to parse numbers, datetime or localtime.",
+     "head": {
+      "ref": "lazy_import_simple",
+      "sha": "f34eac13403799bd0a083b221ca7503dd557a6f7"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/295",
+     "labels": [],
+     "merge_commit_sha": "b7e1bcccb9b5ec8f1bd3ca8ce2b940b37531204e",
+     "merged_at": "2026-04-10T10:26:16Z",
+     "number": 295,
+     "state": "closed",
+     "title": "Use Python 3.15 lazy import",
+     "updated_at": "2026-04-10T12:09:49Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "bbca44b6abbe4713cee9035fd4a21ef5686df05d"
+     },
+     "body": "Make tomli import time up to 10x faster on Python 3.15. Use Python 3.15 lazy imports to only load regular expressions to parse datetime, localtime or non-trivial numbers (others than just decimal digits). Add try_simple_decimal() parser for simple decimal numbers.\r\n\r\nOn Python 3.15, use also the new built-in frozendict type (for BASIC_STR_ESCAPE_REPLACEMENTS), instead of types.MappingProxyType.",
+     "head": {
+      "ref": "lazy_import",
+      "sha": "c80a0bd14088c4815e6f8f677a5a26b4dad8d2cf"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/292",
+     "labels": [],
+     "merge_commit_sha": "621506ad6c9247ab9d0b9ea65d72c1528322fa6e",
+     "merged_at": null,
+     "number": 292,
+     "state": "closed",
+     "title": "Use Python 3.15 lazy import",
+     "updated_at": "2026-04-09T10:58:11Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "c20c49113890c226ffb27a67befe20d14fcf0c73"
+     },
+     "body": "tomli has quadratic time complexity when handling parts of a key (via Flags.is_ calls in key_value_rule's loop, and maybe elsewhere). This isn't a problem unless a document has an excessive number (10_000-ish) of parts in a key.\r\nLimiting input size seems like the best fix here.\r\n\r\n`sys.getrecursionlimit` and `RecursionError` is already (and in the non-mypyc version, implicitly) used for `MAX_INLINE_NESTING`. Keys happen to not be parsed by recursive functions,\r\nbut that's an implementation detail; `RecursionError` works nicely for names of recursive\r\nstructures.\r\n",
+     "head": {
+      "ref": "limit-key-parts",
+      "sha": "490e6bb2c07f85a97f0cddf48539154703c8e765"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/286",
+     "labels": [],
+     "merge_commit_sha": "e1fdb94bc998377f1c2545c7cd4f70ff2a3fb4e4",
+     "merged_at": "2026-03-25T19:42:38Z",
+     "number": 286,
+     "state": "closed",
+     "title": "Limit number of parts of a key",
+     "updated_at": "2026-03-26T10:06:55Z"
+    },
+    {
+     "base": {
+      "ref": "version-2.3.x",
+      "sha": "e7864b7b58708c41104c866e30e72798076d91bd"
+     },
+     "body": null,
+     "head": {
+      "ref": "version-2.3.1",
+      "sha": "50ceed7faeda3676d997b5981209bcc0e37ac9d7"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/290",
+     "labels": [],
+     "merge_commit_sha": "e7c5426b24b2ebf0211a9f03f6a941318f64290d",
+     "merged_at": "2026-03-25T21:50:18Z",
+     "number": 290,
+     "state": "closed",
+     "title": "Bump version: 2.3.0 \u2192 2.3.1",
+     "updated_at": "2026-03-25T22:05:52Z"
+    },
+    {
+     "base": {
+      "ref": "version-2.3.x",
+      "sha": "caf63fece0c5239e63159111d6b3719f083e8763"
+     },
+     "body": null,
+     "head": {
+      "ref": "version-2.3.1",
+      "sha": "b8549d2b9488ca9e83703a1b84a8f7831f954bd0"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/289",
+     "labels": [],
+     "merge_commit_sha": "cd22beb56d276ff11df3435be7687d085636e01f",
+     "merged_at": null,
+     "number": 289,
+     "state": "closed",
+     "title": "Bump version: 2.3.0 \u2192 2.3.1",
+     "updated_at": "2026-03-25T21:18:54Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "2bcd2627d5fcc262f734eaa730b62c0915d1e0d3"
+     },
+     "body": null,
+     "head": {
+      "ref": "version-2.4.1",
+      "sha": "c5f44690c68c5ed29534faa8f9df18882113728c"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/288",
+     "labels": [],
+     "merge_commit_sha": "bbca44b6abbe4713cee9035fd4a21ef5686df05d",
+     "merged_at": "2026-03-25T20:24:10Z",
+     "number": 288,
+     "state": "closed",
+     "title": "Bump version: 2.4.0 \u2192 2.4.1",
+     "updated_at": "2026-03-25T20:25:12Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "e1fdb94bc998377f1c2545c7cd4f70ff2a3fb4e4"
+     },
+     "body": null,
+     "head": {
+      "ref": "changelog-key-limit",
+      "sha": "c14feeba7bd2a2fc3a896463a9e4cb6aa49621c7"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/287",
+     "labels": [],
+     "merge_commit_sha": "2bcd2627d5fcc262f734eaa730b62c0915d1e0d3",
+     "merged_at": "2026-03-25T20:07:12Z",
+     "number": 287,
+     "state": "closed",
+     "title": "Add change log for 2.4.1 and 2.3.1",
+     "updated_at": "2026-03-25T20:07:19Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "920e20b1cf495b63f6d4a6aa3cd5e4ff25f5f5a7"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/Lucas-C/pre-commit-hooks: a30f0d816e5062a67d87c8de753cfe499672b959 \u2192 ad1b27d73581aa16cca06fc4a0761fc563ffe8e8](https://github.com/Lucas-C/pre-commit-hooks/compare/a30f0d816e5062a67d87c8de753cfe499672b959...ad1b27d73581aa16cca06fc4a0761fc563ffe8e8)\n- [github.com/PyCQA/isort: 0a09c783808cfe77bb3269250f663ff733d23302 \u2192 3459bdee0962449aad91235273c3fd1306dfebe5](https://github.com/PyCQA/isort/compare/0a09c783808cfe77bb3269250f663ff733d23302...3459bdee0962449aad91235273c3fd1306dfebe5)\n- [github.com/psf/black-pre-commit-mirror: 831207fd435b47aeffdf6af853097e64322b4d44 \u2192 ea488cebbfd88a5f50b8bd95d5c829d0bb76feb8](https://github.com/psf/black-pre-commit-mirror/compare/831207fd435b47aeffdf6af853097e64322b4d44...ea488cebbfd88a5f50b8bd95d5c829d0bb76feb8)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "9b9c7e486dc8894c7b3035b91d4976e4d15d723b"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/282",
+     "labels": [],
+     "merge_commit_sha": "c20c49113890c226ffb27a67befe20d14fcf0c73",
+     "merged_at": "2026-02-23T20:22:51Z",
+     "number": 282,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2026-02-23T20:23:39Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "064e492919b2338def788753b8c981c9131334c0"
+     },
+     "body": null,
+     "head": {
+      "ref": "update-benchmark-2.4.0",
+      "sha": "15ffc5452a041a617e5dc677483ee6a8737af59c"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/281",
+     "labels": [],
+     "merge_commit_sha": "920e20b1cf495b63f6d4a6aa3cd5e4ff25f5f5a7",
+     "merged_at": "2026-01-12T08:41:27Z",
+     "number": 281,
+     "state": "closed",
+     "title": "Update performance benchmark and results",
+     "updated_at": "2026-01-12T08:41:36Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "0921abf5cea9f937565e37793d5061a128c22ac5"
+     },
+     "body": "This updates the test files from upstream; all additional tests are now also integrated upstream, so I removed them here. The only exception is the one that subseconds are truncated to microseconds as that's implementation defined behaviour, so I added a new unit test here.\r\n\r\nThe repo was moved from BurntSushi to toml-lang, so renamed a few things to reflect that. The iarna and \"compliance\" tests are no longer used, so simplify the code a bit as that doesn't need to be supported.\r\n\r\nMake the script executable so it can be run with the toml-test runner:\r\n\r\n\t% PYTHONPATH=./src toml-test ./tests/tomltest.py\r\n\ttoml-test v2023-10-13 [./tests/tomltest.py]: using embedded tests\r\n\t  valid tests: 166 passed,  0 failed\r\n\tinvalid tests: 355 passed,  0 failed\r\n\r\nThis gives slightly nicer errors (IMHO), and also selfishly makes it a bit easier to keep the [test matrix] updated, as I won't have to include my own script and can just run this one.\r\n\r\nI split this PR in two commits: the first one just updates the TOML and JSON files, and the second has all changes to the code. This way it's a bit easier to review.\r\n\r\n[test matrix]: https://arp242.github.io/toml-test-matrix",
+     "head": {
+      "ref": "toml-test",
+      "sha": "f8188924806bddac7fa0b24b141fbf25c5f60c99"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/222",
+     "labels": [],
+     "merge_commit_sha": null,
+     "merged_at": null,
+     "number": 222,
+     "state": "closed",
+     "title": "Update toml-test",
+     "updated_at": "2026-01-11T11:37:43Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "b8a1358cd4f3932b910333e0179270093596ce64"
+     },
+     "body": "Closes https://github.com/hukkin/tomli/issues/273",
+     "head": {
+      "ref": "version-2.4.0",
+      "sha": "a678e6fdeffa89bd28e4ecc148b926a4e1bbbc7b"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/280",
+     "labels": [],
+     "merge_commit_sha": "064e492919b2338def788753b8c981c9131334c0",
+     "merged_at": "2026-01-11T11:25:22Z",
+     "number": 280,
+     "state": "closed",
+     "title": "Bump version: 2.3.0 \u2192 2.4.0",
+     "updated_at": "2026-01-11T11:26:19Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "9eb2125ef49071e673d42e383b5221a268665193"
+     },
+     "body": null,
+     "head": {
+      "ref": "toml11maintain",
+      "sha": "bdef6190ac71a21968057ccaeb6962443b36a8a5"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/279",
+     "labels": [],
+     "merge_commit_sha": "b8a1358cd4f3932b910333e0179270093596ce64",
+     "merged_at": "2026-01-11T11:04:56Z",
+     "number": 279,
+     "state": "closed",
+     "title": "Maintenance",
+     "updated_at": "2026-01-11T11:05:09Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "740e4982da24851f0ca5939b9d435492bd7509ad"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/executablebooks/mdformat: ff29be1a1ba8029d9375882aa2c812b62112a593 \u2192 2d496dbc18e31b83a1596685347ffe0b6041daf0](https://github.com/executablebooks/mdformat/compare/ff29be1a1ba8029d9375882aa2c812b62112a593...2d496dbc18e31b83a1596685347ffe0b6041daf0)\n- [github.com/PyCQA/isort: ec0efaee4acfce198521e43caa3029b06cedd64a \u2192 0a09c783808cfe77bb3269250f663ff733d23302](https://github.com/PyCQA/isort/compare/ec0efaee4acfce198521e43caa3029b06cedd64a...0a09c783808cfe77bb3269250f663ff733d23302)\n- [github.com/psf/black-pre-commit-mirror: fe95161893684893d68b1225356702ca71f8d388 \u2192 831207fd435b47aeffdf6af853097e64322b4d44](https://github.com/psf/black-pre-commit-mirror/compare/fe95161893684893d68b1225356702ca71f8d388...831207fd435b47aeffdf6af853097e64322b4d44)\n- [github.com/pre-commit/mirrors-mypy: 9f70dc58c23dfcca1b97af99eaeee3140a807c7e \u2192 a66e98df7b4aeeb3724184b332785976d062b92e](https://github.com/pre-commit/mirrors-mypy/compare/9f70dc58c23dfcca1b97af99eaeee3140a807c7e...a66e98df7b4aeeb3724184b332785976d062b92e)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "f920c127c23dea9dba03e23d54711bb0fd3a1473"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/267",
+     "labels": [],
+     "merge_commit_sha": "fee40caab5c27263486500a70591118cfd9e33d5",
+     "merged_at": null,
+     "number": 267,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2026-01-11T10:54:33Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "12314bde5b89a8bdc32de7403a2a4cf786187bbc"
+     },
+     "body": "Update tests and merge when https://github.com/toml-lang/toml/pull/894 makes it into a TOML release.",
+     "head": {
+      "ref": "no-seconds",
+      "sha": "c47b51ed73319233d5043a3842d8cbb07a83da50"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/203",
+     "labels": [],
+     "merge_commit_sha": "9eb2125ef49071e673d42e383b5221a268665193",
+     "merged_at": "2026-01-10T19:15:35Z",
+     "number": 203,
+     "state": "closed",
+     "title": "Make seconds optional in Date-Time and Time",
+     "updated_at": "2026-01-10T19:15:42Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "2a2aa62f1bc71b89b74d41dd2ab67b5dd24bc129"
+     },
+     "body": "Update tests and merge when https://github.com/toml-lang/toml/pull/796 makes it into a TOML release.",
+     "head": {
+      "ref": "x-escape",
+      "sha": "4068a1871ea06739b9ec67cd6ff2678608fbf999"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/202",
+     "labels": [],
+     "merge_commit_sha": "12314bde5b89a8bdc32de7403a2a4cf786187bbc",
+     "merged_at": "2026-01-10T13:06:14Z",
+     "number": 202,
+     "state": "closed",
+     "title": "Add \\xHH Unicode escape code to basic strings",
+     "updated_at": "2026-01-10T13:08:19Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "38297f82cd0ef067f1afd2ffb8dfa73b65c398da"
+     },
+     "body": "Update tests and merge when https://github.com/toml-lang/toml/pull/904 makes it into a TOML release.",
+     "head": {
+      "ref": "ml-inline-table",
+      "sha": "4133dde4238f0ab6e3edd166170f824751ca1d71"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/200",
+     "labels": [],
+     "merge_commit_sha": "2a2aa62f1bc71b89b74d41dd2ab67b5dd24bc129",
+     "merged_at": "2026-01-10T12:41:08Z",
+     "number": 200,
+     "state": "closed",
+     "title": "Allow newlines and trailing comma in inline tables",
+     "updated_at": "2026-01-10T12:41:51Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "2017309d5fedf07498eeaec1e191e780b5178c4a"
+     },
+     "body": null,
+     "head": {
+      "ref": "update-toml-test",
+      "sha": "3b40698f2ea24e9643ed158eabb2d9cd9de37dfe"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/278",
+     "labels": [],
+     "merge_commit_sha": "38297f82cd0ef067f1afd2ffb8dfa73b65c398da",
+     "merged_at": "2026-01-10T11:29:38Z",
+     "number": 278,
+     "state": "closed",
+     "title": "Update external test data",
+     "updated_at": "2026-01-10T11:33:14Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "5bda557d26ac0580b49956c335ae0d11589303ba"
+     },
+     "body": null,
+     "head": {
+      "ref": "rename-job",
+      "sha": "634c1f6de3d70f79df37e39726137f9526efbb70"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/277",
+     "labels": [],
+     "merge_commit_sha": "2017309d5fedf07498eeaec1e191e780b5178c4a",
+     "merged_at": "2026-01-04T21:28:42Z",
+     "number": 277,
+     "state": "closed",
+     "title": "Rename CI job that builds binary wheels",
+     "updated_at": "2026-01-04T21:29:24Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "d6b9bb083ad13aa6ab02783389edb42be557f41b"
+     },
+     "body": "Closes #271 \r\n\r\nThis would add arm64 windows builds and tests to `tests.yml`.",
+     "head": {
+      "ref": "arm64-runner",
+      "sha": "7fac058854db08d7f64097f00bcbf6d6588782f0"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/272",
+     "labels": [],
+     "merge_commit_sha": "5bda557d26ac0580b49956c335ae0d11589303ba",
+     "merged_at": "2026-01-04T20:58:37Z",
+     "number": 272,
+     "state": "closed",
+     "title": "Add support for Windows arm64",
+     "updated_at": "2026-01-04T20:59:07Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "0921abf5cea9f937565e37793d5061a128c22ac5"
+     },
+     "body": "~~Python 3.8 was end-of-life in October 2024 and 3.9 this October.~~\r\n\r\n~~https://devguide.python.org/versions/~~\r\n\r\nAlso:\r\n\r\n* PyPy3.10 is no longer supported, test on PyPy3.11 instead: https://pypy.org/posts/2025/07/pypy-v7320-release.html\r\n* Build ARM wheels on ARM hardware - takes [~4 minutes](https://github.com/hugovk/tomli/actions/runs/20433084217/job/58707959630) instead of [~41 minutes](https://github.com/hukkin/tomli/actions/runs/20408025787/job/58640634977)!\r\n  * Closes https://github.com/hukkin/tomli/issues/253.\r\n* Enable colour logs (`unittest` in 3.14+ has colour) and hide a pip upgrade warning in the logs\r\n* ~~Update links from `https://github.com/BurntSushi/toml-test` to `https://github.com/toml-lang/toml-test`~~\r\n\r\nLet me know if you'd prefer any of these split into their own PRs. I combined into one because the current CI config prohibits testing feature branches so I had to put them all into `master` so I could test.",
+     "head": {
+      "ref": "master",
+      "sha": "5e048b128a832c7e00b5de07ee97679463df80f7"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/276",
+     "labels": [],
+     "merge_commit_sha": "d6b9bb083ad13aa6ab02783389edb42be557f41b",
+     "merged_at": "2026-01-04T19:43:34Z",
+     "number": 276,
+     "state": "closed",
+     "title": "Build ARM wheels on ARM hardware",
+     "updated_at": "2026-01-04T19:44:43Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "871f2c1cf33bc451376c225eeff77611cf2dd5a9"
+     },
+     "body": "Merge when https://github.com/toml-lang/toml/pull/790 finds its way into a TOML release.",
+     "head": {
+      "ref": "escape-shorthand",
+      "sha": "29966937efafdfc6a2a796d87b5cb3788d117c65"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/201",
+     "labels": [],
+     "merge_commit_sha": "0921abf5cea9f937565e37793d5061a128c22ac5",
+     "merged_at": "2025-12-21T09:45:22Z",
+     "number": 201,
+     "state": "closed",
+     "title": "Add shorthand for escape character",
+     "updated_at": "2025-12-21T09:45:30Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "63820dfc5e148feca7079e93fadbec3d059c2e7a"
+     },
+     "body": null,
+     "head": {
+      "ref": "disable-cyclomatic-complexity",
+      "sha": "1262cffed1d2655bd31911d8a68f03caa541ff38"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/275",
+     "labels": [],
+     "merge_commit_sha": "871f2c1cf33bc451376c225eeff77611cf2dd5a9",
+     "merged_at": "2025-12-21T09:24:47Z",
+     "number": 275,
+     "state": "closed",
+     "title": "Disable flake8 cyclomatic complexity check",
+     "updated_at": "2025-12-21T09:24:52Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "740e4982da24851f0ca5939b9d435492bd7509ad"
+     },
+     "body": null,
+     "head": {
+      "ref": "fix-flake8",
+      "sha": "c20839b71db793495a0856cd0fadcc68ef1c58e6"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/274",
+     "labels": [],
+     "merge_commit_sha": "63820dfc5e148feca7079e93fadbec3d059c2e7a",
+     "merged_at": "2025-12-19T19:20:48Z",
+     "number": 274,
+     "state": "closed",
+     "title": "Disable failing flake8 warning",
+     "updated_at": "2025-12-19T19:20:58Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "0b158821c3911df4f24441959d8ce18991619222"
+     },
+     "body": null,
+     "head": {
+      "ref": "py315",
+      "sha": "271de002e7888011774e4cc696a8afde580b9643"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/269",
+     "labels": [],
+     "merge_commit_sha": "740e4982da24851f0ca5939b9d435492bd7509ad",
+     "merged_at": "2025-10-16T12:50:44Z",
+     "number": 269,
+     "state": "closed",
+     "title": "Test Python 3.15-dev",
+     "updated_at": "2025-10-16T12:51:06Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "0bc66fcab1f766fe410ffeebfe9ec1ec646f1681"
+     },
+     "body": null,
+     "head": {
+      "ref": "version-2.3.0",
+      "sha": "3fccd16450d0f1d87c042473d95a07f60955206e"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/266",
+     "labels": [],
+     "merge_commit_sha": "0b158821c3911df4f24441959d8ce18991619222",
+     "merged_at": "2025-10-08T22:03:12Z",
+     "number": 266,
+     "state": "closed",
+     "title": "Version 2.3.0",
+     "updated_at": "2025-10-08T22:03:20Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "0aa242f3188f4b892e434f1b4d23818fcd978615"
+     },
+     "body": null,
+     "head": {
+      "ref": "rm-pypy-skip",
+      "sha": "f656b352148838c95f8c898ccfbcf24a80b051a1"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/265",
+     "labels": [],
+     "merge_commit_sha": "0bc66fcab1f766fe410ffeebfe9ec1ec646f1681",
+     "merged_at": "2025-10-08T09:40:13Z",
+     "number": 265,
+     "state": "closed",
+     "title": "Remove now off-by-default PyPy from cibuildwheel skip list",
+     "updated_at": "2025-10-08T09:40:31Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "a18221eb5c3f4592285f533d48e68432132bc37b"
+     },
+     "body": null,
+     "head": {
+      "ref": "license-metadata",
+      "sha": "6cf80f20985e22825d5f839f43f7d4c7ddc04e50"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/264",
+     "labels": [],
+     "merge_commit_sha": "0aa242f3188f4b892e434f1b4d23818fcd978615",
+     "merged_at": "2025-10-08T09:29:02Z",
+     "number": 264,
+     "state": "closed",
+     "title": "Update license metadata to appease PEP 639",
+     "updated_at": "2025-10-08T09:29:12Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "6fa4d90aa9bb1693b327c72fd18a6c925d1dd5d7"
+     },
+     "body": null,
+     "head": {
+      "ref": "ci-actions",
+      "sha": "d9722a2d9ae6d1585c5b449c5b5a5de1d83ff6f5"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/263",
+     "labels": [],
+     "merge_commit_sha": "a18221eb5c3f4592285f533d48e68432132bc37b",
+     "merged_at": "2025-10-08T08:58:51Z",
+     "number": 263,
+     "state": "closed",
+     "title": "Bump GitHub CI actions",
+     "updated_at": "2025-10-08T08:59:01Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "b974fa13a96503546e47a895ac123d5c8425bc9a"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/PyCQA/isort: c8ab4a5b21bac924d106e3103dd7c979fdd0f9bc \u2192 ec0efaee4acfce198521e43caa3029b06cedd64a](https://github.com/PyCQA/isort/compare/c8ab4a5b21bac924d106e3103dd7c979fdd0f9bc...ec0efaee4acfce198521e43caa3029b06cedd64a)\n- https://github.com/psf/black \u2192 https://github.com/psf/black-pre-commit-mirror\n- [github.com/psf/black-pre-commit-mirror: 8a737e727ac5ab2f1d4cf5876720ed276dc8dc4b \u2192 fe95161893684893d68b1225356702ca71f8d388](https://github.com/psf/black-pre-commit-mirror/compare/8a737e727ac5ab2f1d4cf5876720ed276dc8dc4b...fe95161893684893d68b1225356702ca71f8d388)\n- [github.com/pre-commit/pre-commit-hooks: cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b \u2192 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c](https://github.com/pre-commit/pre-commit-hooks/compare/cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b...3e8a8703264a2f4a69428a0aa4dcb512790b2c8c)\n- [github.com/pre-commit/mirrors-mypy: 0f86793af5ef5f6dc63c8d04a3cabfa3ea8f9c6a \u2192 9f70dc58c23dfcca1b97af99eaeee3140a807c7e](https://github.com/pre-commit/mirrors-mypy/compare/0f86793af5ef5f6dc63c8d04a3cabfa3ea8f9c6a...9f70dc58c23dfcca1b97af99eaeee3140a807c7e)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "32fddc2a090f1706d0ba3768ca70dad2b710c8dd"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/260",
+     "labels": [],
+     "merge_commit_sha": "6fa4d90aa9bb1693b327c72fd18a6c925d1dd5d7",
+     "merged_at": "2025-10-08T08:00:40Z",
+     "number": 260,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2025-10-08T08:00:50Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "f574f366d40b2fa0672177f06df4d6dfc4188356"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/executablebooks/mdformat: 00812cd1850e41aae5c0916645b4b7404f538e8c \u2192 ff29be1a1ba8029d9375882aa2c812b62112a593](https://github.com/executablebooks/mdformat/compare/00812cd1850e41aae5c0916645b4b7404f538e8c...ff29be1a1ba8029d9375882aa2c812b62112a593)\n- [github.com/PyCQA/isort: c235f5e450b4b84e58d114ed4c589cbf454175a3 \u2192 c8ab4a5b21bac924d106e3103dd7c979fdd0f9bc](https://github.com/PyCQA/isort/compare/c235f5e450b4b84e58d114ed4c589cbf454175a3...c8ab4a5b21bac924d106e3103dd7c979fdd0f9bc)\n- [github.com/psf/black: 1b2427a2b785cc4aac97c19bb4b9a0de063f9547 \u2192 8a737e727ac5ab2f1d4cf5876720ed276dc8dc4b](https://github.com/psf/black/compare/1b2427a2b785cc4aac97c19bb4b9a0de063f9547...8a737e727ac5ab2f1d4cf5876720ed276dc8dc4b)\n- [github.com/PyCQA/flake8: e43806be3607110919eff72939fda031776e885a \u2192 d93590f5be797aabb60e3b09f2f52dddb02f349f](https://github.com/PyCQA/flake8/compare/e43806be3607110919eff72939fda031776e885a...d93590f5be797aabb60e3b09f2f52dddb02f349f)\n- [github.com/pre-commit/mirrors-mypy: f40886d54c729f533f864ed6ce584e920feb0af7 \u2192 0f86793af5ef5f6dc63c8d04a3cabfa3ea8f9c6a](https://github.com/pre-commit/mirrors-mypy/compare/f40886d54c729f533f864ed6ce584e920feb0af7...0f86793af5ef5f6dc63c8d04a3cabfa3ea8f9c6a)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "a8d773c3593b5b603374a3dd20a7b6af22d4e39d"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/248",
+     "labels": [],
+     "merge_commit_sha": "b974fa13a96503546e47a895ac123d5c8425bc9a",
+     "merged_at": "2025-06-23T18:35:49Z",
+     "number": 248,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2025-06-23T18:35:55Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "1da01ef78fee9f491f55feb5e2d9fcf24d4977f0"
+     },
+     "body": "Hi! \ud83d\udc4b \r\n\r\nThis is mostly a backport of my PR from CPython: https://github.com/python/cpython/pull/133118\r\n\r\nWe want to run mypy in CPython on all changes to `tomllib` just to be extra safe.\r\nRight now it is almost in a perfect shape, however it was missing `--strict` mode, which I added.\r\n",
+     "head": {
+      "ref": "mypy-strict",
+      "sha": "794a019a561ea2882065b173eed0e068f5d417cf"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/257",
+     "labels": [],
+     "merge_commit_sha": "f574f366d40b2fa0672177f06df4d6dfc4188356",
+     "merged_at": "2025-05-01T10:48:56Z",
+     "number": 257,
+     "state": "closed",
+     "title": "Update mypy to 1.15 and use `--strict` mode",
+     "updated_at": "2025-05-01T10:49:10Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "1da01ef78fee9f491f55feb5e2d9fcf24d4977f0"
+     },
+     "body": "https://docs.github.com/en/actions/writing-workflows/choosing-what-your-workflow-does/store-information-in-variables#detecting-the-operating-system",
+     "head": {
+      "ref": "patch-1",
+      "sha": "68893bd9ad545780e41d98ecf9d3cac654b60d14"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/252",
+     "labels": [],
+     "merge_commit_sha": "93f6cc48432c2eb3fe2a848ebf779ed01c54564b",
+     "merged_at": null,
+     "number": 252,
+     "state": "closed",
+     "title": "GitHub Actions: Detecting the operating system with $runner.os",
+     "updated_at": "2025-02-19T14:20:09Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "1da01ef78fee9f491f55feb5e2d9fcf24d4977f0"
+     },
+     "body": null,
+     "head": {
+      "ref": "importtime-pt2",
+      "sha": "9f5f40e1643ef3c1ac55190e28e58e2f9697ea20"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/250",
+     "labels": [],
+     "merge_commit_sha": "a90a591f018f9e16f3d116b8d63c3f05818a52a7",
+     "merged_at": null,
+     "number": 250,
+     "state": "closed",
+     "title": "Reduce import time part 2: lazy import rarely used `datetime`",
+     "updated_at": "2025-01-14T15:28:11Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "41881885a360e9f6526badafc1c5b2eec4133393"
+     },
+     "body": null,
+     "head": {
+      "ref": "importtime-pt3",
+      "sha": "32af4fdad00a0147e6947bb60cdea19c7dbe53fd"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/251",
+     "labels": [],
+     "merge_commit_sha": "1da01ef78fee9f491f55feb5e2d9fcf24d4977f0",
+     "merged_at": "2025-01-12T13:40:38Z",
+     "number": 251,
+     "state": "closed",
+     "title": "Reduce import time part 3: remove `typing` import",
+     "updated_at": "2025-01-12T13:40:43Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "42a570d5222ec8abfa6e20421d3f2e5132da2f83"
+     },
+     "body": null,
+     "head": {
+      "ref": "importtime",
+      "sha": "764c9ca4e24269bd126a7ad830edb0b8ac4a0122"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/249",
+     "labels": [],
+     "merge_commit_sha": "41881885a360e9f6526badafc1c5b2eec4133393",
+     "merged_at": "2025-01-09T09:24:04Z",
+     "number": 249,
+     "state": "closed",
+     "title": "Reduce import time by removing `string` and `tomli._types` imports",
+     "updated_at": "2025-01-09T09:24:36Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "5723018c2bb8793a1be582244d75acf036d17157"
+     },
+     "body": null,
+     "head": {
+      "ref": "add-tox-wrapper",
+      "sha": "6dd038b1e29c26a38cf3d6b8af77d1892d6e48ad"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/246",
+     "labels": [],
+     "merge_commit_sha": "42a570d5222ec8abfa6e20421d3f2e5132da2f83",
+     "merged_at": "2024-11-29T11:43:18Z",
+     "number": 246,
+     "state": "closed",
+     "title": "tooling: add tox wrapper that enables mypyc",
+     "updated_at": "2024-11-29T11:43:46Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "e2f8d2dd15313d5ffca65dd8d1aaf70e6386dddc"
+     },
+     "body": null,
+     "head": {
+      "ref": "tox-native-toml",
+      "sha": "3c8b069ab5f44d320165f784aa8c954dd3da5af0"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/235",
+     "labels": [],
+     "merge_commit_sha": "4be816b4070f1705e19231166aedf9256aa38086",
+     "merged_at": "2024-10-04T08:49:45Z",
+     "number": 235,
+     "state": "closed",
+     "title": "Convert tox config to native TOML",
+     "updated_at": "2024-11-28T11:16:09Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "067b7ca2297a22f93c60e80fa5df81b396cd2705"
+     },
+     "body": null,
+     "head": {
+      "ref": "changelog-2.2.1",
+      "sha": "85ed6a1fde0692994da27f5e633f34dcf6bc8589"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/245",
+     "labels": [],
+     "merge_commit_sha": "5723018c2bb8793a1be582244d75acf036d17157",
+     "merged_at": "2024-11-28T06:14:07Z",
+     "number": 245,
+     "state": "closed",
+     "title": "Add 2.2.1 changelog",
+     "updated_at": "2024-11-28T06:14:29Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "0724e2ab1858da7f5e05a9bffdb24c33589d951c"
+     },
+     "body": null,
+     "head": {
+      "ref": "readme",
+      "sha": "73c3d102eb81fe0d2b87f905df4f740f8878d8da"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/244",
+     "labels": [],
+     "merge_commit_sha": "067b7ca2297a22f93c60e80fa5df81b396cd2705",
+     "merged_at": "2024-11-27T22:39:40Z",
+     "number": 244,
+     "state": "closed",
+     "title": "Bump version: 2.1.0 \u2192 2.2.0 \u2192 2.2.1",
+     "updated_at": "2024-11-27T22:40:17Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "149547d2ec5b7d1badf8d0c1ab603735fa9b5a70"
+     },
+     "body": null,
+     "head": {
+      "ref": "final-globals",
+      "sha": "f5e840b9340f0ecfc289208b13e28e2575df71c0"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/243",
+     "labels": [],
+     "merge_commit_sha": "0724e2ab1858da7f5e05a9bffdb24c33589d951c",
+     "merged_at": "2024-11-27T17:17:14Z",
+     "number": 243,
+     "state": "closed",
+     "title": "Annotate global constants as Final to speed up compiled code",
+     "updated_at": "2024-11-27T17:17:27Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "443a0c1bc5da39b7ed84306912ee1900e6b72e2f"
+     },
+     "body": "Based on @ofek's (who I'll add as co-author) PR https://github.com/hukkin/tomli/pull/165.\r\n\r\nThis creates mypyc binary wheels while keeping flit_core as default build backend (which was my concern earlier https://github.com/hukkin/tomli/pull/165#issuecomment-1005501930). CI switches to setuptools only for creating binary wheels. The idea is to keep flit_core as default until Python 3.11 EOL date, after which TOML parser bootstrapping is no longer a concern.\r\n\r\nUser visible changes here are:\r\n- slightly different TypeError messages from binary wheels (with mypyc we lose control over the exact message)\r\n- TOMLDecodeError shows as `tomli._parser.TOMLDecodeError:`  in tracebacks instead of `tomli.TOMLDecodeError:`. The hack that changes the exception's `__module__` is not accepted by mypyc\r\n- `type[DEPRECATED_DEFAULT]` shows in TOMLDecodeError's type hint\r\n\r\nThe changes seem acceptable to me.",
+     "head": {
+      "ref": "mypyc2",
+      "sha": "6dd93ff3128757fe128dab51692d82527fcffebb"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/242",
+     "labels": [],
+     "merge_commit_sha": "149547d2ec5b7d1badf8d0c1ab603735fa9b5a70",
+     "merged_at": "2024-11-27T16:56:43Z",
+     "number": 242,
+     "state": "closed",
+     "title": "Create binary wheels with mypyc",
+     "updated_at": "2024-11-27T16:57:12Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "48461cfbaf0775c9025720f80d8afa4fa50c0183"
+     },
+     "body": null,
+     "head": {
+      "ref": "autofix",
+      "sha": "a69c2320dd9c6e3261db182c1c8228bfd2f422ea"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/241",
+     "labels": [],
+     "merge_commit_sha": "443a0c1bc5da39b7ed84306912ee1900e6b72e2f",
+     "merged_at": "2024-11-18T18:21:53Z",
+     "number": 241,
+     "state": "closed",
+     "title": "pre-commit autoupdate and autofix",
+     "updated_at": "2024-11-18T18:22:10Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "48461cfbaf0775c9025720f80d8afa4fa50c0183"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/executablebooks/mdformat: 08fba30538869a440b5059de90af03e3502e35fb \u2192 00812cd1850e41aae5c0916645b4b7404f538e8c](https://github.com/executablebooks/mdformat/compare/08fba30538869a440b5059de90af03e3502e35fb...00812cd1850e41aae5c0916645b4b7404f538e8c)\n- [github.com/psf/black: b965c2a5026f8ba399283ba3e01898b012853c79 \u2192 1b2427a2b785cc4aac97c19bb4b9a0de063f9547](https://github.com/psf/black/compare/b965c2a5026f8ba399283ba3e01898b012853c79...1b2427a2b785cc4aac97c19bb4b9a0de063f9547)\n- [github.com/pre-commit/pre-commit-hooks: 2c9f875913ee60ca25ce70243dc24d5b6415598c \u2192 cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b](https://github.com/pre-commit/pre-commit-hooks/compare/2c9f875913ee60ca25ce70243dc24d5b6415598c...cef0300fd0fc4d2a87a85fa2093c6b283ea36f4b)\n- [github.com/pre-commit/mirrors-mypy: d4911cfb7f1010759fde68da196036feeb25b99d \u2192 f56614daa94d5cd733d3b7004c5df9caad267b4a](https://github.com/pre-commit/mirrors-mypy/compare/d4911cfb7f1010759fde68da196036feeb25b99d...f56614daa94d5cd733d3b7004c5df9caad267b4a)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "f7a0849e1a9110e03f220e89eefdfa7d6810af77"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/236",
+     "labels": [],
+     "merge_commit_sha": "cd1f29b4a5aad3f0a914f4329dd61ed0ab548b4b",
+     "merged_at": null,
+     "number": 236,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2024-11-18T18:20:22Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "d1d6a8571b06b18005af8bf9078c1d37de5353e1"
+     },
+     "body": null,
+     "head": {
+      "ref": "version-2.1.0",
+      "sha": "d6e045b1e6b36c56271d9f003794d915d713f962"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/240",
+     "labels": [],
+     "merge_commit_sha": "48461cfbaf0775c9025720f80d8afa4fa50c0183",
+     "merged_at": "2024-11-11T18:39:07Z",
+     "number": 240,
+     "state": "closed",
+     "title": "Bump version: 2.0.2 \u2192 2.1.0",
+     "updated_at": "2024-11-11T18:39:09Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "59ed9efb3d6bb7ec71454601a72088b0a6853b8c"
+     },
+     "body": "Adds the same attributes to `TOMLDecodeError` that `JSONDecodeError` has.\r\n\r\nCreated a discussion about this https://discuss.python.org/t/69546\r\n\r\nedit: and a cpython issue https://github.com/python/cpython/issues/126175",
+     "head": {
+      "ref": "error-attributes",
+      "sha": "55ad7ab40cd0aa1f72bb22ff507e2e113d1ebfa5"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/238",
+     "labels": [],
+     "merge_commit_sha": "d1d6a8571b06b18005af8bf9078c1d37de5353e1",
+     "merged_at": "2024-11-11T18:32:48Z",
+     "number": 238,
+     "state": "closed",
+     "title": "Add attributes to TOMLDecodeError",
+     "updated_at": "2024-11-11T18:32:57Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "9d25b3f99e37426d33eb8b5513890d723fefd441"
+     },
+     "body": "Sync with https://github.com/python/cpython/pull/126078",
+     "head": {
+      "ref": "add-comment",
+      "sha": "938d9b9cd411bca621c471fe7605d092a4486de0"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/239",
+     "labels": [],
+     "merge_commit_sha": "59ed9efb3d6bb7ec71454601a72088b0a6853b8c",
+     "merged_at": "2024-10-29T10:44:01Z",
+     "number": 239,
+     "state": "closed",
+     "title": "Add a comment about implicit lru_cache bound",
+     "updated_at": "2024-10-29T10:44:07Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "f57fb669e9147bc69e2681ce7eeea2ed6294c039"
+     },
+     "body": null,
+     "head": {
+      "ref": "py13-final",
+      "sha": "bc9dc7de01ef8f0b79dd48523ebadb0b4bd978bc"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/237",
+     "labels": [],
+     "merge_commit_sha": "9d25b3f99e37426d33eb8b5513890d723fefd441",
+     "merged_at": "2024-10-09T06:51:14Z",
+     "number": 237,
+     "state": "closed",
+     "title": "Test against Python 3.13 final",
+     "updated_at": "2024-10-09T06:51:25Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "4be816b4070f1705e19231166aedf9256aa38086"
+     },
+     "body": "Error message was added in https://github.com/hukkin/tomli/pull/175",
+     "head": {
+      "ref": "coverage",
+      "sha": "19e83d00b3e8327bfba90eb00465b12226dc8304"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/231",
+     "labels": [],
+     "merge_commit_sha": "f57fb669e9147bc69e2681ce7eeea2ed6294c039",
+     "merged_at": "2024-10-08T15:20:04Z",
+     "number": 231,
+     "state": "closed",
+     "title": "Add test coverage for text mode error",
+     "updated_at": "2024-10-08T15:20:11Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "a6138675bcca68eea5b8abec7c2ec06d57f965a0"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/Lucas-C/pre-commit-hooks: 12885e376b93dc4536ad68d156065601e4433665 \u2192 a30f0d816e5062a67d87c8de753cfe499672b959](https://github.com/Lucas-C/pre-commit-hooks/compare/12885e376b93dc4536ad68d156065601e4433665...a30f0d816e5062a67d87c8de753cfe499672b959)\n- [github.com/executablebooks/mdformat: 82f84976fc57d5ae61cbf2d457a26a89d4b4eef4 \u2192 08fba30538869a440b5059de90af03e3502e35fb](https://github.com/executablebooks/mdformat/compare/82f84976fc57d5ae61cbf2d457a26a89d4b4eef4...08fba30538869a440b5059de90af03e3502e35fb)\n- [github.com/asottile/yesqa: 265e9ff7c83add4949f81bb5fe14f4a743ffb04c \u2192 f2ae90cf9e1661ade79d0881186ce4fd7ba6ee79](https://github.com/asottile/yesqa/compare/265e9ff7c83add4949f81bb5fe14f4a743ffb04c...f2ae90cf9e1661ade79d0881186ce4fd7ba6ee79)\n- [github.com/PyCQA/isort: dbf82f2dd09ae41d9355bcd7ab69187a19e6bf2f \u2192 c235f5e450b4b84e58d114ed4c589cbf454175a3](https://github.com/PyCQA/isort/compare/dbf82f2dd09ae41d9355bcd7ab69187a19e6bf2f...c235f5e450b4b84e58d114ed4c589cbf454175a3)\n- [github.com/psf/black: bf7a16254ec96b084a6caf3d435ec18f0f245cc7 \u2192 b965c2a5026f8ba399283ba3e01898b012853c79](https://github.com/psf/black/compare/bf7a16254ec96b084a6caf3d435ec18f0f245cc7...b965c2a5026f8ba399283ba3e01898b012853c79)\n- https://github.com/myint/docformatter \u2192 https://github.com/PyCQA/docformatter\n- [github.com/PyCQA/docformatter: 8b8dae1d990e2e4fec7ff6704a79c23a403cd605 \u2192 dfefe062799848234b4cd60b04aa633c0608025e](https://github.com/PyCQA/docformatter/compare/8b8dae1d990e2e4fec7ff6704a79c23a403cd605...dfefe062799848234b4cd60b04aa633c0608025e)\n- [github.com/pre-commit/pre-commit-hooks: f71fa2c1f9cf5cb705f73dffe4b21f7c61470ba9 \u2192 2c9f875913ee60ca25ce70243dc24d5b6415598c](https://github.com/pre-commit/pre-commit-hooks/compare/f71fa2c1f9cf5cb705f73dffe4b21f7c61470ba9...2c9f875913ee60ca25ce70243dc24d5b6415598c)\n- [github.com/PyCQA/flake8: c838a5e98878f17889cfce311e1406d252f87ec5 \u2192 e43806be3607110919eff72939fda031776e885a](https://github.com/PyCQA/flake8/compare/c838a5e98878f17889cfce311e1406d252f87ec5...e43806be3607110919eff72939fda031776e885a)\n- [github.com/pre-commit/mirrors-mypy: b84480de6124681d551749528ab4b42c2269df8c \u2192 d4911cfb7f1010759fde68da196036feeb25b99d](https://github.com/pre-commit/mirrors-mypy/compare/b84480de6124681d551749528ab4b42c2269df8c...d4911cfb7f1010759fde68da196036feeb25b99d)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "5c767a5d4846e351ab9aba9895ce2d9374eb14e9"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/221",
+     "labels": [],
+     "merge_commit_sha": "9dac45fb88d2186aaf39f2bab4818299e8c6bda7",
+     "merged_at": null,
+     "number": 221,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2024-10-02T14:25:20Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "c94ee6904bb93b84364be502fe219e849d5f9120"
+     },
+     "body": null,
+     "head": {
+      "ref": "version-2.0.2",
+      "sha": "3ec6775b118f2ae030d5b12c90939c7f65668e7e"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/233",
+     "labels": [],
+     "merge_commit_sha": "e2f8d2dd15313d5ffca65dd8d1aaf70e6386dddc",
+     "merged_at": "2024-10-02T10:47:53Z",
+     "number": 233,
+     "state": "closed",
+     "title": "Version 2.0.2",
+     "updated_at": "2024-10-02T10:47:55Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "a6138675bcca68eea5b8abec7c2ec06d57f965a0"
+     },
+     "body": null,
+     "head": {
+      "ref": "types-improvements",
+      "sha": "d848a50f1971e9ec1fad7405eee14fd1e74c2f57"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/227",
+     "labels": [],
+     "merge_commit_sha": "6d700aa320747347c1fe659451ca56229fe1a99b",
+     "merged_at": null,
+     "number": 227,
+     "state": "closed",
+     "title": "Types improvements",
+     "updated_at": "2024-10-02T10:07:41Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "4e245a4bbbefed99e550e196095ea65c851cf31d"
+     },
+     "body": null,
+     "head": {
+      "ref": "hukkin-patch-1",
+      "sha": "069f750fae70acabe5f32c27e69c48324f6ecacb"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/232",
+     "labels": [],
+     "merge_commit_sha": "c94ee6904bb93b84364be502fe219e849d5f9120",
+     "merged_at": "2024-10-02T09:53:27Z",
+     "number": 232,
+     "state": "closed",
+     "title": "Fix GitHub Actions badge",
+     "updated_at": "2024-10-02T09:53:29Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "facdab0f5aacc5eb223753c42604d5de7bdaee9d"
+     },
+     "body": "Fixes https://github.com/hukkin/tomli/issues/223",
+     "head": {
+      "ref": "improve-typeerror",
+      "sha": "372f192b0d5c91e38c0a3b79fd99137b6c1c7175"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/229",
+     "labels": [],
+     "merge_commit_sha": "4e245a4bbbefed99e550e196095ea65c851cf31d",
+     "merged_at": "2024-10-02T05:25:57Z",
+     "number": 229,
+     "state": "closed",
+     "title": "`tomli.loads`: Raise TypeError not AttributeError. Improve message",
+     "updated_at": "2024-10-02T05:25:59Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "a6138675bcca68eea5b8abec7c2ec06d57f965a0"
+     },
+     "body": null,
+     "head": {
+      "ref": "pre-commmit",
+      "sha": "44bf9799b0b2b46a8a42381e19dc383a87d4f901"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/230",
+     "labels": [],
+     "merge_commit_sha": "facdab0f5aacc5eb223753c42604d5de7bdaee9d",
+     "merged_at": "2024-09-25T07:52:48Z",
+     "number": 230,
+     "state": "closed",
+     "title": "Update pre-commit. Remove docformatter",
+     "updated_at": "2024-09-25T07:52:49Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "a6138675bcca68eea5b8abec7c2ec06d57f965a0"
+     },
+     "body": null,
+     "head": {
+      "ref": "master",
+      "sha": "afc44c25f09eacd609ee58c5020fba1fafdd59d9"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/226",
+     "labels": [],
+     "merge_commit_sha": "88381125bc2b1ec81e175d3d0e3e87c70b1db2a8",
+     "merged_at": null,
+     "number": 226,
+     "state": "closed",
+     "title": "Monthly downloads badge added",
+     "updated_at": "2024-07-01T20:47:49Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "39eff9b9cbdad9f0dab96b84f7b518f2b87e1866"
+     },
+     "body": "Fixes #219\r\n\r\nStatic type checkers are able to understand checks against sys.version_info much better than try-except. In general, if type checkers tried to handle conditional imports fancily, this would result in unsoundness.\r\n\r\nAnother reason is that you may have tomli conditionally installed based on Python version, in which case a type checker would not even have a way of knowing what tomli is, but with a sys.version check it knows it doesn't need to know that.",
+     "head": {
+      "ref": "hauntsaninja-patch-1",
+      "sha": "1a63190721616994d46c7c91783bb445693de521"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/220",
+     "labels": [],
+     "merge_commit_sha": "a6138675bcca68eea5b8abec7c2ec06d57f965a0",
+     "merged_at": "2023-12-12T11:55:13Z",
+     "number": 220,
+     "state": "closed",
+     "title": "Use sys.version_info in compatibility layer",
+     "updated_at": "2023-12-12T11:55:14Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "0054e60840060499c67c6c4115d5d60abaa51ca2"
+     },
+     "body": "Allow 3.12 to fail the build, and remove 3.7, EOL since 2023-06-27: https://devguide.python.org/versions/",
+     "head": {
+      "ref": "rm-3.7",
+      "sha": "8265575ac2e7624edbb95c8ba1a07f7619445cb3"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/224",
+     "labels": [],
+     "merge_commit_sha": "39eff9b9cbdad9f0dab96b84f7b518f2b87e1866",
+     "merged_at": "2023-12-12T11:27:51Z",
+     "number": 224,
+     "state": "closed",
+     "title": "Add support for Python 3.12, drop EOL 3.7",
+     "updated_at": "2023-12-12T11:44:44Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "1bd3345f97cba795d7e6075956815c0a52151ed0"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/Lucas-C/pre-commit-hooks: 04618e68aa2380828a36a23ff5f65a06ae8f59b9 \u2192 12885e376b93dc4536ad68d156065601e4433665](https://github.com/Lucas-C/pre-commit-hooks/compare/04618e68aa2380828a36a23ff5f65a06ae8f59b9...12885e376b93dc4536ad68d156065601e4433665)\n- [github.com/PyCQA/isort: c5e8fa75dda5f764d20f66a215d71c21cfa198e1 \u2192 dbf82f2dd09ae41d9355bcd7ab69187a19e6bf2f](https://github.com/PyCQA/isort/compare/c5e8fa75dda5f764d20f66a215d71c21cfa198e1...dbf82f2dd09ae41d9355bcd7ab69187a19e6bf2f)\n- [github.com/psf/black: 27d20144a7517594e24a1649451177b2a11284be \u2192 bf7a16254ec96b084a6caf3d435ec18f0f245cc7](https://github.com/psf/black/compare/27d20144a7517594e24a1649451177b2a11284be...bf7a16254ec96b084a6caf3d435ec18f0f245cc7)\n- https://github.com/myint/docformatter \u2192 https://github.com/PyCQA/docformatter\n- [github.com/PyCQA/docformatter: 8b8dae1d990e2e4fec7ff6704a79c23a403cd605 \u2192 403478c1e23468aff9889975b35a27d2c115a2e8](https://github.com/PyCQA/docformatter/compare/8b8dae1d990e2e4fec7ff6704a79c23a403cd605...403478c1e23468aff9889975b35a27d2c115a2e8)\n- [github.com/pre-commit/pre-commit-hooks: 3298ddab3c13dd77d6ce1fc0baf97691430d84b0 \u2192 f71fa2c1f9cf5cb705f73dffe4b21f7c61470ba9](https://github.com/pre-commit/pre-commit-hooks/compare/3298ddab3c13dd77d6ce1fc0baf97691430d84b0...f71fa2c1f9cf5cb705f73dffe4b21f7c61470ba9)\n- [github.com/pre-commit/pygrep-hooks: 6f51a66bba59954917140ec2eeeaa4d5e630e6ce \u2192 3a6eb0fadf60b3cccfd80bad9dbb6fae7e47b316](https://github.com/pre-commit/pygrep-hooks/compare/6f51a66bba59954917140ec2eeeaa4d5e630e6ce...3a6eb0fadf60b3cccfd80bad9dbb6fae7e47b316)\n- [github.com/PyCQA/flake8: f8e1b317742036ff11ff86356fd2b68147e169f7 \u2192 c838a5e98878f17889cfce311e1406d252f87ec5](https://github.com/PyCQA/flake8/compare/f8e1b317742036ff11ff86356fd2b68147e169f7...c838a5e98878f17889cfce311e1406d252f87ec5)\n- [github.com/pre-commit/mirrors-mypy: 33f4a30be4e66513c51a857712fc732e1a9ddd78 \u2192 b84480de6124681d551749528ab4b42c2269df8c](https://github.com/pre-commit/mirrors-mypy/compare/33f4a30be4e66513c51a857712fc732e1a9ddd78...b84480de6124681d551749528ab4b42c2269df8c)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "88c0d74c07c80ea68f168769748c2ebcb0b3de3a"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/208",
+     "labels": [],
+     "merge_commit_sha": "0054e60840060499c67c6c4115d5d60abaa51ca2",
+     "merged_at": "2023-04-29T19:55:06Z",
+     "number": 208,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2023-04-29T19:55:08Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "5646e6923d895725aad7ecfa32be19861812d1fc"
+     },
+     "body": "Committed via https://github.com/asottile/all-repos",
+     "head": {
+      "ref": "all-repos_autofix_all-repos-sed",
+      "sha": "0c55cdb0ea598f902deda58383c92eec05c302ec"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/216",
+     "labels": [],
+     "merge_commit_sha": "1bd3345f97cba795d7e6075956815c0a52151ed0",
+     "merged_at": "2022-11-15T14:31:37Z",
+     "number": 216,
+     "state": "closed",
+     "title": "Test against Python 3.12-dev",
+     "updated_at": "2022-11-15T14:31:38Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "3dd938e0bf1287630cd18fb1fb09833f02d4ccfa"
+     },
+     "body": "Fixes https://github.com/hukkin/tomli/issues/214\r\n\r\nI'm currently not creating a `SupportsRead` because `Protocol`s only appear in Python 3.8 and we need to support 3.7 (and I don't want a `typing-extensions` dependency).",
+     "head": {
+      "ref": "no-binaryio",
+      "sha": "918dac63278f914aee4db2d9db71efe4cd37f7db"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/215",
+     "labels": [],
+     "merge_commit_sha": "5646e6923d895725aad7ecfa32be19861812d1fc",
+     "merged_at": "2022-11-09T23:01:51Z",
+     "number": 215,
+     "state": "closed",
+     "title": "Type annotate as `IO[bytes]`, not `BinaryIO`",
+     "updated_at": "2022-11-10T04:04:55Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "b7b7ad6036665e57bf1e4e41dd6611b86b4af655"
+     },
+     "body": "This could be somehow automated using Dependabot:\r\n[Keeping your actions up to date with Dependabot](https://docs.github.com/en/code-security/dependabot/working-with-dependabot/keeping-your-actions-up-to-date-with-dependabot)",
+     "head": {
+      "ref": "actions",
+      "sha": "0923daaed86e2309bd7bf89c39c0d586d1477099"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/213",
+     "labels": [],
+     "merge_commit_sha": "82987ffb4a11b3feb430d2b8a91f7c3bc2a9118b",
+     "merged_at": null,
+     "number": 213,
+     "state": "closed",
+     "title": "Update GitHub actions",
+     "updated_at": "2022-11-03T13:51:57Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "b7b7ad6036665e57bf1e4e41dd6611b86b4af655"
+     },
+     "body": "While Python 3.11 now ships with [tomllib](https://docs.python.org/3.11/library/tomllib.html), make sure existing code based on tomli will work for at least a couple upcoming Python releases.",
+     "head": {
+      "ref": "3.11",
+      "sha": "da6c037a55af25c2436b54881fafa5c14ead61a6"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/212",
+     "labels": [],
+     "merge_commit_sha": "3dd938e0bf1287630cd18fb1fb09833f02d4ccfa",
+     "merged_at": "2022-11-02T13:36:34Z",
+     "number": 212,
+     "state": "closed",
+     "title": "Support Python 3.11 final",
+     "updated_at": "2022-11-02T13:49:53Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "b7b7ad6036665e57bf1e4e41dd6611b86b4af655"
+     },
+     "body": "Changelog from version `2.0.0` says that support for Python 3.6 was removed. Also, `TOML` file only refers to Python `>=3.7`",
+     "head": {
+      "ref": "patch-1",
+      "sha": "6c4dd5fafd5599485cabf69c3a5a35fbda780e42"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/211",
+     "labels": [],
+     "merge_commit_sha": "4eda59fb56b2f0c5b0b934dcdc364afe223183b6",
+     "merged_at": null,
+     "number": 211,
+     "state": "closed",
+     "title": "Update README.md",
+     "updated_at": "2022-11-02T12:18:08Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "95ef3cfe6376d8434e92cfb559f7393fb05852fc"
+     },
+     "body": null,
+     "head": {
+      "ref": "py311-readme-update",
+      "sha": "dfef78c441d33c5a3f227dd21d38af27703a1490"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/209",
+     "labels": [],
+     "merge_commit_sha": "b7b7ad6036665e57bf1e4e41dd6611b86b4af655",
+     "merged_at": "2022-10-25T07:07:56Z",
+     "number": 209,
+     "state": "closed",
+     "title": "Post py311 readme update",
+     "updated_at": "2022-10-25T07:07:57Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "7e563eed5286b5d46b8290a9f56a86d955b23a9a"
+     },
+     "body": null,
+     "head": {
+      "ref": "pre-commit-update",
+      "sha": "bfa4e362b0d28770c675b3771b4e995535a906f7"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/207",
+     "labels": [],
+     "merge_commit_sha": "95ef3cfe6376d8434e92cfb559f7393fb05852fc",
+     "merged_at": "2022-10-24T13:23:31Z",
+     "number": 207,
+     "state": "closed",
+     "title": "Update pre-commit hooks",
+     "updated_at": "2022-10-24T13:23:32Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "7e563eed5286b5d46b8290a9f56a86d955b23a9a"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/Lucas-C/pre-commit-hooks: ca52c4245639abd55c970e6bbbca95cab3de22d8 \u2192 04618e68aa2380828a36a23ff5f65a06ae8f59b9](https://github.com/Lucas-C/pre-commit-hooks/compare/ca52c4245639abd55c970e6bbbca95cab3de22d8...04618e68aa2380828a36a23ff5f65a06ae8f59b9)\n- [github.com/executablebooks/mdformat: b8c05ae822d53326e967da45367d0408afc56a81 \u2192 82f84976fc57d5ae61cbf2d457a26a89d4b4eef4](https://github.com/executablebooks/mdformat/compare/b8c05ae822d53326e967da45367d0408afc56a81...82f84976fc57d5ae61cbf2d457a26a89d4b4eef4)\n- [github.com/asottile/yesqa: 35cf7dc24fa922927caded7a21b2a8cb04bf8e10 \u2192 265e9ff7c83add4949f81bb5fe14f4a743ffb04c](https://github.com/asottile/yesqa/compare/35cf7dc24fa922927caded7a21b2a8cb04bf8e10...265e9ff7c83add4949f81bb5fe14f4a743ffb04c)\n- [github.com/psf/black: ae2c0758c9e61a385df9700dc9c231bf54887041 \u2192 27d20144a7517594e24a1649451177b2a11284be](https://github.com/psf/black/compare/ae2c0758c9e61a385df9700dc9c231bf54887041...27d20144a7517594e24a1649451177b2a11284be)\n- https://github.com/myint/docformatter \u2192 https://github.com/PyCQA/docformatter\n- [github.com/PyCQA/docformatter: 67919ee01837761f2d954d7fbb08c12cdd38ec5a \u2192 8b8dae1d990e2e4fec7ff6704a79c23a403cd605](https://github.com/PyCQA/docformatter/compare/67919ee01837761f2d954d7fbb08c12cdd38ec5a...8b8dae1d990e2e4fec7ff6704a79c23a403cd605)\n- [github.com/pre-commit/pre-commit-hooks: db7346d375eda68a0174f2c057dd97f2fbffe030 \u2192 3298ddab3c13dd77d6ce1fc0baf97691430d84b0](https://github.com/pre-commit/pre-commit-hooks/compare/db7346d375eda68a0174f2c057dd97f2fbffe030...3298ddab3c13dd77d6ce1fc0baf97691430d84b0)\n- [github.com/PyCQA/flake8: cbeb4c9c4137cff1568659fcc48e8b85cddd0c8d \u2192 f8e1b317742036ff11ff86356fd2b68147e169f7](https://github.com/PyCQA/flake8/compare/cbeb4c9c4137cff1568659fcc48e8b85cddd0c8d...f8e1b317742036ff11ff86356fd2b68147e169f7)\n- [github.com/pre-commit/mirrors-mypy: a04404bdf52c2cbc9c5bd705454b89bd83b84383 \u2192 33f4a30be4e66513c51a857712fc732e1a9ddd78](https://github.com/pre-commit/mirrors-mypy/compare/a04404bdf52c2cbc9c5bd705454b89bd83b84383...33f4a30be4e66513c51a857712fc732e1a9ddd78)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "0057d9c0d56663da69cc07e12216298ff2c91522"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/196",
+     "labels": [],
+     "merge_commit_sha": "e871ba9206a45d9c876f999a627bd46d85a9a99a",
+     "merged_at": null,
+     "number": 196,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2022-10-24T13:20:57Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "a9c190e0c228b33c6312ca332688dea2e709b316"
+     },
+     "body": "Committed via https://github.com/asottile/all-repos",
+     "head": {
+      "ref": "all-repos_autofix_gh-action-update",
+      "sha": "688cf0a8f4888ee0e69dc0795735a6b4a16bb2a8"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/198",
+     "labels": [],
+     "merge_commit_sha": "7e563eed5286b5d46b8290a9f56a86d955b23a9a",
+     "merged_at": "2022-05-23T11:44:43Z",
+     "number": 198,
+     "state": "closed",
+     "title": "Update GitHub actions",
+     "updated_at": "2022-05-23T11:44:43Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "a9c190e0c228b33c6312ca332688dea2e709b316"
+     },
+     "body": "Committed via https://github.com/asottile/all-repos",
+     "head": {
+      "ref": "all-repos_autofix_all-repos-sed",
+      "sha": "68a04096bde8425d959b2dd31c4a727fee3692d0"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/197",
+     "labels": [],
+     "merge_commit_sha": "aacd530ee90f0d4caf5d9eff27d1edde8a3bf7ad",
+     "merged_at": null,
+     "number": 197,
+     "state": "closed",
+     "title": "git ls-files -z -- '*' | xargs -0 sed -i 's|actions/checkout@v2|actions/checkout@v3|g;s|actions/setup-python@v2|actions/setup-python@v3|g'",
+     "updated_at": "2022-05-23T11:26:23Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "79ecd4354969e15536dff05c97ec39c03ef09193"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/Lucas-C/pre-commit-hooks: 79b8e4f273301e412602c856ddbc0c066765c98c \u2192 ca52c4245639abd55c970e6bbbca95cab3de22d8](https://github.com/Lucas-C/pre-commit-hooks/compare/79b8e4f273301e412602c856ddbc0c066765c98c...ca52c4245639abd55c970e6bbbca95cab3de22d8)\n- [github.com/executablebooks/mdformat: a5f167d00d7a1990e69ee02efacc15d6136ea1aa \u2192 b8c05ae822d53326e967da45367d0408afc56a81](https://github.com/executablebooks/mdformat/compare/a5f167d00d7a1990e69ee02efacc15d6136ea1aa...b8c05ae822d53326e967da45367d0408afc56a81)\n- [github.com/psf/black: fc0be6eb1e2a96091e6f64009ee5e9081bf8b6c6 \u2192 ae2c0758c9e61a385df9700dc9c231bf54887041](https://github.com/psf/black/compare/fc0be6eb1e2a96091e6f64009ee5e9081bf8b6c6...ae2c0758c9e61a385df9700dc9c231bf54887041)\n- [github.com/pre-commit/pre-commit-hooks: 8fe62d14e0b4d7d845a7022c5c2c3ae41bdd3f26 \u2192 db7346d375eda68a0174f2c057dd97f2fbffe030](https://github.com/pre-commit/pre-commit-hooks/compare/8fe62d14e0b4d7d845a7022c5c2c3ae41bdd3f26...db7346d375eda68a0174f2c057dd97f2fbffe030)\n- [github.com/pre-commit/mirrors-mypy: f6f816c65d285f8a4a15e0e9965b3dd66ecddd79 \u2192 a04404bdf52c2cbc9c5bd705454b89bd83b84383](https://github.com/pre-commit/mirrors-mypy/compare/f6f816c65d285f8a4a15e0e9965b3dd66ecddd79...a04404bdf52c2cbc9c5bd705454b89bd83b84383)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "462fb6f434fdb6ceca9905a6695b8af101cc4f5a"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/185",
+     "labels": [],
+     "merge_commit_sha": "656bb9cd4d0934dc2a600a04a05e7b7ac70bc29c",
+     "merged_at": null,
+     "number": 185,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2022-05-07T20:31:27Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "79ecd4354969e15536dff05c97ec39c03ef09193"
+     },
+     "body": "Automate/enforce https://github.com/hukkin/tomli/pull/156",
+     "head": {
+      "ref": "absolufy-imports",
+      "sha": "af664b96ac5998a22b38eeff2852c943e04971c1"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/195",
+     "labels": [],
+     "merge_commit_sha": "a9c190e0c228b33c6312ca332688dea2e709b316",
+     "merged_at": "2022-05-07T20:30:47Z",
+     "number": 195,
+     "state": "closed",
+     "title": "Enforce relative imports",
+     "updated_at": "2022-05-07T20:30:48Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "79ecd4354969e15536dff05c97ec39c03ef09193"
+     },
+     "body": "Since there's already a restriction to not return a dict or a list, it wouldn't hurt to restrict this further to only numbers.\r\n\r\nN.B. `issubclass(decimal.Decimal, numbers.Real) == False` so we can not use `Real`.",
+     "head": {
+      "ref": "patch-1",
+      "sha": "dbece71fc69730b718a59dec09c424cccc91add5"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/190",
+     "labels": [],
+     "merge_commit_sha": "d5d5163437207c97b3e6b94bc994a26123422202",
+     "merged_at": null,
+     "number": 190,
+     "state": "closed",
+     "title": "ParseFloat should return a Number, not Any object",
+     "updated_at": "2022-03-16T14:11:05Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "c29d628982bc2a2562af78b3ee93e69aac1f22eb"
+     },
+     "body": null,
+     "head": {
+      "ref": "poor-mans-xfail",
+      "sha": "17e6aff5ce41c304c0445f09b7cd6bf7a2af0e48"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/188",
+     "labels": [],
+     "merge_commit_sha": "79ecd4354969e15536dff05c97ec39c03ef09193",
+     "merged_at": "2022-03-02T22:36:19Z",
+     "number": 188,
+     "state": "closed",
+     "title": "Add a poor man's xfail",
+     "updated_at": "2022-03-02T22:36:19Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "2ea308476023515057fd6e02305e998c065fcc8b"
+     },
+     "body": null,
+     "head": {
+      "ref": "asserts",
+      "sha": "57ad71c4f2eb7c4c048e8636d86c9344851ea27b"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/187",
+     "labels": [],
+     "merge_commit_sha": "c29d628982bc2a2562af78b3ee93e69aac1f22eb",
+     "merged_at": "2022-03-02T22:00:35Z",
+     "number": 187,
+     "state": "closed",
+     "title": "Add asserts. Edit readme",
+     "updated_at": "2022-03-02T22:00:35Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "22a3ab107144469749f5bb82dd520edf95d0c76b"
+     },
+     "body": null,
+     "head": {
+      "ref": "tomllib-docs",
+      "sha": "5c2ca2126fcf79acd390dd61904815e836827bc3"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/186",
+     "labels": [],
+     "merge_commit_sha": "2ea308476023515057fd6e02305e998c065fcc8b",
+     "merged_at": "2022-02-24T15:36:09Z",
+     "number": 186,
+     "state": "closed",
+     "title": "Note tomllib in the README",
+     "updated_at": "2022-02-24T15:36:09Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "e2e6477649c4aff62473d6429f165c0906fe89ad"
+     },
+     "body": null,
+     "head": {
+      "ref": "external-tests",
+      "sha": "c65c48a0fe79fcdbc85404b0cff2342a3eeee822"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/184",
+     "labels": [],
+     "merge_commit_sha": "22a3ab107144469749f5bb82dd520edf95d0c76b",
+     "merged_at": "2022-02-10T10:15:00Z",
+     "number": 184,
+     "state": "closed",
+     "title": "Require 100% coverage without external tests",
+     "updated_at": "2022-02-10T10:15:01Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "ad96211be16d7365505a54f8c227d62729d7769c"
+     },
+     "body": null,
+     "head": {
+      "ref": "rm-comment",
+      "sha": "1dc96f284155181e5aac1ce77b3e0d83a342146e"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/183",
+     "labels": [],
+     "merge_commit_sha": "e2e6477649c4aff62473d6429f165c0906fe89ad",
+     "merged_at": "2022-02-09T21:20:36Z",
+     "number": 183,
+     "state": "closed",
+     "title": "Remove commented out test code",
+     "updated_at": "2022-02-09T21:20:37Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "91c21982129039eed52f0633652d06ea445ee1c0"
+     },
+     "body": null,
+     "head": {
+      "ref": "maintain",
+      "sha": "a7c4353b4e205fd2d4ea6eaf05728ded4cf397d8"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/182",
+     "labels": [],
+     "merge_commit_sha": "ad96211be16d7365505a54f8c227d62729d7769c",
+     "merged_at": "2022-02-09T00:17:43Z",
+     "number": 182,
+     "state": "closed",
+     "title": "Update fuzzer, profiler, and benchmark results",
+     "updated_at": "2022-02-09T00:17:44Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "794c8e50d676f1e8e081914eb77e4a48a4f6a20b"
+     },
+     "body": null,
+     "head": {
+      "ref": "version-2.0.1",
+      "sha": "36ef51d6a5a55e0eca077b58695390d041061bd4"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/181",
+     "labels": [],
+     "merge_commit_sha": "91c21982129039eed52f0633652d06ea445ee1c0",
+     "merged_at": "2022-02-08T10:56:18Z",
+     "number": 181,
+     "state": "closed",
+     "title": "Version 2.0.1",
+     "updated_at": "2022-02-08T10:56:18Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "0eaf93dd85934636f727c43f413a13e06509d2d6"
+     },
+     "body": null,
+     "head": {
+      "ref": "invalid-parse-float-fail-hard",
+      "sha": "62bcdb3ace36f81591076fd96012929154b19d84"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/180",
+     "labels": [],
+     "merge_commit_sha": "794c8e50d676f1e8e081914eb77e4a48a4f6a20b",
+     "merged_at": "2022-02-03T00:27:13Z",
+     "number": 180,
+     "state": "closed",
+     "title": "Eagerly raise an error if parse_float produces illegal types",
+     "updated_at": "2022-02-03T00:27:13Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "ecc36aa75143cd09eed0368d540857492179b667"
+     },
+     "body": null,
+     "head": {
+      "ref": "allow-append",
+      "sha": "9c10e7a20027723a7b95c8924defcf253853ba9e"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/179",
+     "labels": [],
+     "merge_commit_sha": "0eaf93dd85934636f727c43f413a13e06509d2d6",
+     "merged_at": "2022-02-02T17:55:22Z",
+     "number": 179,
+     "state": "closed",
+     "title": "Allow `parse_float` to return values with `append` attr",
+     "updated_at": "2022-02-02T17:55:23Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "7349d78f97c25d2b6e6c893cbaa45dbd6c298ffc"
+     },
+     "body": "I don't intend to merge this. This is just so people can see how a os.PathLike based API might look like.",
+     "head": {
+      "ref": "pathlike-api",
+      "sha": "dc39db73a63bb34f4491cad52eb718319e91cba7"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/173",
+     "labels": [],
+     "merge_commit_sha": "9c10659dea337e28e7eb67ffc741e3856f315612",
+     "merged_at": null,
+     "number": 173,
+     "state": "closed",
+     "title": "Demonstrate PathLike API",
+     "updated_at": "2022-02-01T23:14:12Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "0476375f1bf9862a3e04bd3241eb7115c849309c"
+     },
+     "body": null,
+     "head": {
+      "ref": "licensing",
+      "sha": "16e7de26d061f3c4def4ef630d65de98f45b3fbb"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/176",
+     "labels": [],
+     "merge_commit_sha": "ecc36aa75143cd09eed0368d540857492179b667",
+     "merged_at": "2022-02-01T22:41:35Z",
+     "number": 176,
+     "state": "closed",
+     "title": "Improve/add license headers",
+     "updated_at": "2022-02-01T22:41:35Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "e4f44e30bda20fc776532b3df8abf9f4f03257f0"
+     },
+     "body": "@ofek I think this may fix your issue with startup time, even if there are numbers in the TOML file.\r\n\r\nI'll check if this slows down parsing of larger files and consider merging later.",
+     "head": {
+      "ref": "less-regex",
+      "sha": "7a170e5dffa2f3f1c06278e70216dbc27103e2c7"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/146",
+     "labels": [],
+     "merge_commit_sha": "664dc1c72e66b3e4e4780acba9f2c29cfc860be7",
+     "merged_at": null,
+     "number": 146,
+     "state": "closed",
+     "title": "Compile regexes lazily",
+     "updated_at": "2022-02-01T11:11:39Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "8b962e13490a569d4aab90076451def23ed6c6d8"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/Lucas-C/pre-commit-hooks: 3592548bbd98528887eeed63486cf6c9bae00b98 \u2192 79b8e4f273301e412602c856ddbc0c066765c98c](https://github.com/Lucas-C/pre-commit-hooks/compare/3592548bbd98528887eeed63486cf6c9bae00b98...79b8e4f273301e412602c856ddbc0c066765c98c)\n- [github.com/psf/black: f1d4e742c91dd5179d742b0db9293c4472b765f8 \u2192 fc0be6eb1e2a96091e6f64009ee5e9081bf8b6c6](https://github.com/psf/black/compare/f1d4e742c91dd5179d742b0db9293c4472b765f8...fc0be6eb1e2a96091e6f64009ee5e9081bf8b6c6)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "9c2002f6f98b9cc0a749604f4ed84efa5e966542"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/178",
+     "labels": [],
+     "merge_commit_sha": "0476375f1bf9862a3e04bd3241eb7115c849309c",
+     "merged_at": "2022-01-31T18:03:46Z",
+     "number": 178,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2022-01-31T18:03:47Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "e4da05c35a41a4d53fce7af292b94506b1ea68a7"
+     },
+     "body": null,
+     "head": {
+      "ref": "typeerror",
+      "sha": "68e880645b8e4365c8f2c9150f796b94e3cd98a1"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/175",
+     "labels": [],
+     "merge_commit_sha": "8b962e13490a569d4aab90076451def23ed6c6d8",
+     "merged_at": "2022-01-30T07:33:01Z",
+     "number": 175,
+     "state": "closed",
+     "title": "Raise a friendly `TypeError` for wrong file mode",
+     "updated_at": "2022-01-30T07:55:28Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "417f3357e5827712119c6f7a3e7fa41f04b30d7e"
+     },
+     "body": null,
+     "head": {
+      "ref": "reorg-test-data",
+      "sha": "3e8ab938ddd57a9d2d924259ccca04088be1bd87"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/177",
+     "labels": [],
+     "merge_commit_sha": "e4da05c35a41a4d53fce7af292b94506b1ea68a7",
+     "merged_at": "2022-01-29T22:14:38Z",
+     "number": 177,
+     "state": "closed",
+     "title": "Reorganize test data",
+     "updated_at": "2022-01-29T22:14:38Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "7349d78f97c25d2b6e6c893cbaa45dbd6c298ffc"
+     },
+     "body": null,
+     "head": {
+      "ref": "test-data",
+      "sha": "926165e9f47fbce8b8817f9966e3b0cef5a26645"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/174",
+     "labels": [],
+     "merge_commit_sha": "417f3357e5827712119c6f7a3e7fa41f04b30d7e",
+     "merged_at": "2022-01-29T01:56:35Z",
+     "number": 174,
+     "state": "closed",
+     "title": "Add test data",
+     "updated_at": "2022-01-29T01:56:36Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "f2257d7dcd2cabc7593743afaa0abdfbb6c0d113"
+     },
+     "body": null,
+     "head": {
+      "ref": "err-msg-3",
+      "sha": "b9fe0a69e185c8b4ce65f61ca553c8b5f1db0b27"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/172",
+     "labels": [],
+     "merge_commit_sha": "7349d78f97c25d2b6e6c893cbaa45dbd6c298ffc",
+     "merged_at": "2022-01-18T09:01:30Z",
+     "number": 172,
+     "state": "closed",
+     "title": "Improve error messages",
+     "updated_at": "2022-01-18T09:01:31Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "f2257d7dcd2cabc7593743afaa0abdfbb6c0d113"
+     },
+     "body": "Preparation for an upcoming TOML version that allows bare CR newlines (see https://github.com/toml-lang/toml/issues/837#issuecomment-897018187)\r\n\r\nMerge together with https://github.com/hukkin/tomli-w/pull/10",
+     "head": {
+      "ref": "bare-cr-newlines",
+      "sha": "5e8c2b0bbfa1f378c99e4d247c4a469f61e9972d"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/119",
+     "labels": [],
+     "merge_commit_sha": "914cc72ca63df540420085b595f4ce54ebedd773",
+     "merged_at": null,
+     "number": 119,
+     "state": "closed",
+     "title": "Allow bare CR newlines",
+     "updated_at": "2022-01-17T02:25:59Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "5701c0be3a76322372f58af0e19163037fec7663"
+     },
+     "body": "<!--pre-commit.ci start-->\nupdates:\n- [github.com/executablebooks/mdformat: 0c0af8f5055b092cc0ffb90e20ae4a03af3a0e8a \u2192 a5f167d00d7a1990e69ee02efacc15d6136ea1aa](https://github.com/executablebooks/mdformat/compare/0c0af8f5055b092cc0ffb90e20ae4a03af3a0e8a...a5f167d00d7a1990e69ee02efacc15d6136ea1aa)\n- [github.com/pre-commit/mirrors-mypy: 886e1c39f0dcddeee1cd260418372cf5f3932391 \u2192 f6f816c65d285f8a4a15e0e9965b3dd66ecddd79](https://github.com/pre-commit/mirrors-mypy/compare/886e1c39f0dcddeee1cd260418372cf5f3932391...f6f816c65d285f8a4a15e0e9965b3dd66ecddd79)\n<!--pre-commit.ci end-->",
+     "head": {
+      "ref": "pre-commit-ci-update-config",
+      "sha": "94eb6838422ca0c3ddc546f076966f6b772fbaf2"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/166",
+     "labels": [],
+     "merge_commit_sha": "40fe60caa335b6aab4d833b7f51fe334eeeb47b9",
+     "merged_at": null,
+     "number": 166,
+     "state": "closed",
+     "title": "[pre-commit.ci] pre-commit autoupdate",
+     "updated_at": "2022-01-13T18:13:00Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "909fe0b3c29842d1dcfbd8007148a48d28860407"
+     },
+     "body": null,
+     "head": {
+      "ref": "rm-docstring",
+      "sha": "c78d0ae1732ec70b58941462d2d8187cd1bba864"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/170",
+     "labels": [],
+     "merge_commit_sha": "f2257d7dcd2cabc7593743afaa0abdfbb6c0d113",
+     "merged_at": "2022-01-13T18:12:28Z",
+     "number": 170,
+     "state": "closed",
+     "title": "Remove docstring",
+     "updated_at": "2022-01-13T18:12:29Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "5c08d1caa4ca1c9ac76a47b2ae38c42b9f2422b0"
+     },
+     "body": null,
+     "head": {
+      "ref": "license",
+      "sha": "42a1b21c2e180cc0ce5d31b0898b4d3903acf490"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/169",
+     "labels": [],
+     "merge_commit_sha": "909fe0b3c29842d1dcfbd8007148a48d28860407",
+     "merged_at": "2022-01-13T12:28:15Z",
+     "number": 169,
+     "state": "closed",
+     "title": "Add pre-commit hook for license",
+     "updated_at": "2022-01-13T12:28:16Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "5701c0be3a76322372f58af0e19163037fec7663"
+     },
+     "body": "This can be useful if PEP 680 is accepted and Tomli becomes a stdlib backport.",
+     "head": {
+      "ref": "test-package-name",
+      "sha": "0e1b30072d73bf356f19b45c8de3c65d90ae8cff"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/168",
+     "labels": [],
+     "merge_commit_sha": "5c08d1caa4ca1c9ac76a47b2ae38c42b9f2422b0",
+     "merged_at": "2022-01-13T12:01:35Z",
+     "number": 168,
+     "state": "closed",
+     "title": "Make testing another package name a one line change",
+     "updated_at": "2022-01-13T12:01:36Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "5701c0be3a76322372f58af0e19163037fec7663"
+     },
+     "body": "Hello again! Let me know what you think \ud83d\ude04 \r\n\r\nThis PR compiles code with [Mypyc](https://github.com/mypyc/mypyc). To do so, I've switched the build system to `hatchling` in order to use the [hatch-mypyc](https://github.com/ofek/hatch-mypyc) build hook plugin. Hatchling is the minimal build backend of [Hatch](https://github.com/ofek/hatch) (v1 rewrite of CLI being released next week). You can think of it as the same distinction between `flit-core` & `flit` or `poetry-core` & `poetry`, with `hatchling` being more similar to `flit-core` in that only accepted standards are used e.g. project metadata format ([PEP 621](https://www.python.org/dev/peps/pep-0621/)), dependency specification ([PEP 631](https://www.python.org/dev/peps/pep-0631/)), etc.\r\n\r\nI added binary wheels to the release workflow using the now ubiquitous [cibuildwheel](https://github.com/pypa/cibuildwheel). Here is an example of the files produced: https://pypi.org/project/hatch-showcase/#files\r\n\r\nThe only thing I couldn't preserve was the hack where we change the `__module__` of `TOMLDecodeError`.\r\n\r\nOn my Windows machine, `tox -e benchmark` shows a 2-3x performance improvement.",
+     "head": {
+      "ref": "mypyc",
+      "sha": "d810d5afe0d643bed732f9bb138ee9d090b3e0fa"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/165",
+     "labels": [],
+     "merge_commit_sha": "21120cd3056033f7d3484a779b30890ba7edeb68",
+     "merged_at": null,
+     "number": 165,
+     "state": "closed",
+     "title": "Compile code with Mypyc",
+     "updated_at": "2022-01-06T16:51:00Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "f0d053f0a9db94d93cfb2968a6b20b06366990fa"
+     },
+     "body": null,
+     "head": {
+      "ref": "burntsushi-update",
+      "sha": "308437b7273710b71bdcb2d4701b2d1002e1812a"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/164",
+     "labels": [],
+     "merge_commit_sha": "5701c0be3a76322372f58af0e19163037fec7663",
+     "merged_at": "2022-01-04T21:44:57Z",
+     "number": 164,
+     "state": "closed",
+     "title": "Update burntsushi tests to commit 4634fdf",
+     "updated_at": "2022-01-04T21:44:57Z"
+    },
+    {
+     "base": {
+      "ref": "master",
+      "sha": "b5dc34cc0658f19496c8696d47c03c1d70163f3d"
+     },
+     "body": "Closes https://github.com/hukkin/tomli/issues/159",
+     "head": {
+      "ref": "dump-pytest",
+      "sha": "315378a75d249b7911a1a494fadcf4409797ca47"
+     },
+     "html_url": "https://github.com/hukkin/tomli/pull/163",
+     "labels": [],
+     "merge_commit_sha": "f0d053f0a9db94d93cfb2968a6b20b06366990fa",
+     "merged_at": "2022-01-03T21:22:56Z",
+     "number": 163,
+     "state": "closed",
+     "title": "Remove pytest, move to src layout",
+     "updated_at": "2022-01-03T21:22:57Z"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

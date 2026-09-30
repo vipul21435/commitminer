@@ -1,0 +1,29 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/293/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"fd868a2d9a22dbd74a98d5e1eefd982c08ca52e49b08e95e62c4f6c19f71cba3\"",
+    "last-modified": "Mon, 28 Sep 2026 07:37:44 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4806",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "194"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Show missing lines in CI coverage report"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/d9128bd159a89083704ea1f1baa1d40a7ddfb8b6",
+     "sha": "d9128bd159a89083704ea1f1baa1d40a7ddfb8b6"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

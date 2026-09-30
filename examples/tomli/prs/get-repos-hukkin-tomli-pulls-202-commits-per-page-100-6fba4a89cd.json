@@ -1,0 +1,50 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/202/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"9e4575a48cbda381c5ccc2c88beb1ac3e77d64bfa477b32aad83757efece8e43\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4784",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "216"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Add \\xHH Unicode escape code to basic strings"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/0754e79757984b5798ca00039dd7a38b891fae87",
+     "sha": "0754e79757984b5798ca00039dd7a38b891fae87"
+    },
+    {
+     "commit": {
+      "message": "Merge branch 'master' into x-escape"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/d88684c033d4aac942d27d4a1311f85e81c29085",
+     "sha": "d88684c033d4aac942d27d4a1311f85e81c29085"
+    },
+    {
+     "commit": {
+      "message": "[pre-commit.ci] auto fixes from pre-commit.com hooks\n\nfor more information, see https://pre-commit.ci"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/e2b84f378f5972d8e73f65144db2b4da673d87e7",
+     "sha": "e2b84f378f5972d8e73f65144db2b4da673d87e7"
+    },
+    {
+     "commit": {
+      "message": "Remove passing tests from xfail list"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/4068a1871ea06739b9ec67cd6ff2678608fbf999",
+     "sha": "4068a1871ea06739b9ec67cd6ff2678608fbf999"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

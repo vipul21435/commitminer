@@ -28,7 +28,7 @@ from datetime import datetime
 from commitminer.classify import Category
 from commitminer.filters import RejectReason, check
 from commitminer.fingerprint import Fingerprint, fingerprint
-from commitminer.models import Commit
+from commitminer.models import Commit, PullRequest
 from commitminer.settings import Settings
 from commitminer.stats import DiffStats, diff_stats
 
@@ -95,23 +95,40 @@ _FIX_WORD = re.compile(
     r"|wrong|broken)\b",
     re.IGNORECASE,
 )
+_FIX_LABEL = re.compile(r"\b(?:bugs?|bugfix|fix(?:es)?|regression|crash(?:es)?)\b", re.IGNORECASE)
+"""Label names that mark a bug fix: ``bug``, ``type: bug``, ``C-bug``, ``regression`` ..."""
 
 
-def linked_reference(message: str) -> tuple[float, str]:
-    """1.0 for a closing keyword with a reference, 0.5 for a bare reference, else 0.0."""
+def linked_reference(message: str, pull: PullRequest | None = None) -> tuple[float, str]:
+    """1.0 for a closing keyword with a reference, 0.5 for a bare reference, else 0.0.
+
+    For a pull request, the issues it closes (from its description and its
+    commit messages) count as closing references, and the pull request itself
+    counts as a bare reference: a squash-merged commit that ends in ``(#123)``
+    gets 0.5 for pointing at the same discussion.
+    """
+    if pull is not None and pull.linked_issues:
+        return 1.0, f"pull request #{pull.number} closes {', '.join(pull.linked_issues)}"
     closing = _CLOSING_REF.search(message)
     if closing is not None:
         return 1.0, closing.group(0)
     bare = _BARE_REF.search(message)
     if bare is not None:
         return 0.5, bare.group(0)
+    if pull is not None:
+        return 0.5, f"pull request #{pull.number}, no closing keyword"
     return 0.0, "no issue or pull-request reference"
 
 
-def fix_keyword(subject: str) -> tuple[float, str]:
-    """1.0 when the subject line reads like a bug fix."""
+def fix_keyword(subject: str, labels: tuple[str, ...] = ()) -> tuple[float, str]:
+    """1.0 when the subject line reads like a bug fix, or a pull-request label says so."""
     match = _FIX_WORD.search(subject)
-    return (1.0, match.group(0)) if match else (0.0, "no fix keyword in the subject")
+    if match is not None:
+        return 1.0, match.group(0)
+    for label in labels:
+        if _FIX_LABEL.search(label):
+            return 1.0, f"label {label!r}"
+    return 0.0, "no fix keyword in the subject" + (" or labels" if labels else "")
 
 
 def _feature(name: str, value: float, weight: float, detail: str) -> Feature:
@@ -144,8 +161,9 @@ def features(commit: Commit, stats: DiffStats, settings: Settings) -> tuple[Feat
         f"(full value at {settings.assertions_cap})"
     )
     sources = len(stats.source_files)
-    ref_value, ref_detail = linked_reference(commit.message)
-    fix_value, fix_detail = fix_keyword(commit.subject)
+    pull = commit.pull_request
+    ref_value, ref_detail = linked_reference(commit.message, pull)
+    fix_value, fix_detail = fix_keyword(commit.subject, pull.labels if pull else ())
     return (
         _feature(
             "small_diff",

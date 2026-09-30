@@ -1,0 +1,46 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/281/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"6733290343e966883317626a81f220000e86c8836171560b11f9d8a81f272c06\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4793",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "207"
+   },
+   "json": [
+    {
+     "additions": 19,
+     "deletions": 24,
+     "filename": "README.md",
+     "patch": "@@ -24,8 +24,8 @@\n   - [Is there a `dumps`, `write` or `encode` function?](#is-there-a-dumps-write-or-encode-function)\n   - [How do TOML types map into Python types?](#how-do-toml-types-map-into-python-types)\n - [Performance](#performance)\n-  - [Pure Python](#pure-python)\n   - [Mypyc generated wheel](#mypyc-generated-wheel)\n+  - [Pure Python](#pure-python)\n \n <!-- mdformat-toc end -->\n \n@@ -156,7 +156,7 @@ tomllib.loads(\"['This parses fine with Python 3.6+']\")\n - it's lil'\n - pure Python with zero dependencies\n - the fastest pure Python parser [\\*](#pure-python):\n-  18x as fast as [tomlkit](https://pypi.org/project/tomlkit/),\n+  14x as fast as [tomlkit](https://pypi.org/project/tomlkit/),\n   2.1x as fast as [toml](https://pypi.org/project/toml/)\n - outputs [basic data types](#how-do-toml-types-map-into-python-types) only\n - 100% spec compliant: passes all tests in\n@@ -202,47 +202,42 @@ The core library does not include write capability, as most TOML use cases are r\n \n The `benchmark/` folder in this repository contains a performance benchmark for comparing the various Python TOML parsers.\n \n-Below are the results for commit [0724e2a](https://github.com/hukkin/tomli/tree/0724e2ab1858da7f5e05a9bffdb24c33589d951c).\n+Below are the results for commit [064e492](https://github.com/hukkin/tomli/tree/064e492919b2338def788753b8c981c9131334c0).\n \n-### Pure Python<a name=\"pure-python\"></a>\n+### Mypyc generated wheel<a name=\"mypyc-generated-wheel\"></a>\n \n ```console\n foo@bar:~/dev/tomli$ python --version\n-Python 3.12.7\n+Python 3.14.2\n foo@bar:~/dev/tomli$ pip freeze\n-attrs==21.4.0\n-click==8.1.7\n-pytomlpp==1.0.13\n-qtoml==0.3.1\n-rtoml==0.11.0\n+pytomlpp==1.1.0\n+rtoml==0.13.0\n toml==0.10.2\n tomli @ file:///home/foo/dev/tomli\n-tomlkit==0.13.2\n+tomlkit==0.13.3\n foo@bar:~/dev/tomli$ python benchmark/run.py\n Parsing data.toml 5000 times:\n ------------------------------------------------------\n     parser |  exec time | performance (more is better)\n -----------+------------+-----------------------------\n-     rtoml |    0.647 s | baseline (100%)\n-  pytomlpp |    0.891 s | 72.62%\n-     tomli |     3.14 s | 20.56%\n-      toml |     6.69 s | 9.67%\n-     qtoml |     8.27 s | 7.82%\n-   tomlkit |     56.1 s | 1.15%\n+     rtoml |    0.328 s | baseline (100%)\n+  pytomlpp |    0.365 s | 89.75%\n+     tomli |    0.838 s | 39.12%\n+      toml |     3.01 s | 10.90%\n+   tomlkit |     20.7 s | 1.59%\n ```\n \n-### Mypyc generated wheel<a name=\"mypyc-generated-wheel\"></a>\n+### Pure Python<a name=\"pure-python\"></a>\n \n ```console\n foo@bar:~/dev/tomli$ python benchmark/run.py\n Parsing data.toml 5000 times:\n ------------------------------------------------------\n     parser |  exec time | performance (more is better)\n -----------+------------+-----------------------------\n-     rtoml |    0.668 s | baseline (100%)\n-  pytomlpp |    0.893 s | 74.81%\n-     tomli |     1.96 s | 34.18%\n-      toml |     6.64 s | 10.07%\n-     qtoml |     8.26 s | 8.09%\n-   tomlkit |     52.9 s | 1.26%\n+     rtoml |    0.323 s | baseline (100%)\n+  pytomlpp |    0.365 s | 88.40%\n+     tomli |     1.44 s | 22.36%\n+      toml |     3.03 s | 10.65%\n+   tomlkit |     20.6 s | 1.57%\n ```",
+     "sha": "e31a9d52c8fb467aa3bd810498d2ba528ac4ffd6",
+     "status": "modified"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "benchmark/requirements.txt",
+     "patch": "@@ -5,5 +5,4 @@\n pytomlpp\n toml\n tomlkit\n-qtoml\n rtoml",
+     "sha": "2b613587912b6c1a0119c61461a95fbe88095f2b",
+     "status": "modified"
+    },
+    {
+     "additions": 1,
+     "deletions": 6,
+     "filename": "benchmark/run.py",
+     "patch": "@@ -5,7 +5,6 @@\n import timeit\r\n \r\n import pytomlpp\r\n-import qtoml\r\n import rtoml\r\n import toml\r\n import tomlkit\r\n@@ -22,7 +21,7 @@ def benchmark(\n ) -> float:\r\n     placeholder = \"Running...\"\r\n     print(f\"{name:>{col_width[0]}} | {placeholder}\", end=\"\", flush=True)\r\n-    time_taken = timeit.timeit(func, number=run_count)\r\n+    time_taken = min(timeit.repeat(func, number=run_count, repeat=5))\r\n     print(\"\\b\" * len(placeholder), end=\"\")\r\n     time_suffix = \" s\"\r\n     print(f\"{time_taken:{col_width[1]-len(time_suffix)}.3g}{time_suffix}\", end=\"\")\r\n@@ -39,9 +38,6 @@ def run(run_count: int) -> None:\n     data_path = Path(__file__).parent / \"data.toml\"\r\n     test_data = data_path.read_bytes().decode()\r\n \r\n-    # qtoml has a bug making it crash without this newline normalization\r\n-    test_data = test_data.replace(\"\\r\\n\", \"\\n\")\r\n-\r\n     col_width = (10, 10, 28)\r\n     col_head = (\"parser\", \"exec time\", \"performance (more is better)\")\r\n     print(f\"Parsing data.toml {run_count} times:\")\r\n@@ -55,7 +51,6 @@ def run(run_count: int) -> None:\n     benchmark(\"pytomlpp\", run_count, lambda: pytomlpp.loads(test_data), col_width, compare_to=baseline)  # noqa: E501\r\n     benchmark(\"tomli\", run_count, lambda: tomli.loads(test_data), col_width, compare_to=baseline)  # noqa: E501\r\n     benchmark(\"toml\", run_count, lambda: toml.loads(test_data), col_width, compare_to=baseline)  # noqa: E501\r\n-    benchmark(\"qtoml\", run_count, lambda: qtoml.loads(test_data), col_width, compare_to=baseline)  # noqa: E501\r\n     benchmark(\"tomlkit\", run_count, lambda: tomlkit.parse(test_data), col_width, compare_to=baseline)  # noqa: E501\r\n     # fmt: on\r\n \r",
+     "sha": "ee88fc5e485374880cf4e21372c9dc4baae4a69d",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

@@ -1,0 +1,36 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/275/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"905eb5f2c202b21dc5b6ed1826d01b5c4fd9b458c1ff837eb48161c8264b16c5\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4769",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "231"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Disable flake8 cyclomatic complexity check"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/adbcf60a24439bae4a885197f34e2d671d521926",
+     "sha": "adbcf60a24439bae4a885197f34e2d671d521926"
+    },
+    {
+     "commit": {
+      "message": "[pre-commit.ci] auto fixes from pre-commit.com hooks\n\nfor more information, see https://pre-commit.ci"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/1262cffed1d2655bd31911d8a68f03caa541ff38",
+     "sha": "1262cffed1d2655bd31911d8a68f03caa541ff38"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

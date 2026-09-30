@@ -1,0 +1,36 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/282/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"ba53840052a74dea3faa97c0573fff7a1b336398f6ce121c8f76b2bb9d96754b\"",
+    "last-modified": "Mon, 23 Feb 2026 20:23:39 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4794",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "206"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "[pre-commit.ci] pre-commit autoupdate\n\nupdates:\n- [github.com/Lucas-C/pre-commit-hooks: a30f0d816e5062a67d87c8de753cfe499672b959 \u2192 ad1b27d73581aa16cca06fc4a0761fc563ffe8e8](https://github.com/Lucas-C/pre-commit-hooks/compare/a30f0d816e5062a67d87c8de753cfe499672b959...ad1b27d73581aa16cca06fc4a0761fc563ffe8e8)\n- [github.com/PyCQA/isort: 0a09c783808cfe77bb3269250f663ff733d23302 \u2192 3459bdee0962449aad91235273c3fd1306dfebe5](https://github.com/PyCQA/isort/compare/0a09c783808cfe77bb3269250f663ff733d23302...3459bdee0962449aad91235273c3fd1306dfebe5)\n- [github.com/psf/black-pre-commit-mirror: 831207fd435b47aeffdf6af853097e64322b4d44 \u2192 ea488cebbfd88a5f50b8bd95d5c829d0bb76feb8](https://github.com/psf/black-pre-commit-mirror/compare/831207fd435b47aeffdf6af853097e64322b4d44...ea488cebbfd88a5f50b8bd95d5c829d0bb76feb8)"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/6a60423329df18fc2bde028b0056b1c0c62f0af0",
+     "sha": "6a60423329df18fc2bde028b0056b1c0c62f0af0"
+    },
+    {
+     "commit": {
+      "message": "[pre-commit.ci] auto fixes from pre-commit.com hooks\n\nfor more information, see https://pre-commit.ci"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/9b9c7e486dc8894c7b3035b91d4976e4d15d723b",
+     "sha": "9b9c7e486dc8894c7b3035b91d4976e4d15d723b"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

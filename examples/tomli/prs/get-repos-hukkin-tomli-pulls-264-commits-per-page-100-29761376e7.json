@@ -1,0 +1,29 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/264/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"259f5f53293ebcb149e42b13e9fbefeb03869ba0fd2c61e66633c5c5e80ed0a0\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4759",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "241"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Update license metadata to appease PEP 639"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/6cf80f20985e22825d5f839f43f7d4c7ddc04e50",
+     "sha": "6cf80f20985e22825d5f839f43f7d4c7ddc04e50"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

@@ -1,0 +1,46 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/282/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"25921afff3c4a3bce2c85ab2a814ee03234548f02ea0a06a19ebbc567d2ddb72\"",
+    "last-modified": "Mon, 23 Feb 2026 20:23:39 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4795",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "205"
+   },
+   "json": [
+    {
+     "additions": 3,
+     "deletions": 3,
+     "filename": ".pre-commit-config.yaml",
+     "patch": "@@ -1,6 +1,6 @@\n repos:\n - repo: https://github.com/Lucas-C/pre-commit-hooks\n-  rev: a30f0d816e5062a67d87c8de753cfe499672b959  # frozen: v1.5.5\n+  rev: ad1b27d73581aa16cca06fc4a0761fc563ffe8e8  # frozen: v1.5.6\n   hooks:\n   - id: insert-license\n     files: '^src/.+\\.py$|^tests/.+\\.py$'\n@@ -28,11 +28,11 @@ repos:\n     files: '^src/.+\\.py$'\n     args: ['--never', '--application-directories', 'src']\n - repo: https://github.com/PyCQA/isort\n-  rev: 0a09c783808cfe77bb3269250f663ff733d23302  # frozen: 7.0.0\n+  rev: 3459bdee0962449aad91235273c3fd1306dfebe5  # frozen: 8.0.0\n   hooks:\n   - id: isort\n - repo: https://github.com/psf/black-pre-commit-mirror\n-  rev: 831207fd435b47aeffdf6af853097e64322b4d44  # frozen: 25.12.0\n+  rev: ea488cebbfd88a5f50b8bd95d5c829d0bb76feb8  # frozen: 26.1.0\n   hooks:\n   - id: black\n - repo: https://github.com/pre-commit/pre-commit-hooks",
+     "sha": "5fcc247392f7d8d2895d7da60746f637bb4fa9c7",
+     "status": "modified"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "scripts/mypyc_tox",
+     "patch": "@@ -9,6 +9,7 @@ to support mypyc builds. The change is reverted before exiting. This also\n sets the `TOMLI_USE_MYPYC=1` environment variable that setup.py reads to\n enable mypyc.\n \"\"\"\n+\n import os\n from pathlib import Path\n import shutil",
+     "sha": "4a6ce7b14174009f58daf523dd2676db5658d7be",
+     "status": "modified"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tomllib.md",
+     "patch": "@@ -35,7 +35,6 @@ matches Tomli commit https://github.com/hukkin/tomli/commit/7e563eed5286b5d46b82\n \n   from . import load_tests\n \n-\n   unittest.main()\n   ```\n ",
+     "sha": "d8808d633738e3d7ba99897cfc5f98704aff64e1",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

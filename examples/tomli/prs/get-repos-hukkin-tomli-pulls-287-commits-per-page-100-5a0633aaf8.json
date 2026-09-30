@@ -1,0 +1,29 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/287/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"b95d9e26f608ce51b52d433befa294b2fcff45d39e4891f1c253a1bcd84887a1\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4796",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "204"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Add change log for 2.4.1 and 2.3.1"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/c14feeba7bd2a2fc3a896463a9e4cb6aa49621c7",
+     "sha": "c14feeba7bd2a2fc3a896463a9e4cb6aa49621c7"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

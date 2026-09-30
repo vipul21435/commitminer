@@ -1,0 +1,62 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/279/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"e2158ae7cc682bbece7c17aa0ed84bbb22ffc0f0389b3e0001b392674dafd88a\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4789",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "211"
+   },
+   "json": [
+    {
+     "additions": 9,
+     "deletions": 9,
+     "filename": ".github/workflows/tests.yaml",
+     "patch": "@@ -20,7 +20,7 @@ jobs:\n     runs-on: ubuntu-latest\n \n     steps:\n-    - uses: actions/checkout@v5\n+    - uses: actions/checkout@v6\n     - uses: actions/setup-python@v6\n       with:\n         python-version: '3.11'\n@@ -44,7 +44,7 @@ jobs:\n     continue-on-error: ${{ matrix.python-version == '3.15-dev' }}\n \n     steps:\n-    - uses: actions/checkout@v5\n+    - uses: actions/checkout@v6\n \n     - name: Set up Python ${{ matrix.python-version }}\n       uses: actions/setup-python@v6\n@@ -62,7 +62,7 @@ jobs:\n   coverage:\n     runs-on: ubuntu-latest\n     steps:\n-    - uses: actions/checkout@v5\n+    - uses: actions/checkout@v6\n     - uses: actions/setup-python@v6\n       with:\n         python-version: '3.x'\n@@ -89,7 +89,7 @@ jobs:\n         os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-latest]\n \n     steps:\n-    - uses: actions/checkout@v5\n+    - uses: actions/checkout@v6\n \n     - uses: actions/setup-python@v6\n       with:\n@@ -101,12 +101,12 @@ jobs:\n         python scripts/use_setuptools.py\n \n     - name: Build wheels\n-      uses: pypa/cibuildwheel@v3.2.0\n+      uses: pypa/cibuildwheel@v3.3.1\n       env:\n         CIBW_ARCHS_MACOS: x86_64 arm64\n         TOMLI_USE_MYPYC: '1'\n \n-    - uses: actions/upload-artifact@v4\n+    - uses: actions/upload-artifact@v6\n       with:\n         name: artifact-binary-${{ matrix.os }}\n         path: wheelhouse/*.whl\n@@ -117,15 +117,15 @@ jobs:\n     runs-on: ubuntu-latest\n \n     steps:\n-    - uses: actions/checkout@v5\n+    - uses: actions/checkout@v6\n \n     - name: Install build dependencies\n       run: pip install build\n \n     - name: Build\n       run: python -m build\n \n-    - uses: actions/upload-artifact@v4\n+    - uses: actions/upload-artifact@v6\n       with:\n         name: artifact-pure-python\n         path: dist/*\n@@ -148,7 +148,7 @@ jobs:\n     if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')\n     runs-on: ubuntu-latest\n     steps:\n-    - uses: actions/download-artifact@v5\n+    - uses: actions/download-artifact@v7\n       with:\n         path: dist\n         pattern: artifact-*",
+     "sha": "22697a2bf1fbae6d6ce91341585ed1936d4c6316",
+     "status": "modified"
+    },
+    {
+     "additions": 4,
+     "deletions": 4,
+     "filename": ".pre-commit-config.yaml",
+     "patch": "@@ -6,7 +6,7 @@ repos:\n     files: '^src/.+\\.py$|^tests/.+\\.py$'\n     args: ['--license-filepath', 'LICENSE-HEADER']\n - repo: https://github.com/executablebooks/mdformat\n-  rev: ff29be1a1ba8029d9375882aa2c812b62112a593  # frozen: 0.7.22\n+  rev: 2d496dbc18e31b83a1596685347ffe0b6041daf0  # frozen: 1.0.0\n   hooks:\n   - id: mdformat\n     additional_dependencies:\n@@ -28,11 +28,11 @@ repos:\n     files: '^src/.+\\.py$'\n     args: ['--never', '--application-directories', 'src']\n - repo: https://github.com/PyCQA/isort\n-  rev: ec0efaee4acfce198521e43caa3029b06cedd64a  # frozen: 6.1.0\n+  rev: 0a09c783808cfe77bb3269250f663ff733d23302  # frozen: 7.0.0\n   hooks:\n   - id: isort\n - repo: https://github.com/psf/black-pre-commit-mirror\n-  rev: fe95161893684893d68b1225356702ca71f8d388  # frozen: 25.9.0\n+  rev: 831207fd435b47aeffdf6af853097e64322b4d44  # frozen: 25.12.0\n   hooks:\n   - id: black\n - repo: https://github.com/pre-commit/pre-commit-hooks\n@@ -54,7 +54,7 @@ repos:\n     - flake8-builtins\n     - flake8-comprehensions\n - repo: https://github.com/pre-commit/mirrors-mypy\n-  rev: 9f70dc58c23dfcca1b97af99eaeee3140a807c7e  # frozen: v1.18.2\n+  rev: a66e98df7b4aeeb3724184b332785976d062b92e  # frozen: v1.19.1\n   hooks:\n   - id: mypy\n     args: [\"--scripts-are-modules\"]",
+     "sha": "b3f26d678c93e11ed1cf3c1dbaa5897ce09ec481",
+     "status": "modified"
+    },
+    {
+     "additions": 6,
+     "deletions": 0,
+     "filename": "CHANGELOG.md",
+     "patch": "@@ -1,5 +1,11 @@\n # Changelog\n \n+## 2.4.0\n+\n+- Added\n+  - TOML v1.1.0 compatibility\n+  - Binary wheels for Windows arm64\n+\n ## 2.3.0\n \n - Added",
+     "sha": "2aff00cc58409d5762dea2c4596784e11dd17447",
+     "status": "modified"
+    },
+    {
+     "additions": 3,
+     "deletions": 2,
+     "filename": "README.md",
+     "patch": "@@ -32,7 +32,8 @@\n ## Intro<a name=\"intro\"></a>\n \n Tomli is a Python library for parsing [TOML](https://toml.io).\n-It is fully compatible with [TOML v1.0.0](https://toml.io/en/v1.0.0).\n+Version 2.4.0 and later are compatible with [TOML v1.1.0](https://toml.io/en/v1.1.0).\n+Older versions are [TOML v1.0.0](https://toml.io/en/v1.0.0) compatible.\n \n A version of Tomli, the `tomllib` module,\n was added to the standard library in Python 3.11\n@@ -159,7 +160,7 @@ tomllib.loads(\"['This parses fine with Python 3.6+']\")\n   2.1x as fast as [toml](https://pypi.org/project/toml/)\n - outputs [basic data types](#how-do-toml-types-map-into-python-types) only\n - 100% spec compliant: passes all tests in\n-  [BurntSushi/toml-test](https://github.com/BurntSushi/toml-test)\n+  [toml-lang/toml-test](https://github.com/toml-lang/toml-test)\n   test suite\n - thoroughly tested: 100% branch coverage\n ",
+     "sha": "69101c783108cae40090bdd0c87a7fff9bee25e6",
+     "status": "modified"
+    },
+    {
+     "additions": 6,
+     "deletions": 23,
+     "filename": "tests/burntsushi.py",
+     "patch": "@@ -7,17 +7,6 @@\n import datetime\n from typing import Any\n \n-# Aliases for converting TOML compliance format [1] to BurntSushi format [2]\n-# [1] https://github.com/toml-lang/compliance/blob/db7c3211fda30ff9ddb10292f4aeda7e2e10abc4/docs/json-encoding.md  # noqa: E501\n-# [2] https://github.com/BurntSushi/toml-test/blob/4634fdf3a6ecd6aaea5f4cdcd98b2733c2694993/README.md  # noqa: E501\n-_aliases = {\n-    \"boolean\": \"bool\",\n-    \"offset datetime\": \"datetime\",\n-    \"local datetime\": \"datetime-local\",\n-    \"local date\": \"date-local\",\n-    \"local time\": \"time-local\",\n-}\n-\n \n def convert(obj):\n     if isinstance(obj, str):\n@@ -53,31 +42,25 @@ def convert(obj):\n def normalize(obj: Any) -> Any:\n     \"\"\"Normalize test objects.\n \n-    This normalizes primitive values (e.g. floats), and also converts from\n-    TOML compliance format [1] to BurntSushi format [2].\n-\n-    [1] https://github.com/toml-lang/compliance/blob/db7c3211fda30ff9ddb10292f4aeda7e2e10abc4/docs/json-encoding.md  # noqa: E501\n-    [2] https://github.com/BurntSushi/toml-test/blob/4634fdf3a6ecd6aaea5f4cdcd98b2733c2694993/README.md  # noqa: E501\n-    \"\"\"\n+    This normalizes primitive values (e.g. floats).\"\"\"\n     if isinstance(obj, list):\n         return [normalize(item) for item in obj]\n     if isinstance(obj, dict):\n         if \"type\" in obj and \"value\" in obj:\n             type_ = obj[\"type\"]\n-            norm_type = _aliases.get(type_, type_)\n             value = obj[\"value\"]\n-            if norm_type == \"float\":\n+            if type_ == \"float\":\n                 norm_value = _normalize_float_str(value)\n-            elif norm_type in {\"datetime\", \"datetime-local\"}:\n+            elif type_ in {\"datetime\", \"datetime-local\"}:\n                 norm_value = _normalize_datetime_str(value)\n-            elif norm_type == \"time-local\":\n+            elif type_ == \"time-local\":\n                 norm_value = _normalize_localtime_str(value)\n             else:\n                 norm_value = value\n \n-            if norm_type == \"array\":\n+            if type_ == \"array\":\n                 return [normalize(item) for item in value]\n-            return {\"type\": norm_type, \"value\": norm_value}\n+            return {\"type\": type_, \"value\": norm_value}\n         return {k: normalize(v) for k, v in obj.items()}\n     raise AssertionError(\"Burntsushi fixtures should be dicts/lists only\")\n ",
+     "sha": "d8f38a1c2c5c92a1b1ce70430ee8f1a2035dd1eb",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

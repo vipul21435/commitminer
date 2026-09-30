@@ -1,0 +1,70 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/200/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"267676d61430662a633802948b3f9fc0399e5bff7b46a65cd38ea3a9e0895f80\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4783",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "217"
+   },
+   "json": [
+    {
+     "additions": 6,
+     "deletions": 4,
+     "filename": "src/tomli/_parser.py",
+     "patch": "@@ -532,7 +532,7 @@ def parse_inline_table(\n     nested_dict = NestedDict()\n     flags = Flags()\n \n-    pos = skip_chars(src, pos, TOML_WS)\n+    pos = skip_comments_and_array_ws(src, pos)\n     if src.startswith(\"}\", pos):\n         return pos + 1, nested_dict.dict\n     while True:\n@@ -547,16 +547,18 @@ def parse_inline_table(\n         if key_stem in nest:\n             raise TOMLDecodeError(f\"Duplicate inline table key {key_stem!r}\", src, pos)\n         nest[key_stem] = value\n-        pos = skip_chars(src, pos, TOML_WS)\n+        pos = skip_comments_and_array_ws(src, pos)\n         c = src[pos : pos + 1]\n         if c == \"}\":\n             return pos + 1, nested_dict.dict\n         if c != \",\":\n             raise TOMLDecodeError(\"Unclosed inline table\", src, pos)\n+        pos += 1\n+        pos = skip_comments_and_array_ws(src, pos)\n+        if src.startswith(\"}\", pos):\n+            return pos + 1, nested_dict.dict\n         if isinstance(value, (dict, list)):\n             flags.set(key, Flags.FROZEN, recursive=True)\n-        pos += 1\n-        pos = skip_chars(src, pos, TOML_WS)\n \n \n def parse_basic_str_escape(",
+     "sha": "11ef45335b26d9c2bddf287963a66c48f44f14c0",
+     "status": "modified"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/valid/inline-table/empty-inline-table.json",
+     "previous_filename": "tests/data/valid/empty-inline-table.json",
+     "sha": "2655cfd3ab0bcee9b1fa269cd0ee3137fb1daff9",
+     "status": "renamed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/valid/inline-table/empty-inline-table.toml",
+     "previous_filename": "tests/data/valid/empty-inline-table.toml",
+     "sha": "d2d15ab9e08ef177ba6e6574b45014d5e74d28ba",
+     "status": "renamed"
+    },
+    {
+     "additions": 35,
+     "deletions": 0,
+     "filename": "tests/data/valid/inline-table/multiline-inline-table.json",
+     "patch": "@@ -0,0 +1,35 @@\n+{\n+  \"multiline\": {\n+    \"a\": {\n+      \"type\": \"integer\",\n+      \"value\": \"1\"\n+    },\n+    \"b\": {\n+      \"type\": \"integer\",\n+      \"value\": \"2\"\n+    },\n+    \"c\": [\n+      {\n+        \"type\": \"integer\",\n+        \"value\": \"1\"\n+      },\n+      {\n+        \"type\": \"integer\",\n+        \"value\": \"2\"\n+      },\n+      {\n+        \"type\": \"integer\",\n+        \"value\": \"3\"\n+      }\n+    ],\n+    \"d\": {\n+      \"type\": \"integer\",\n+      \"value\": \"3\"\n+    },\n+    \"e\": {\n+      \"type\": \"integer\",\n+      \"value\": \"4\"\n+    },\n+    \"f\": {}\n+  }\n+}\n\\ No newline at end of file",
+     "sha": "d253884fbac9f0e2465e63c3e905eaf160da2c69",
+     "status": "added"
+    },
+    {
+     "additions": 12,
+     "deletions": 0,
+     "filename": "tests/data/valid/inline-table/multiline-inline-table.toml",
+     "patch": "@@ -0,0 +1,12 @@\n+multiline = {\n+  \"a\" = 1, \"b\" = 2,\n+  c = [\n+       1,\n+       2,\n+       3,\n+      ],# comment\n+  d = 3,\n+  e = 4, f = {\n+              # comment\n+             },\n+}",
+     "sha": "6a98a08a576a067ec0002ecb87eddb87b53dca1c",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 3,
+     "filename": "tests/test_data.py",
+     "patch": "@@ -46,10 +46,7 @@ def test_valid(self):\n                 # compatible with yet.\n                 if valid.stem in {\n                     \"no-seconds\",\n-                    \"newline\",\n-                    \"newline-comment\",\n                     \"hex-escape\",\n-                    \"common-47\",\n                     \"common-34\",\n                     \"common-31\",\n                     \"common-29\",",
+     "sha": "490ba51b63ac144b9bd492127f0e280577f69921",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

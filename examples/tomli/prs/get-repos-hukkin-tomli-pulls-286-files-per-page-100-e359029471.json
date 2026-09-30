@@ -1,0 +1,38 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/286/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"038baa02c7623f22df4cd90de09d5eb0a24d0a68e0cbccb1e4531245d9a5cdea\"",
+    "last-modified": "Mon, 28 Sep 2026 07:37:44 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4803",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "197"
+   },
+   "json": [
+    {
+     "additions": 11,
+     "deletions": 0,
+     "filename": "src/tomli/_parser.py",
+     "patch": "@@ -34,6 +34,13 @@\n # lower number than where mypyc binaries crash.\n MAX_INLINE_NESTING: Final = sys.getrecursionlimit()\n \n+# Pathologically excessive number of parts in a key runs into quadratic\n+# behavior (e.g. in Flags.is_).\n+# Even if keys aren't currently parsed using recursion, they name a\n+# recursive structure, so it makes sense to limit it using getrecursionlimit()\n+# and RecursionError.\n+MAX_KEY_PARTS: Final = sys.getrecursionlimit()\n+\n ASCII_CTRL: Final = frozenset(chr(i) for i in range(32)) | frozenset(chr(127))\n \n # Neither of these sets include quotation mark or backslash. They are\n@@ -475,6 +482,10 @@ def parse_key(src: str, pos: Pos) -> tuple[Pos, Key]:\n         pos = skip_chars(src, pos, TOML_WS)\n         pos, key_part = parse_key_part(src, pos)\n         key += (key_part,)\n+        if len(key) > MAX_KEY_PARTS:\n+            raise RecursionError(\n+                f\"TOML key has more than the allowed {MAX_KEY_PARTS} parts\"\n+            )\n         pos = skip_chars(src, pos, TOML_WS)\n \n ",
+     "sha": "41b06418805bdfe2b5fba390566aaa4d274f829e",
+     "status": "modified"
+    },
+    {
+     "additions": 17,
+     "deletions": 0,
+     "filename": "tests/test_misc.py",
+     "patch": "@@ -130,6 +130,23 @@ def test_inline_table_recursion_limit(self):\n         ):\n             tomllib.loads(recursive_table_toml)\n \n+    def test_key_recursion_limit(self):\n+        nest_count = 310\n+        nested_key_toml = \"a.\" * nest_count + \"a = 1\"\n+        tomllib.loads(nested_key_toml)\n+\n+        nest_count = sys.getrecursionlimit() - 2\n+        nested_key_toml = \"a.\" * nest_count + \"a = 1\"\n+        tomllib.loads(nested_key_toml)\n+\n+        nest_count = sys.getrecursionlimit() + 2\n+        nested_key_toml = \"a.\" * nest_count + \"a = 1\"\n+        with self.assertRaisesRegex(\n+            RecursionError,\n+            r\"TOML key has more than the allowed [0-9]+ parts\",\n+        ):\n+            tomllib.loads(nested_key_toml)\n+\n     def test_types_import(self):\n         \"\"\"Test that `_types` module runs.\n ",
+     "sha": "e5e56373f5865bf57989b519d5ce78fc4e0617bb",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

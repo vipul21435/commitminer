@@ -1,0 +1,57 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/295/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"60b9a8e2c3d7d0bc7437d1e261e0878dc520dc26e223633b4768f6ac759a9e5d\"",
+    "last-modified": "Thu, 10 Sep 2026 14:20:56 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4804",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "196"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Use Python 3.15 lazy import\n\nUse Python 3.15 lazy imports to only load regular expressions when\nneeded: to parse numbers, datetime or localtime."
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/f2de5bbced88057a8687b20232984f9fcfc8e981",
+     "sha": "f2de5bbced88057a8687b20232984f9fcfc8e981"
+    },
+    {
+     "commit": {
+      "message": "f-string is not needed in tests"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/9daeb3a602ebe15b1f845e1f01ef63cce8ca451e",
+     "sha": "9daeb3a602ebe15b1f845e1f01ef63cce8ca451e"
+    },
+    {
+     "commit": {
+      "message": "Apply suggestion from @hukkin"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/6c40f11b380936786172320b42917faacedc7491",
+     "sha": "6c40f11b380936786172320b42917faacedc7491"
+    },
+    {
+     "commit": {
+      "message": "Apply suggestion from @hukkin"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/abca98a894c4ec1e33e06db8266f767c4ae3ebc3",
+     "sha": "abca98a894c4ec1e33e06db8266f767c4ae3ebc3"
+    },
+    {
+     "commit": {
+      "message": "Apply suggestion from @hukkin"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/f34eac13403799bd0a083b221ca7503dd557a6f7",
+     "sha": "f34eac13403799bd0a083b221ca7503dd557a6f7"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

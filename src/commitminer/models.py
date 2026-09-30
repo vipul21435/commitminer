@@ -75,11 +75,38 @@ class FileChange:
 
 
 @dataclass(frozen=True, slots=True)
+class PullRequest:
+    """What GitHub says about a merged pull request, beyond its files.
+
+    ``linked_issues`` are the issues its description or commit messages close
+    with a closing keyword (``Fixes #12``): ``#12`` in the same repository,
+    ``owner/repo#12`` in another. ``base_sha`` is the base branch commit
+    GitHub reports for the pull request, the usual starting point of a task
+    built from it; ``merge_commit_sha`` is the commit that landed it.
+    """
+
+    number: int
+    url: str
+    title: str
+    merged_at: str
+    base_ref: str
+    base_sha: str
+    head_sha: str
+    merge_commit_sha: str | None
+    labels: tuple[str, ...] = ()
+    linked_issues: tuple[str, ...] = ()
+    commits: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class Commit:
     """One non-merge commit with its changed files.
 
     ``date`` is the author date in strict ISO 8601 (``%aI``), including the
     author's UTC offset. ``message`` is the raw commit message (``%B``).
+    A merged pull request is represented as one commit too: its merge commit
+    (or head) sha, the base sha as the only parent, the merge date, the title
+    and description as the message, and ``pull_request`` set.
     """
 
     sha: str
@@ -87,6 +114,7 @@ class Commit:
     date: str
     message: str
     files: tuple[FileChange, ...]
+    pull_request: PullRequest | None = None
 
     def _paragraphs(self) -> tuple[list[str], list[str]]:
         lines = self.message.strip("\n").splitlines()

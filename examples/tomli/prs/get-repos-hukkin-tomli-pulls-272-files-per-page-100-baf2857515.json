@@ -1,0 +1,30 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/272/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"e3beae7f73fa8709dc5b90173b3baeef7ee91b14942d7e908380bbdff3df89a2\"",
+    "last-modified": "Sat, 12 Sep 2026 06:30:06 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4776",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "224"
+   },
+   "json": [
+    {
+     "additions": 2,
+     "deletions": 2,
+     "filename": ".github/workflows/tests.yaml",
+     "patch": "@@ -82,11 +82,11 @@ jobs:\n         token: ${{ secrets.CODECOV_TOKEN }}\n \n   binary-wheels-standard:\n-    name: Binary wheels for ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-') && 'Windows' || endsWith(matrix.os, '-arm') && 'Linux ARM' || 'Linux' }}\n+    name: Binary wheels for ${{ startsWith(matrix.os, 'macos-') && 'macOS' || startsWith(matrix.os, 'windows-11-arm') && 'Windows (arm64)' || startsWith(matrix.os, 'windows-') && 'Windows' || endsWith(matrix.os, '-arm') && 'Linux (arm64)' || 'Linux' }}\n     runs-on: ${{ matrix.os }}\n     strategy:\n       matrix:\n-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest]\n+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-latest]\n \n     steps:\n     - uses: actions/checkout@v5",
+     "sha": "2a721f1d7571aabde085434aafdf93d501b43c22",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

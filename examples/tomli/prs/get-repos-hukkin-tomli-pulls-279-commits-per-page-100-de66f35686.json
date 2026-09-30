@@ -1,0 +1,57 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/279/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"4394bc52c9a26c03c6f1b747fdc36f3601552d28c8dcd2444edfab9427771b56\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4788",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "212"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Update README for v2.4.0"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/9423ef24f91d9b734bf3da8e27fad8a02b501615",
+     "sha": "9423ef24f91d9b734bf3da8e27fad8a02b501615"
+    },
+    {
+     "commit": {
+      "message": "Add 2.4.0 change log"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/06bee77e677a6b1a2c4b4555347e570ab9532b6a",
+     "sha": "06bee77e677a6b1a2c4b4555347e570ab9532b6a"
+    },
+    {
+     "commit": {
+      "message": "Update pre-commit hooks"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/2e54af9c7e36c6a912e2167b018c5afec2b31bb6",
+     "sha": "2e54af9c7e36c6a912e2167b018c5afec2b31bb6"
+    },
+    {
+     "commit": {
+      "message": "Update GitHub actions"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/4089258c2a175633335acfe897058a949d7c93e2",
+     "sha": "4089258c2a175633335acfe897058a949d7c93e2"
+    },
+    {
+     "commit": {
+      "message": "Tests: remove now needless \"TOML compliance\"->\"burntsushi\" format conversion"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/bdef6190ac71a21968057ccaeb6962443b36a8a5",
+     "sha": "bdef6190ac71a21968057ccaeb6962443b36a8a5"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

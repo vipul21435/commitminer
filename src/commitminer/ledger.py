@@ -500,8 +500,12 @@ class RankedProposal:
     proposal: Proposal
 
 
+READABLE_SCHEMAS: Final = (3, 4)
+"""Export schema versions whose candidates the ledger can read (4 only adds ``pull_request``)."""
+
+
 def read_candidates(path: Path) -> list[RankedProposal]:
-    """Read the candidates of a ``mine --out`` file (schema version 3)."""
+    """Read the candidates of a ``mine --out`` or ``prs --out`` file (schema version 3 or 4)."""
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -517,9 +521,9 @@ def read_candidates(path: Path) -> list[RankedProposal]:
             raise LedgerError(f"{where}: invalid JSON: {exc.msg}") from exc
         if not isinstance(record, dict):
             raise LedgerError(f"{where}: expected an object")
-        if record.get("schema_version") != 3:
+        if record.get("schema_version") not in READABLE_SCHEMAS:
             raise LedgerError(
-                f"{where}: schema_version {record.get('schema_version')!r}, expected 3 "
+                f"{where}: schema_version {record.get('schema_version')!r}, expected 3 or 4 "
                 "(mine the candidates again)"
             )
         rank = record.get("rank")

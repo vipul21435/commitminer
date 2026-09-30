@@ -1,0 +1,50 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/203/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"50fe5bea8d5eedc522e3489fdc93526aacdaefe0585c0cff4fea78c5ea91e6e6\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4786",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "214"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Make seconds optional in Date-Time and Time"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/1cde1dac7e8c0846143605d148a6687e4b682b3e",
+     "sha": "1cde1dac7e8c0846143605d148a6687e4b682b3e"
+    },
+    {
+     "commit": {
+      "message": "Merge branch 'master' into no-seconds"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/fa31aaa2d27e7940e2b85c90c2cf9fc7a5195d45",
+     "sha": "fa31aaa2d27e7940e2b85c90c2cf9fc7a5195d45"
+    },
+    {
+     "commit": {
+      "message": "Remove TOML v1.1 xfails"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/9ed97242c84dfc588de0b5d2915afa644cc098bf",
+     "sha": "9ed97242c84dfc588de0b5d2915afa644cc098bf"
+    },
+    {
+     "commit": {
+      "message": "Tests for omitting seconds"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/c47b51ed73319233d5043a3842d8cbb07a83da50",
+     "sha": "c47b51ed73319233d5043a3842d8cbb07a83da50"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

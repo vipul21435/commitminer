@@ -1,0 +1,30 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/265/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"01ce0ce69156a57796cffb0be0a6e05bd6f1f772470a7ea1c62fd4c54300a805\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4762",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "238"
+   },
+   "json": [
+    {
+     "additions": 1,
+     "deletions": 1,
+     "filename": ".github/workflows/tests.yaml",
+     "patch": "@@ -9,7 +9,7 @@ on:\n \n env:\n   CIBW_TEST_COMMAND: python -m unittest discover --start-directory {project}\n-  CIBW_SKIP: pp* cp38-* cp39-* cp310-*\n+  CIBW_SKIP: cp38-* cp39-* cp310-*\n   CIBW_ENVIRONMENT_PASS_LINUX: TOMLI_USE_MYPYC\n \n jobs:",
+     "sha": "ed9e32c0510e4fc238897610190d09a678acaed5",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

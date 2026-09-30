@@ -1,0 +1,817 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/278/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"d187eade7684dd7b19b04f0d4a3d93f3ee8069009582e36afd3b956a1a4f0099\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "link": "<https://api.github.com/repositories/370616797/pulls/278/files?per_page=100&page=2>; rel=\"next\", <https://api.github.com/repositories/370616797/pulls/278/files?per_page=100&page=14>; rel=\"last\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4781",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "219"
+   },
+   "json": [
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/array/no-close-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-x = [42 #",
+     "sha": "2f46123f5b747fd7ce594ff440c6a3266bf94087",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/array/no-close.toml",
+     "patch": "@@ -1 +0,0 @@\n-long_array = [ 1, 2, 3",
+     "sha": "032ebcc247f1a0e216b3a880c4bbd7cb06064c0c",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/bool/mixed-case.toml",
+     "patch": "@@ -1 +0,0 @@\n-valid = False",
+     "sha": "41d995a2d36bbf7c65ca9459a95f588d7a652a53",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/bool/wrong-case-false.toml",
+     "patch": "@@ -1 +0,0 @@\n-b = FALSE",
+     "sha": "398222098f840a3eb8e79e4f59b77bb553caf55c",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/bool/wrong-case-true.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = TRUE",
+     "sha": "85e34c5eb688d30e1e48adbfc0a12a3169524f8d",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/bare-null.toml",
+     "sha": "cf15002ae4e5866dc8a6aabc98730c9f4d6b5ee3",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/comment-cr.toml",
+     "patch": "@@ -1 +0,0 @@\n-comment-cr = \"Carriage return in comment\" # \ra=1",
+     "sha": "3ce1cb45f6dd3a5dfdcb3b5d08de40629440103a",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/comment-del.toml",
+     "patch": "@@ -1 +0,0 @@\n-comment-del = \"0x7f\" # \u007f",
+     "sha": "fb904007ccd434e64c1267de9dc3406f63335916",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/comment-lf.toml",
+     "patch": "@@ -1 +0,0 @@\n-comment-lf = \"ctrl-P\" # \u0010",
+     "sha": "f6e963e02646ac9d0923caa6809af8c7405eebb3",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/comment-null.toml",
+     "sha": "2c903729b9a0731eebedef6c551fe9ddb30ba882",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/comment-us.toml",
+     "patch": "@@ -1 +0,0 @@\n-comment-us = \"ctrl-_\" # \u001f",
+     "sha": "c685b798f6f66f17676d46f0750491f961be5843",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/control.multi",
+     "sha": "705b58ad4b87e284cae95f7abfd13aa3e9816a96",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/multi-del.toml",
+     "patch": "@@ -1 +0,0 @@\n-multi-del = \"\"\"null\u007f\"\"\"",
+     "sha": "6629ae3b0e3382abab9ec3aca96cb84618fc95c7",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/multi-lf.toml",
+     "patch": "@@ -1 +0,0 @@\n-multi-lf = \"\"\"null\u0010\"\"\"",
+     "sha": "f207d33f199aefcf813d4899549b1618b278ed54",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/multi-us.toml",
+     "patch": "@@ -1 +0,0 @@\n-multi-us = \"\"\"null\u001f\"\"\"",
+     "sha": "b923ca9e6f50a41612368aedd586b9e701291077",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/rawmulti-del.toml",
+     "patch": "@@ -1 +0,0 @@\n-rawmulti-del = '''null\u007f'''",
+     "sha": "17cde077854f03b301f7a5b78cf30853ad54a00d",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/rawmulti-lf.toml",
+     "patch": "@@ -1 +0,0 @@\n-rawmulti-lf = '''null\u0010'''",
+     "sha": "360d48987f1bae407c0bbef8bbb68bdb74296576",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/rawmulti-us.toml",
+     "patch": "@@ -1 +0,0 @@\n-rawmulti-us = '''null\u001f'''",
+     "sha": "025142071579eeb7034714b0ff26d7ecb868a828",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/rawstring-del.toml",
+     "patch": "@@ -1 +0,0 @@\n-rawstring-del = 'null\u007f'",
+     "sha": "8d83ba8e472460e1b2a707d5bc013c2b7e4cdbd3",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/rawstring-lf.toml",
+     "patch": "@@ -1 +0,0 @@\n-rawstring-lf = 'null\u0010'",
+     "sha": "237470ae6a2030538237a925e187a50f61eebac7",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/rawstring-us.toml",
+     "patch": "@@ -1 +0,0 @@\n-rawstring-us = 'null\u001f'",
+     "sha": "76cb08c0b1a9e3a18c01e72a6b506958ff4c13c2",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/string-bs.toml",
+     "patch": "@@ -1 +0,0 @@\n-string-bs = \"backspace\b\"",
+     "sha": "0061c485423932544efb7b5075731bc760622d91",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/string-del.toml",
+     "patch": "@@ -1 +0,0 @@\n-string-del = \"null\u007f\"",
+     "sha": "bc0ec7fb80312de6683feadcd4d20ce9240ac127",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/string-lf.toml",
+     "patch": "@@ -1 +0,0 @@\n-string-lf = \"null\u0010\"",
+     "sha": "0cf9218d7bf082de32795b5579eee685dcf35d99",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/control/string-us.toml",
+     "patch": "@@ -1 +0,0 @@\n-string-us = \"null\u001f\"",
+     "sha": "af31f57b95b69782f3e244087731aaa0c543d2ad",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 2,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/datetime/no-secs.toml",
+     "patch": "@@ -1,2 +0,0 @@\n-# No seconds in time.\n-no-secs = 1987-07-05T17:45Z",
+     "sha": "bbd196afe287ac8fef80b64b6dddedbcabd2dce8",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/double-point-1.toml",
+     "patch": "@@ -1 +0,0 @@\n-double-point-1 = 0..1",
+     "sha": "2105fa9beb2b986208bb21b9f47b28ff2afcafd6",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/double-point-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-double-point-2 = 0.1.2",
+     "sha": "1ef3d0b736b9ba2eb132289708b4f85165f56c51",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/exp-double-e-1.toml",
+     "patch": "@@ -1 +0,0 @@\n-exp-double-e-1 = 1ee2",
+     "sha": "ee568ce869510fd9ffb91f9b128b106243608e4b",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/exp-double-e-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-exp-double-e-2 = 1e2e3",
+     "sha": "8fb0158548d34625e305a0cc78d4da8021deb621",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/exp-point-1.toml",
+     "patch": "@@ -1 +0,0 @@\n-exp-point-1 = 1e2.3",
+     "sha": "569590bb8e254839091621fefaa14522d62088dc",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/exp-point-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-exp-point-2 = 1.e2",
+     "sha": "4a5e1d4dda2a7836d61569bdd5704678856f43e4",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/exp-trailing-us.toml",
+     "patch": "@@ -1 +0,0 @@\n-exp-trailing-us = 1e_23_",
+     "sha": "07c06413c5327d9c26d7cda4e7f5772991e19c43",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 40,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/float.multi",
+     "patch": "@@ -1,40 +0,0 @@\n-leading-zero = 03.14\n-leading-zero-neg = -03.14\n-leading-zero-plus = +03.14\n-\n-leading-point = .12345\n-leading-point-neg = -.12345\n-leading-point-plus = +.12345\n-\n-trailing-point = 1.\n-trailing-point-min = -1.\n-trailing-point-plus = +1.\n-\n-trailing-us = 1.2_\n-leading-us = _1.2\n-us-before-point = 1_.2\n-us-after-point = 1._2\n-\n-double-point-1 = 0..1\n-double-point-2 = 0.1.2\n-\n-exp-point-1 = 1e2.3\n-exp-point-2 = 1.e2\n-\n-exp-double-e-1 = 1ee2\n-exp-double-e-2 = 1e2e3\n-\n-exp-leading-us = 1e_23\n-exp-trailing-us = 1e_23_\n-exp-double-us = 1e__23\n-\n-inf-incomplete-1 = in\n-inf-incomplete-2 = +in\n-inf-incomplete-3 = -in\n-\n-nan-incomplete-1 = na\n-nan-incomplete-2 = +na\n-nan-incomplete-3 = -na\n-\n-nan_underscore = na_n\n-inf_underscore = in_f",
+     "sha": "0708195408c9f121764c3ed1ccd50641ceaba4f3",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/inf-incomplete-1.toml",
+     "patch": "@@ -1 +0,0 @@\n-inf-incomplete-1 = in",
+     "sha": "2c9ef598e6b0702a6d7bb4cbced95dfda8cb5caa",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/inf-incomplete-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-inf-incomplete-2 = +in",
+     "sha": "afda7123dc9fd6aa1b6c52b427e5af36da8b4a87",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/inf-incomplete-3.toml",
+     "patch": "@@ -1 +0,0 @@\n-inf-incomplete-3 = -in",
+     "sha": "bd8273866d9726271d04b493b723b80a07e84eaf",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/leading-point-neg.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-point-neg = -.12345",
+     "sha": "74c526fc2baacbae07d4a2056b222c640f3037a0",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/leading-point-plus.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-point-plus = +.12345",
+     "sha": "85e23a28245b24b5c933185aec3e97bc5431cab8",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/leading-point.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-point = .12345",
+     "sha": "a3c29b972c1087b88682bb8d59e0d15dec4946e2",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/nan-incomplete-1.toml",
+     "patch": "@@ -1 +0,0 @@\n-nan-incomplete-1 = na",
+     "sha": "df2e26135289ee5e6d59918a7693b83003a595c9",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/nan-incomplete-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-nan-incomplete-2 = +na",
+     "sha": "6d2e8fb7623207485ad263173e59820520e7ae7a",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/nan-incomplete-3.toml",
+     "patch": "@@ -1 +0,0 @@\n-nan-incomplete-3 = -na",
+     "sha": "9d365acf9ed3d0f9403c18c6c1f78befe912a6cf",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/trailing-point-min.toml",
+     "patch": "@@ -1 +0,0 @@\n-trailing-point-min = -1.",
+     "sha": "48741e3b1896c6808c27ac155b19edf37ade51d8",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/trailing-point-plus.toml",
+     "patch": "@@ -1 +0,0 @@\n-trailing-point-plus = +1.",
+     "sha": "99260390f772a952d1775003df78f20d16b6c9c0",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 4,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/trailing-us-exp.toml",
+     "patch": "@@ -1,4 +0,0 @@\n-# trailing underscore in integer part is not allowed\n-trailing-us-exp = 1_e2\n-# trailing underscore in float part is not allowed\n-trailing-us-exp2 = 1.2_e2",
+     "sha": "7bba9715476a5a26e63d7827f5a25e58812a4fd5",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/us-after-point.toml",
+     "patch": "@@ -1 +0,0 @@\n-us-after-point = 1._2",
+     "sha": "7f15f5709112da73eeb432c616c564720e4c45ec",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/float/us-before-point.toml",
+     "patch": "@@ -1 +0,0 @@\n-us-before-point = 1_.2",
+     "sha": "c8edcbf0ce42d054eb198d9764dbae606aacd337",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 4,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/inline-table/linebreak-1.toml",
+     "patch": "@@ -1,4 +0,0 @@\n-# No newlines are allowed between the curly braces unless they are valid within\n-# a value.\n-simple = { a = 1 \n-}",
+     "sha": "0ae44b63cec2b325653cb7a228e29f6344e0bce8",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 2,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/inline-table/linebreak-2.toml",
+     "patch": "@@ -1,2 +0,0 @@\n-t = {a=1,\n-b=2}",
+     "sha": "5ea4eaf5fb03e33aa77c976dc6e2e367724c4ba2",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 2,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/inline-table/linebreak-3.toml",
+     "patch": "@@ -1,2 +0,0 @@\n-t = {a=1\n-,b=2}",
+     "sha": "7f6e89249404ff4c82f72ed5e4d3bc9baade137f",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 4,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/inline-table/linebreak-4.toml",
+     "patch": "@@ -1,4 +0,0 @@\n-json_like = {\n-          first = \"Tom\",\n-          last = \"Preston-Werner\"\n-}",
+     "sha": "3f34e15c07216925adae9ec72f2e01e1b0c24fbf",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 3,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/inline-table/trailing-comma.toml",
+     "patch": "@@ -1,3 +0,0 @@\n-# A terminating comma (also called trailing comma) is not permitted after the\n-# last key/value pair in an inline table\n-abc = { abc = 123, }",
+     "sha": "6b67e02096c10895776a553e653f92f49e9c8290",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 41,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/integer.multi",
+     "patch": "@@ -1,41 +0,0 @@\n-leading-zero-1 = 01\n-leading-zero-2 = 00\n-leading-zero-3 = 0_0\n-leading-zero-sign-1 = -01\n-leading-zero-sign-2 = +01\n-leading-zero-sign-3 = +0_1\n-\n-double-sign-plus = ++99\n-double-sign-nex = --99\n-\n-negative-hex = -0xff\n-negative-bin = -0b11010110\n-negative-oct = -0o99\n-\n-positive-hex = +0xff\n-positive-bin = +0b11010110\n-positive-oct = +0o99\n-\n-trailing-us = 123_\n-leading-us = _123\n-double-us = 1__23\n-\n-us-after-hex = 0x_1\n-us-after-oct = 0o_1\n-us-after-bin = 0b_1\n-\n-trailing-us-hex = 0x1_\n-trailing-us-oct = 0o1_\n-trailing-us-bin = 0b1_\n-\n-leading-us-hex = _0o1\n-leading-us-oct = _0o1\n-leading-us-bin = _0o1\n-\n-invalid-hex = 0xaafz\n-invalid-oct = 0o778\n-invalid-bin = 0b0012\n-\n-capital-hex = 0X1\n-capital-oct = 0O0\n-capital-bin = 0B0",
+     "sha": "40ac4093e3a30a5c2366f36e1053ced80ade1f1e",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/invalid-hex.toml",
+     "patch": "@@ -1 +0,0 @@\n-invalid-hex = 0xaafz",
+     "sha": "7cc0e855e556cfe652daab868544dade497dc6b0",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/leading-us-bin.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-us-bin = _0o1",
+     "sha": "8885c031a8524c13fa3979f4c6f0186af0e254ee",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/leading-us-hex.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-us-hex = _0o1",
+     "sha": "9f193f80e9830a4af6d0b571a5c4ea8cb0df2e4d",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/leading-zero-1.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-zero-1 = 01",
+     "sha": "eba6bda313bf604b90c16472fe7e94e66146e618",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/leading-zero-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-zero-2 = 00",
+     "sha": "436af56527d611664808f28587617bf21dc4b6fd",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/leading-zero-3.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-zero-3 = 0_0",
+     "sha": "5404fc8adc5b79d43e8467c6a06ee48b03fe220e",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/leading-zero-sign-1.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-zero-sign-1 = -01",
+     "sha": "1f15a9da548eacd556be22d56280d71af1a10b16",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/leading-zero-sign-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-zero-sign-2 = +01",
+     "sha": "fa259c3cd352af373f4f216f54d5669690da09b9",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/leading-zero-sign-3.toml",
+     "patch": "@@ -1 +0,0 @@\n-leading-zero-sign-3 = +0_1",
+     "sha": "3ac64a5c3bb4353941cc4157b2c34d034e1d2b26",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/negative-oct.toml",
+     "patch": "@@ -1 +0,0 @@\n-negative-oct = -0o99",
+     "sha": "b0c5ab0da3de066d02f48ae889bf2bea6c2e2536",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/integer/positive-oct.toml",
+     "patch": "@@ -1 +0,0 @@\n-positive-oct = +0o99",
+     "sha": "d77aa5213e15e95dc03612d4e94c558312b0fae0",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 3,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/key/duplicate.toml",
+     "patch": "@@ -1,3 +0,0 @@\n-# DO NOT DO THIS\n-name = \"Tom\"\n-name = \"Pradyun\"",
+     "sha": "7847bd401dcc2a32801f71f2d65b7ab2c46cffe0",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 2,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/key/newline.toml",
+     "patch": "@@ -1,2 +0,0 @@\n-barekey\n-   = 123",
+     "sha": "24acaa1b1fc44a8802a5b1032f53a1c76cf8344c",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/string/bad-codepoint.toml",
+     "patch": "@@ -1 +0,0 @@\n-invalid-codepoint = \"This string contains a non scalar unicode codepoint \\uD801\"",
+     "sha": "592db75bb0c34c361e55429a7a77b4d9e63e3ab5",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/string/bad-uni-esc.toml",
+     "patch": "@@ -1 +0,0 @@\n-str = \"val\\ue\"",
+     "sha": "9eae4ab96e5fd5f89b3d6ba8fb6b260584536fb3",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/string/basic-byte-escapes.toml",
+     "patch": "@@ -1 +0,0 @@\n-answer = \"\\x33\"",
+     "sha": "e94452a8dfc882903934f2e086f50427af5266f8",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/string/multiline-quotes-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"\"\"6 quotes: \"\"\"\"\"\"",
+     "sha": "9f7a42b7775ba97d1bfedcba61af6412ed96b951",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 2,
+     "filename": "tests/data/invalid/_external/burntsushi/invalid/table/quoted-no-close.toml",
+     "patch": "@@ -1,2 +0,0 @@\n-[\"where will it end]\n-name = value",
+     "sha": "6e7c1a1ed3fa23c789a4be28d87482368e74dc8f",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 23,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/LICENSE",
+     "patch": "@@ -1,23 +0,0 @@\n-The MIT License\n-\n-Copyright (c) 2021 Pradyun Gedam and Contributors\n-\n-Permission is hereby granted, free of charge, to any person obtaining a copy\n-of this software and associated documentation files (the \"Software\"), to deal\n-in the Software without restriction, including without limitation the rights\n-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n-copies of the Software, and to permit persons to whom the Software is\n-furnished to do so, subject to the following conditions:\n-\n-The above copyright notice and this permission notice shall be included in\n-all copies or substantial portions of the Software.\n-\n-THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n-THE SOFTWARE.\n-\n-Portions of the Software include code copyright (c) Rebecca Turner.",
+     "sha": "cbcecb254b02117e6e683bd0f7d955c125aceda7",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 6,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/README.md",
+     "patch": "@@ -1,6 +0,0 @@\n-These test cases are copied from\n-https://github.com/pyrmont/toml-specs/tree/989fdfb02f6ca0a9e3b0a09b5e5f5283e02f1fa7\n-\n-There is an open PR (https://github.com/toml-lang/compliance/pull/8) to merge the tests into\n-https://github.com/toml-lang/compliance\n-after which we should sync the tests with that repository.",
+     "sha": "1c2f2e5312966d9456309d73265528d151b2a76f",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 4,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/array/array-of-tables-1.toml",
+     "patch": "@@ -1,4 +0,0 @@\n-# INVALID TOML DOC\n-fruit = []\n-\n-[[fruit]] # Not allowed",
+     "sha": "01d4d1381cd57a2542bd98548032fd4d7007bf10",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 10,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/array/array-of-tables-2.toml",
+     "patch": "@@ -1,10 +0,0 @@\n-# INVALID TOML DOC\n-[[fruit]]\n-  name = \"apple\"\n-\n-  [[fruit.variety]]\n-    name = \"red delicious\"\n-\n-  # This table conflicts with the previous table\n-  [fruit.variety]\n-    name = \"granny smith\"",
+     "sha": "a77b0e4d3ef42fcc6941c0c663fe8bfa731f8617",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/comment/comment-control-1.toml",
+     "sha": "1884b6d864502bb1ebe12a68c72944dcf0e0a87f",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/comment/comment-control-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"ctrl-P\" # \u0010",
+     "sha": "ed63dfce3d5725d17881ee88cda2b402b417bec2",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/comment/comment-control-3.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"ctrl-_\" # \u001f",
+     "sha": "9830b75b3cc22a41c6b0e46ce333da1657bc4736",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/comment/comment-control-4.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"0x7f\" # \u007f",
+     "sha": "f7fd9bb2501d0554744a6b3f8fba19494d8a3591",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/integer/int-0-padded.toml",
+     "patch": "@@ -1 +0,0 @@\n-int = 0123",
+     "sha": "74b40322a1a03669997ed8df70a5362229a0f039",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/integer/int-signed-bin.toml",
+     "patch": "@@ -1 +0,0 @@\n-bin = +0b10",
+     "sha": "f9397f1348819cbfe5e05526acdc579b7a69fc92",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/integer/int-signed-hex.toml",
+     "patch": "@@ -1 +0,0 @@\n-hex = +0xab",
+     "sha": "898b957c8df4fc7b34722986bab4d06009446ef3",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/integer/int-signed-oct.toml",
+     "patch": "@@ -1 +0,0 @@\n-oct = +0o23",
+     "sha": "e8219cd6af8228784681f9058fc8dad45a7452b4",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/key-value/bare-key-1.toml",
+     "patch": "@@ -1 +0,0 @@\n-bare!key = 123",
+     "sha": "e50dbe38894c9bdb25b5955e2d50ac2cec4e22ec",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 2,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/key-value/bare-key-2.toml",
+     "patch": "@@ -1,2 +0,0 @@\n-barekey\n-   = 123",
+     "sha": "24acaa1b1fc44a8802a5b1032f53a1c76cf8344c",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/key-value/bare-key-3.toml",
+     "patch": "@@ -1 +0,0 @@\n-barekey =",
+     "sha": "03d0e0d3966fa46eaa7dc9a696ca4c5ec137168e",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/key-value/key-value-pair-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-first = \"Tom\" last = \"Preston-Werner\" # INVALID",
+     "sha": "e05c47c231f3f3be4ee4d156e5480f7933b47980",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 8,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/key-value/multiple-dot-key.toml",
+     "patch": "@@ -1,8 +0,0 @@\n-# THE FOLLOWING IS INVALID\n-\n-# This defines the value of fruit.apple to be an integer.\n-fruit.apple = 1\n-\n-# But then this treats fruit.apple like it's a table.\n-# You can't turn an integer into a table.\n-fruit.apple.smooth = true",
+     "sha": "a6c5ea65e2209c767ba1ff85dbede0be2e4bc62f",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 3,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/key-value/multiple-key.toml",
+     "patch": "@@ -1,3 +0,0 @@\n-# DO NOT DO THIS\n-name = \"Tom\"\n-name = \"Pradyun\"",
+     "sha": "7847bd401dcc2a32801f71f2d65b7ab2c46cffe0",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/key-value/no-key-name.toml",
+     "patch": "@@ -1 +0,0 @@\n-= \"no key name\"  # INVALID",
+     "sha": "cd9fa90b2b33f37eeeb616705766fad10cda2657",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-control-1.toml",
+     "sha": "351f8c7df8bf9d0c19ec9b8d9f211a52a370c50d",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-control-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"ctrl-P\u0010\"",
+     "sha": "166e7ff23debb91445ed24f24f1a5cfdc1fb7d6a",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-control-3.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"ctrl-_\u001f\"",
+     "sha": "904751f35fc924a73c4cf34970e3f570aa315bf8",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-control-4.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"0x7f\u007f\"",
+     "sha": "f778604a2978d8715f071f5e348ece08bc4399de",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-multiline-control-1.toml",
+     "sha": "5b45dcd2e4165e032773a4249fcd15e000bcbed1",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-multiline-control-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"\"\"null\u0010\"\"\"",
+     "sha": "bb7eeb61841c83af3d86a16d2bbfdb8e365b36fa",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-multiline-control-3.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"\"\"null\u001f\"\"\"",
+     "sha": "45e378f535eac704baa713a9ef11b036daf10332",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-multiline-control-4.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"\"\"null\u007f\"\"\"",
+     "sha": "7d788a844c929b9d5b8f32b88f42d868f60684e5",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 3,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-multiline-invalid-backslash.toml",
+     "patch": "@@ -1,3 +0,0 @@\n-a = \"\"\"\n-  foo \\ \\n\n-  bar\"\"\"",
+     "sha": "13570d3b6a9a9a473a23a56af8228564f6ba06d9",
+     "status": "removed"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

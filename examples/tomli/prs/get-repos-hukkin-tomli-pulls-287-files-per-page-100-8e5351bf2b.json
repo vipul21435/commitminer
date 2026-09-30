@@ -1,0 +1,30 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/287/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"664955498a91ac08276aadefc5eef8fcf575fb3c5a2c7ad23f971d9aecd0b2bf\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4797",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "203"
+   },
+   "json": [
+    {
+     "additions": 10,
+     "deletions": 0,
+     "filename": "CHANGELOG.md",
+     "patch": "@@ -1,5 +1,15 @@\n # Changelog\n \n+## 2.3.1\n+\n+- Fixed\n+  - Backport: Limit number of parts of a TOML key to address quadratic time complexity\n+\n+## 2.4.1\n+\n+- Fixed\n+  - Limit number of parts of a TOML key to address quadratic time complexity\n+\n ## 2.4.0\n \n - Added",
+     "sha": "4c052b3022c2a2be42e297e6a1e188d9444eded1",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

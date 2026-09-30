@@ -1,5 +1,5 @@
 .PHONY: help install lint fmt typecheck test cov check demo demo-explain demo-classify \
-	demo-ledger rules-doc docker verify-recording
+	demo-ledger demo-prs record-prs rules-doc docker verify-recording
 
 UV ?= uv
 IMAGE ?= commitminer:local
@@ -66,6 +66,29 @@ demo-ledger: ## Claim upstream fixes, then mine a release branch and a fork agai
 		--ledger $(LEDGER)
 	$(UV) run commitminer ledger list $(LEDGER)
 
+PRS := examples/tomli/prs
+PRS_DEMO := $(WORK)/prs-demo
+PRS_ARGS := hukkin/tomli --limit 25 --replay $(PRS)
+
+demo-prs: ## Rank tomli's merged pull requests from recorded API responses (offline)
+	rm -rf $(PRS_DEMO)
+	$(UV) run commitminer prs $(PRS_ARGS) --cache-dir $(PRS_DEMO)/cache --top 10 --explain 1 \
+		--out out/tomli-prs.jsonl
+	@echo
+	@echo "Again with the same cache: every request is conditional and answered 304."
+	$(UV) run commitminer prs $(PRS_ARGS) --cache-dir $(PRS_DEMO)/cache --top 0 --explain 0
+	@echo
+	@echo "The same fixes mined from the commit history are already in a ledger:"
+	$(UV) run commitminer mine --history $(HISTORY) --top 0 --explain 0 \
+		--out $(PRS_DEMO)/commits.jsonl
+	$(UV) run commitminer ledger add $(PRS_DEMO)/ledger.sqlite3 $(PRS_DEMO)/commits.jsonl \
+		--owner demo > $(PRS_DEMO)/ledger-add.txt && tail -1 $(PRS_DEMO)/ledger-add.txt
+	$(UV) run commitminer prs $(PRS_ARGS) --ledger $(PRS_DEMO)/ledger.sqlite3 --top 0 --explain 0
+
+record-prs: ## Re-record the pull-request fixtures from GitHub (network; GITHUB_TOKEN optional)
+	rm -f $(PRS)/*.json
+	$(UV) run commitminer prs hukkin/tomli --limit 25 --record $(PRS) --top 0 --explain 0
+
 rules-doc: ## Regenerate the rule table in docs/rules.md
 	{ sed '/^| # | rule |/,$$d' docs/rules.md; $(UV) run commitminer rules --markdown; } \
 		> docs/rules.md.tmp && mv docs/rules.md.tmp docs/rules.md
@@ -73,6 +96,7 @@ rules-doc: ## Regenerate the rule table in docs/rules.md
 docker: ## Build the image, run the demo in it, prune this project's dangling images
 	docker build -t $(IMAGE) .
 	docker run --rm $(IMAGE) mine --history $(HISTORY) --top 5 --explain 1
+	docker run --rm --network none $(IMAGE) prs $(PRS_ARGS) --top 5 --explain 0
 	docker image prune -f --filter label=project=commitminer
 
 verify-recording: ## Re-record tomli from GitHub and compare with the bundled file (network)

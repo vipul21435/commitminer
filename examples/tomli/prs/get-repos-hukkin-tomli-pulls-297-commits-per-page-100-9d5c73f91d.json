@@ -1,0 +1,29 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/297/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"1c16e11ae697c1eb2f95e2b5b12f27bddbffb3774b34fed780aa2917f87938ed\"",
+    "last-modified": "Thu, 10 Sep 2026 14:20:56 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4808",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "192"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Use frozendict on Python 3.15\n\nOn Python 3.15, use the new built-in type frozendict, instead of\ntypes.MappingProxyType, for BASIC_STR_ESCAPE_REPLACEMENTS constant."
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/a83c904f2f922eb0e7e6a23edb40541aca52373e",
+     "sha": "a83c904f2f922eb0e7e6a23edb40541aca52373e"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

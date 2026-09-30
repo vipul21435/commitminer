@@ -1,0 +1,43 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/286/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"b6ae9e0eb0a5d2fb1010a8163e02779c27df3104e2275e67bb5e814ef7f2233a\"",
+    "last-modified": "Mon, 28 Sep 2026 07:37:44 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4802",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "198"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Limit number of parts of a key\n\ntomli has quadratic time complexity when handling parts of a key\n(via Flags.is_ calls in key_value_rule's loop, and maybe elsewhere).\nThis isn't a problem unless a document has an excessive number (10_000-ish)\nof parts in a key. Limiting input seems like the best fix here.\n\n`sys.getrecursionlimit` and `RecursionError` is already (and in the non-mypyc\nversion, implicitly) used for `MAX_INLINE_NESTING`.\nKeys aren't parsed recursively, but that's an implementation detail;\n`RecursionError` works nicely for names recursive structures."
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/c1783fb79e31efe203a0f6d92d5f045533808690",
+     "sha": "c1783fb79e31efe203a0f6d92d5f045533808690"
+    },
+    {
+     "commit": {
+      "message": "[pre-commit.ci] auto fixes from pre-commit.com hooks\n\nfor more information, see https://pre-commit.ci"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/cd99a106d6706c97eeec5f38b59ef45fb99e7810",
+     "sha": "cd99a106d6706c97eeec5f38b59ef45fb99e7810"
+    },
+    {
+     "commit": {
+      "message": "Apply suggestion from @hukkin"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/490e6bb2c07f85a97f0cddf48539154703c8e765",
+     "sha": "490e6bb2c07f85a97f0cddf48539154703c8e765"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

@@ -1,0 +1,57 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/276/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"c017a6d765cb3c353febc5296cb95d0df67ab1e198db467ce0db2cd85dfb7d3d\"",
+    "last-modified": "Sun, 27 Sep 2026 11:59:49 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4773",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "227"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Test with supported PyPy3.11"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/87b84615cd218964936eba4652fa7f0265d026f1",
+     "sha": "87b84615cd218964936eba4652fa7f0265d026f1"
+    },
+    {
+     "commit": {
+      "message": "Build ARM wheels on ARM hardware"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/5ac2a6641e068cfe103f8d7c6b7abaf6338d1928",
+     "sha": "5ac2a6641e068cfe103f8d7c6b7abaf6338d1928"
+    },
+    {
+     "commit": {
+      "message": "Enable colour logs and hide pip upgrade warning"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/1e757cddd23a9e4607203d0380080fd0ec6b0b5a",
+     "sha": "1e757cddd23a9e4607203d0380080fd0ec6b0b5a"
+    },
+    {
+     "commit": {
+      "message": "Combine binary-wheels-arm into binary-wheels-standard"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/f29970b8e40dfc56be42f1621a619fdeddb67a03",
+     "sha": "f29970b8e40dfc56be42f1621a619fdeddb67a03"
+    },
+    {
+     "commit": {
+      "message": "Update matrix name"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/5e048b128a832c7e00b5de07ee97679463df80f7",
+     "sha": "5e048b128a832c7e00b5de07ee97679463df80f7"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

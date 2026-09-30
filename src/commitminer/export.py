@@ -11,11 +11,11 @@ from typing import Any
 from commitminer.classify import Category
 from commitminer.fingerprint import FINGERPRINT_VERSION, Fingerprint
 from commitminer.ledger import Status, Verdict, ledger_verdict_to_json
-from commitminer.models import PatchStats
+from commitminer.models import Commit, PatchStats, PullRequest
 from commitminer.scoring import Candidate, Feature, MineResult
 from commitminer.stats import ClassifiedFile
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 """Version of the per-candidate JSON object; bumped on incompatible changes.
 
 2: ``added_assertions`` score feature, ``difficulty``, per-file ``patch``, and
@@ -23,6 +23,9 @@ inline Rust test lines counted as test lines in ``lines``.
 3: ``fingerprint`` (version, patch hash and sorted hunk hashes of the source
 and test changes, or ``null``) and ``ledger`` (the dedupe verdict when mined
 with ``--ledger``, else ``null``).
+4: ``pull_request`` (number, URL, labels, linked issues, base, head and merge
+commit shas, commits) for candidates mined with ``commitminer prs``, else
+``null``.
 """
 
 
@@ -66,6 +69,25 @@ def file_to_json(item: ClassifiedFile) -> dict[str, Any]:
     if item.change.patch is not None:
         record["patch"] = patch_to_json(item.change.patch)
     return record
+
+
+def pull_request_to_json(pull: PullRequest | None) -> dict[str, Any] | None:
+    """The ``pull_request`` object of the export, or ``None`` for a plain commit."""
+    if pull is None:
+        return None
+    return {
+        "number": pull.number,
+        "url": pull.url,
+        "title": pull.title,
+        "merged_at": pull.merged_at,
+        "base_ref": pull.base_ref,
+        "base_sha": pull.base_sha,
+        "head_sha": pull.head_sha,
+        "merge_commit_sha": pull.merge_commit_sha,
+        "labels": list(pull.labels),
+        "linked_issues": list(pull.linked_issues),
+        "commits": list(pull.commits),
+    }
 
 
 def fingerprint_to_json(value: Fingerprint | None) -> dict[str, Any] | None:
@@ -112,6 +134,7 @@ def candidate_to_json(
         "files": [file_to_json(item) for item in stats.files],
         "fingerprint": fingerprint_to_json(candidate.fingerprint),
         "ledger": None if verdict is None else ledger_verdict_to_json(verdict),
+        "pull_request": pull_request_to_json(commit.pull_request),
     }
 
 
@@ -153,6 +176,13 @@ def _ascii(text: str) -> str:
     return text.encode("ascii", "replace").decode("ascii")
 
 
+def reference(commit: Commit) -> str:
+    """How tables name a commit: ``#123`` for a pull request, else the first 10 sha digits."""
+    if commit.pull_request is not None:
+        return f"#{commit.pull_request.number}"
+    return commit.sha[:10]
+
+
 def _clip(text: str, width: int) -> str:
     text = _ascii(text)
     return text if len(text) <= width else text[: width - 3] + "..."
@@ -163,10 +193,10 @@ def _counts(counts: dict[str, int]) -> str:
     return f" ({text})" if text else ""
 
 
-def render_summary(result: MineResult, repo: str) -> str:
-    """One line: commits walked, candidates (by band) and rejections (by reason)."""
+def render_summary(result: MineResult, repo: str, unit: str = "commits") -> str:
+    """One line: commits (or pull requests) walked, candidates by band, rejections by reason."""
     return (
-        f"{_ascii(repo)}: walked {result.walked} commits, "
+        f"{_ascii(repo)}: walked {result.walked} {unit}, "
         f"{len(result.candidates)} candidates{_counts(result.bands())}, "
         f"{len(result.rejections)} rejected{_counts(result.rejected_by_reason())}"
     )
@@ -195,7 +225,9 @@ def render_table(
     candidate's ledger status.
     """
     marks = _verdicts(result, verdicts)
-    header = f"{'rank':>4}  {'score':>6}  {'diff':>11}  {'sha':<10}  {'date':<10}  "
+    pulls = any(c.commit.pull_request is not None for c in result.candidates)
+    header = f"{'rank':>4}  {'score':>6}  {'diff':>11}  {'pull' if pulls else 'sha':<10}  "
+    header += f"{'date':<10}  "
     header += f"{'lines':>5}  {'src':>3}  {'test':>4}  "
     if verdicts is not None:
         header += f"{'ledger':<7}  "
@@ -211,7 +243,7 @@ def render_table(
         band = f"{c.difficulty.value:.2f} {c.difficulty.band}"
         ledger = "" if verdict is None else f"{_LEDGER_LABELS[verdict.status]:<7}  "
         rows.append(
-            f"{rank:>4}  {c.score:>6.2f}  {band:>11}  {c.commit.sha[:10]:<10}  "
+            f"{rank:>4}  {c.score:>6.2f}  {band:>11}  {reference(c.commit):<10}  "
             f"{c.commit.date[:10]:<10}  {c.stats.changed_lines:>5}  "
             f"{len(c.stats.source_files):>3}  {tests:>4}  {ledger}"
             f"{_clip(c.commit.subject, subject_width)}"
@@ -234,7 +266,7 @@ def render_ledger(
     ):
         if verdict.status is not Status.NEW:
             rows.append(
-                f"  #{rank} {candidate.commit.sha[:10]} "
+                f"  #{rank} {reference(candidate.commit)} "
                 f"{_ascii(verdict.describe(candidate.commit.sha))}"
             )
     return "\n".join(rows)
@@ -261,7 +293,7 @@ def render_explanation(candidate: Candidate, rank: int | None = None) -> str:
     where = f"#{rank} " if rank is not None else ""
     level = candidate.difficulty
     rows = [
-        f"{where}{candidate.commit.sha[:10]} score {candidate.score:.2f}, "
+        f"{where}{reference(candidate.commit)} score {candidate.score:.2f}, "
         f"difficulty {level.value:.2f} ({level.band}): {_clip(candidate.commit.subject, 60)}",
         *render_features("score", candidate.features, candidate.score),
         *render_features("difficulty", level.features, level.value),

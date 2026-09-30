@@ -152,6 +152,89 @@ def parse_patch(text: bytes) -> list[FilePatch]:
     return patches
 
 
+_TEXT_HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
+
+
+class _Runs:
+    """Collects the runs of deleted and added lines of a unified diff as hunks."""
+
+    def __init__(self) -> None:
+        self.hunks: list[Hunk] = []
+        self.deleted: list[str] = []
+        self.added: list[str] = []
+        self.start = (0, 0)
+
+    def begin(self, old: int, new: int) -> None:
+        if not self.deleted and not self.added:
+            self.start = (old, new)
+
+    def flush(self) -> None:
+        if self.deleted or self.added:
+            old, new = self.start
+            # git numbers an empty side by the line before it, as in "@@ -2,0 +3 @@".
+            self.hunks.append(
+                Hunk(
+                    old if self.deleted else old - 1,
+                    new if self.added else new - 1,
+                    tuple(self.deleted),
+                    tuple(self.added),
+                )
+            )
+            self.deleted, self.added = [], []
+
+
+def hunks_from_unified(text: str) -> tuple[Hunk, ...]:
+    """Split a unified diff with context lines into ``--unified=0`` hunks.
+
+    GitHub lists a pull request's files with a patch of three context lines.
+    Every run of deleted and added lines between context lines becomes one
+    hunk, numbered the way ``git diff --unified=0`` numbers it, so the result
+    can be measured like the walker's patches. Each hunk header's line counts
+    are checked.
+    """
+    runs = _Runs()
+    old_no = new_no = old_left = new_left = 0
+    for line in text.split("\n"):
+        if line.startswith("\\"):
+            continue  # "\ No newline at end of file"
+        if old_left == 0 and new_left == 0:
+            if not line:
+                continue
+            match = _TEXT_HUNK.match(line)
+            if match is None:
+                raise PatchError(f"expected a hunk header, got {line[:60]!r}")
+            runs.flush()
+            old_left = 1 if match.group(2) is None else int(match.group(2))
+            new_left = 1 if match.group(4) is None else int(match.group(4))
+            # An empty range starts at the line before it.
+            old_no = int(match.group(1)) + (0 if old_left else 1)
+            new_no = int(match.group(3)) + (0 if new_left else 1)
+            continue
+        tag, body = line[:1], line[1:]
+        if tag == "-":
+            if runs.added:
+                runs.flush()
+            runs.begin(old_no, new_no)
+            runs.deleted.append(body.removesuffix("\r"))
+            old_no, old_left = old_no + 1, old_left - 1
+        elif tag == "+":
+            runs.begin(old_no, new_no)
+            runs.added.append(body.removesuffix("\r"))
+            new_no, new_left = new_no + 1, new_left - 1
+        elif tag in (" ", ""):
+            runs.flush()
+            old_no, new_no = old_no + 1, new_no + 1
+            old_left, new_left = old_left - 1, new_left - 1
+        else:
+            raise PatchError(f"unexpected line in a hunk: {line[:60]!r}")
+        if old_left < 0 or new_left < 0:
+            raise PatchError("a hunk has more lines than its header says")
+    if old_left or new_left:
+        raise PatchError("the patch ends inside a hunk")
+    runs.flush()
+    return tuple(runs.hunks)
+
+
 @dataclass(frozen=True, slots=True)
 class Syntax:
     """What :func:`analyze` needs to know about one language."""

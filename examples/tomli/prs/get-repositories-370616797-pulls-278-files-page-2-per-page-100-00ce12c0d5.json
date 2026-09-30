@@ -1,0 +1,818 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repositories/370616797/pulls/278/files?page=2&per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"2b9647e995ea80096ecf20c424d5724f91f3a360ff6f3e4749ec6e34b6b3f97a\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "link": "<https://api.github.com/repositories/370616797/pulls/278/files?per_page=100&page=1>; rel=\"prev\", <https://api.github.com/repositories/370616797/pulls/278/files?per_page=100&page=3>; rel=\"next\", <https://api.github.com/repositories/370616797/pulls/278/files?per_page=100&page=14>; rel=\"last\", <https://api.github.com/repositories/370616797/pulls/278/files?per_page=100&page=1>; rel=\"first\"",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4780",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "220"
+   },
+   "json": [
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-multiline-out-of-range-unicode-escape-1.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"\"\"\\UFFFFFFFF\"\"\"",
+     "sha": "b27e203c748a92e759e0744f45e924857368eee0",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-multiline-out-of-range-unicode-escape-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"\"\"\\U00D80000\"\"\"",
+     "sha": "17a9361b3fd7c1f04cba6e72d98aa63bbc8c18d4",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-multiline-quotes.toml",
+     "patch": "@@ -1 +0,0 @@\n-str5 = \"\"\"Here are three quotation marks: \"\"\".\"\"\"",
+     "sha": "02ebf13a0c8ce48f5268396c5b480c417a29922c",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-multiline-unknown-escape.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"\"\"\\@\"\"\"",
+     "sha": "35c5cc5ea75c771c2699848c657d339144437721",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-out-of-range-unicode-escape-1.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"\\UFFFFFFFF\"",
+     "sha": "ada1f557ff9c119ad0031ce9d50400a7a665f1b3",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-out-of-range-unicode-escape-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"\\U00D80000\"",
+     "sha": "d4833b3dbbbc558cc0275dc5b074725dc3350f34",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-basic-unknown-escape.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = \"\\@\"",
+     "sha": "381dd858c1573c4f2d95b58789ca6ea0836f5c91",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-literal-control-1.toml",
+     "sha": "337fdc4d44fa2ba83d4c68c2533b280eb61d03d2",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-literal-control-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = 'null\u0010'",
+     "sha": "a09c908d35f8f7dc93f99c6dd12c2c45d035703f",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-literal-control-3.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = 'null\u001f'",
+     "sha": "74697de84680f2c3f3b1cfc4227e8a6ebcbe303e",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-literal-control-4.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = 'null\u007f'",
+     "sha": "6c116378990a04a68f4635c28ee3e95a6b0315c3",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-literal-multiline-control-1.toml",
+     "sha": "8510285b3a97583867499d9ac8772adc0141802e",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-literal-multiline-control-2.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = '''null\u0010'''",
+     "sha": "9c02f11baf130288b67931e5fe9494ebd7272f10",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-literal-multiline-control-4.toml",
+     "patch": "@@ -1 +0,0 @@\n-a = '''null\u007f'''",
+     "sha": "da40ffc75df08be5aa9dc0b74427600d498b9950",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/string/string-literal-multiline-quotes.toml",
+     "patch": "@@ -1 +0,0 @@\n-apos15 = '''Here are fifteen apostrophes: ''''''''''''''''''  # INVALID",
+     "sha": "4b97a2a6f5abaf9af01b28c716dab510f3586ffc",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 1,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/table/inline-table-trailing-comma.toml",
+     "patch": "@@ -1 +0,0 @@\n-abc = { abc = 123, }",
+     "sha": "59618e1a7b64a21e0cae6d1ba80a90754fc13018",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 7,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/table/table-1.toml",
+     "patch": "@@ -1,7 +0,0 @@\n-# DO NOT DO THIS\n-\n-[fruit]\n-apple = \"red\"\n-\n-[fruit]\n-orange = \"orange\"",
+     "sha": "0704ba7fb06a5c099e609158ee9251ec8f75703d",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 7,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/table/table-2.toml",
+     "patch": "@@ -1,7 +0,0 @@\n-# DO NOT DO THIS EITHER\n-\n-[fruit]\n-apple = \"red\"\n-\n-[fruit.apple]\n-texture = \"smooth\"",
+     "sha": "e58bf8eb75e10100a36118e4ff60a082ef519a1c",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 5,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/table/table-3.toml",
+     "patch": "@@ -1,5 +0,0 @@\n-[fruit]\n-apple.color = \"red\"\n-apple.taste.sweet = true\n-\n-[fruit.apple]  # INVALID",
+     "sha": "9eac5f6bd90e54526975bc900b271f05aefdd809",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 5,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/table/table-4.toml",
+     "patch": "@@ -1,5 +0,0 @@\n-[fruit]\n-apple.color = \"red\"\n-apple.taste.sweet = true\n-\n-[fruit.apple.taste]  # INVALID",
+     "sha": "43dfb394b2fc5cdc3fb48c9ce9d6f46a364227f6",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 7,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/table/table-invalid-1.toml",
+     "patch": "@@ -1,7 +0,0 @@\n-[fruit.physical]  # subtable, but to which parent element should it belong?\n-  color = \"red\"\n-  shape = \"round\"\n-\n-[[fruit]]  # parser must throw an error upon discovering that \"fruit\" is\n-           # an array rather than a table\n-  name = \"apple\"",
+     "sha": "7609d79a6ca439f9daa46f9ead5f9f3387c50c01",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 4,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/table/table-invalid-2.toml",
+     "patch": "@@ -1,4 +0,0 @@\n-# INVALID TOML DOC\n-fruit = []\n-\n-[[fruit]] # Not allowed",
+     "sha": "01d4d1381cd57a2542bd98548032fd4d7007bf10",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 14,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/table/table-invalid-3.toml",
+     "patch": "@@ -1,14 +0,0 @@\n-# INVALID TOML DOC\n-[[fruit]]\n-  name = \"apple\"\n-\n-  [[fruit.variety]]\n-    name = \"red delicious\"\n-\n-  # INVALID: This table conflicts with the previous array of tables\n-  [fruit.variety]\n-    name = \"granny smith\"\n-\n-  [fruit.physical]\n-    color = \"red\"\n-    shape = \"round\"",
+     "sha": "792cbd1c3f0f6ee883b861b5d49adc3dbc82256b",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 14,
+     "filename": "tests/data/invalid/_external/toml-lang-compliance/invalid/table/table-invalid-4.toml",
+     "patch": "@@ -1,14 +0,0 @@\n-# INVALID TOML DOC\n-[[fruit]]\n-  name = \"apple\"\n-\n-  [[fruit.variety]]\n-    name = \"red delicious\"\n-\n-  [fruit.physical]\n-    color = \"red\"\n-    shape = \"round\"\n-\n-  # INVALID: This array of tables conflicts with the previous table\n-  [[fruit.physical]]\n-    color = \"green\"",
+     "sha": "3ba51fbbd9e25a0b49314cd390b04ffee5bcc321",
+     "status": "removed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/LICENSE",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/COPYING",
+     "sha": "93b22020a83d8a03c300bbaf965ceacc7c00f926",
+     "status": "renamed"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/double-comma-01.toml",
+     "patch": "@@ -0,0 +1 @@\n+double-comma-01 = [1,,2]",
+     "sha": "581710a512be15ed8f7eb77dae2f49b9f94a82d6",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/double-comma-02.toml",
+     "patch": "@@ -0,0 +1 @@\n+double-comma-02 = [1,2,,]",
+     "sha": "2fccf269cd88cd7422108034ab024fd252128532",
+     "status": "added"
+    },
+    {
+     "additions": 3,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/extend-defined-aot.toml",
+     "patch": "@@ -0,0 +1,3 @@\n+[[tab.arr]]\n+[tab]\n+arr.val1=1",
+     "sha": "1c3c34b8571fa58ca31d741440b9921b7c7c8eb6",
+     "status": "added"
+    },
+    {
+     "additions": 6,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/extending-table.toml",
+     "patch": "@@ -0,0 +1,6 @@\n+a = [{ b = 1 }]\n+\n+# Cannot extend tables within static arrays\n+# https://github.com/toml-lang/toml/issues/908\n+[a.c]\n+foo = 1",
+     "sha": "a6b7ce4b05b77609e7c4fb1ceca8b9d176a4284c",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/missing-separator-01.toml",
+     "patch": "@@ -0,0 +1 @@\n+arrr = [true false]",
+     "sha": "9431d907995706cecb64f74e5a94bea8156d5a41",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/missing-separator-02.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/array/missing-separator.toml",
+     "sha": "ab3791afa638ab52feedbfaeb7f621b014b6cf35",
+     "status": "renamed"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-close-01.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-close-01 = [ 1, 2, 3",
+     "sha": "151607371298457f1d6c06758b9259da9e4f7c43",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-close-02.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-close-02 = [1,",
+     "sha": "d971094ceacc923f72b16bece69ffc89c6e1f81a",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-close-03.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-close-03 = [42 #]",
+     "sha": "c1a15db3ae974f4389ad3ae87cf7ba0a9aa37039",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-close-04.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-close-04 = [{ key = 42",
+     "sha": "69976c14e2e8f67836aaec6e83743932d177da79",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-close-05.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-close-05 = [{ key = 42}",
+     "sha": "b8cdd01364d47d205ca82de94fa5e3601b9f3cdf",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-close-06.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-close-06 = [{ key = 42 #}]",
+     "sha": "48a4fec41bda9af55691dab6f7ce707bbd2ed202",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-close-07.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-close-07 = [{ key = 42} #]",
+     "sha": "e7159e722481d8b2e919185d6a49dd50e720d8af",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-close-08.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-close-08 = [",
+     "sha": "7dcdedeb074fe233e2a291d9e1f35c24ad9804e5",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-close-table-01.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/array/no-close-table.toml",
+     "sha": "7b077beb29d080b2e6764fd31139c48e6a0c0289",
+     "status": "renamed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-close-table-02.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/array/no-close-table-2.toml",
+     "sha": "827c1284291482461133c563deaa056edde4f7ab",
+     "status": "renamed"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-comma-01.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-comma-01 = [true false]",
+     "sha": "88b69fd318a7fa5875db37c2fc9147f1e5aa2287",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-comma-02.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-comma-02 = [ 1 2 3 ]",
+     "sha": "a5e6002745c94808f8381887e2faf0618b1481fe",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/no-comma-03.toml",
+     "patch": "@@ -0,0 +1 @@\n+no-comma-03 = [ 1 #,]",
+     "sha": "51124a5083fe5c9a775d6cb36f360956f0992c5f",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/only-comma-01.toml",
+     "patch": "@@ -0,0 +1 @@\n+only-comma-01 = [,]",
+     "sha": "2d85110f865dbca5ef5913c914a1591add9106ed",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/only-comma-02.toml",
+     "patch": "@@ -0,0 +1 @@\n+only-comma-02 = [,,]",
+     "sha": "b9f7979b79083f75ab7a9beab58c227b74e0f952",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/tables-01.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/array/tables-1.toml",
+     "sha": "01d4d1381cd57a2542bd98548032fd4d7007bf10",
+     "status": "renamed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/tables-02.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/array/tables-2.toml",
+     "sha": "a77b0e4d3ef42fcc6941c0c663fe8bfa731f8617",
+     "status": "renamed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/text-after-array-entries.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/array/text-after-array-entries.toml",
+     "sha": "1a7289074ed131de598a6a296121779e2102615d",
+     "status": "renamed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/text-before-array-separator.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/array/text-before-array-separator.toml",
+     "sha": "9b06a392410634906e1dabd7487ffa3acc40f747",
+     "status": "renamed"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/array/text-in-array.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/array/text-in-array.toml",
+     "sha": "a6a6c42075e24c483c568e6c4e7b07368b3f5e2c",
+     "status": "renamed"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/almost-false-with-extra.toml",
+     "patch": "@@ -0,0 +1 @@\n+almost-false-with-extra = falsify",
+     "sha": "1f04108209eb3636911747e8e1bb41af92ab3e24",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/almost-false.toml",
+     "patch": "@@ -0,0 +1 @@\n+almost-false            = fals",
+     "sha": "34a71f50284083be60d896d6d2efc6e5ef394d40",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/almost-true-with-extra.toml",
+     "patch": "@@ -0,0 +1 @@\n+almost-true-with-extra  = truthy",
+     "sha": "218838a73e4c44a0abe1a23d9bfcdf840f4061e8",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/almost-true.toml",
+     "patch": "@@ -0,0 +1 @@\n+almost-true             = tru",
+     "sha": "9146eccf3b0a335118a8c418663d47ab018a4903",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/capitalized-false.toml",
+     "patch": "@@ -0,0 +1 @@\n+capitalized-false        = False",
+     "sha": "a8217fa77a59a6ffe8b530bc76ccaeae8493c42c",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/capitalized-true.toml",
+     "patch": "@@ -0,0 +1 @@\n+capitalized-true         = True",
+     "sha": "99cbcbc781713033d2a387c9858783c4761ecd46",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/just-f.toml",
+     "patch": "@@ -0,0 +1 @@\n+just-f                  = f",
+     "sha": "4c2af49062c9a793df70ae3b762ca37039a9e66c",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/just-t.toml",
+     "patch": "@@ -0,0 +1 @@\n+just-t                  = t",
+     "sha": "66e4c4745f5c16be68c622ddbd8866ada051d5d9",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/mixed-case-false.toml",
+     "patch": "@@ -0,0 +1 @@\n+mixed-case-false        = falsE",
+     "sha": "1dceaa6317205886bf4fa84b34f11f8bb565ce14",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/mixed-case-true.toml",
+     "patch": "@@ -0,0 +1 @@\n+mixed-case-true         = trUe",
+     "sha": "d26a0840fefb2848ab5988326f18627d6686ff22",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/mixed-case.toml",
+     "patch": "@@ -0,0 +1 @@\n+mixed-case              = valid   = False",
+     "sha": "1cdb181a5205fa9bf548d7cb4e9b9b806672003f",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/starting-same-false.toml",
+     "patch": "@@ -0,0 +1 @@\n+starting-same-false     = falsey",
+     "sha": "b4fae316c57b75eb1ee9ee2ffb51c38d6ef204fe",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/starting-same-true.toml",
+     "patch": "@@ -0,0 +1 @@\n+starting-same-true      = truer",
+     "sha": "785ccf86dfa0b209e1cb6f6e698b1cee11095ea2",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/wrong-case-false.toml",
+     "patch": "@@ -0,0 +1 @@\n+wrong-case-false        = FALSE",
+     "sha": "97cb27a0c1a9c68057228c7402eb20488f00537a",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/bool/wrong-case-true.toml",
+     "patch": "@@ -0,0 +1 @@\n+wrong-case-true         = TRUE",
+     "sha": "e184224d85ee04c32f8be2a25da867e6de64e078",
+     "status": "added"
+    },
+    {
+     "additions": 2,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/bare-cr.toml",
+     "patch": "@@ -0,0 +1,2 @@\n+# The following line contains a single carriage return control character\r\n+\r\n\\ No newline at end of file",
+     "sha": "37f4ce4c2231e6dab32d44cfd40e7419353c99be",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/bare-formfeed.toml",
+     "patch": "@@ -0,0 +1 @@\n+bare-formfeed     = \f",
+     "sha": "6c8d3b90155b0eb85cdce8de58151f3c77224ed7",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/bare-null.toml",
+     "sha": "afdb456a0f07069cfacee63bc3e996a07d72e994",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/bare-vertical-tab.toml",
+     "patch": "@@ -0,0 +1 @@\n+bare-vertical-tab = \u000b",
+     "sha": "abacefd2d9d87f94f1401a6971bd3d6b83efd200",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/comment-cr.toml",
+     "patch": "@@ -0,0 +1 @@\n+comment-cr   = \"Carriage return in comment\" # \ra=1",
+     "sha": "f68065e51cf272bba91a61945f7cb515c3f78893",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/comment-del.toml",
+     "patch": "@@ -0,0 +1 @@\n+comment-del  = \"0x7f\"   # \u007f",
+     "sha": "05a59303bba7bbaf60323d28a8e72960f705b02c",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/comment-ff.toml",
+     "patch": "@@ -0,0 +1 @@\n+comment-ff   = \"0x7f\"   # \f",
+     "sha": "1dcc2c84b95b0ee3c980cc2168da9b9d421fc227",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/comment-lf.toml",
+     "patch": "@@ -0,0 +1 @@\n+comment-lf   = \"ctrl-P\" # \u0010",
+     "sha": "034efebdfe5b972a63e0f8e3855387913f9579c7",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/comment-null.toml",
+     "sha": "001a570d8492563507deb7fd3829afd1d9c0c313",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/comment-us.toml",
+     "patch": "@@ -0,0 +1 @@\n+comment-us   = \"ctrl-_\" # \u001f",
+     "sha": "a088acfbcb19068ebaa0015c41c8c9885bb51ae9",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/multi-cr.toml",
+     "patch": "@@ -0,0 +1 @@\n+multi-cr   = \"\"\"null\r\"\"\"",
+     "sha": "7814ce57a25a2450adb61bcbe321623a56abc36f",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/multi-del.toml",
+     "patch": "@@ -0,0 +1 @@\n+multi-del  = \"\"\"null\u007f\"\"\"",
+     "sha": "5590afb946491f3e04de664cb1c64729e3159d25",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/multi-lf.toml",
+     "patch": "@@ -0,0 +1 @@\n+multi-lf   = \"\"\"null\u0010\"\"\"",
+     "sha": "81e5ecf2cb74fab168b8b8401d358081b88c5993",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/multi-null.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/control/multi-null.toml",
+     "sha": "ac6cb46c006286cd6c9133c5029e17b2f3976db2",
+     "status": "renamed"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/multi-us.toml",
+     "patch": "@@ -0,0 +1 @@\n+multi-us   = \"\"\"null\u001f\"\"\"",
+     "sha": "82e531bc174d22f5a712f0e6ee10381a26c41c73",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/only-ff.toml",
+     "patch": "@@ -0,0 +1 @@\n+\f\n\\ No newline at end of file",
+     "sha": "8214d0ee079917c29e57d16e764fc46de8fb50bf",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/only-null.toml",
+     "sha": "f76dd238ade08917e6712764a16a22005a50573d",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/only-vt.toml",
+     "patch": "@@ -0,0 +1 @@\n+\u000b\n\\ No newline at end of file",
+     "sha": "2725bca0006db42c8ee38c15dfa290bbe57f9a94",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/rawmulti-cr.toml",
+     "patch": "@@ -0,0 +1 @@\n+rawmulti-cr   = '''null\r'''",
+     "sha": "4d4824e33324286bea58a4ed239da287b17d0dc7",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/rawmulti-del.toml",
+     "patch": "@@ -0,0 +1 @@\n+rawmulti-del  = '''null\u007f'''",
+     "sha": "6fd081ee4a72ea8414e15a09fa401c74e42d4dc2",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/rawmulti-lf.toml",
+     "patch": "@@ -0,0 +1 @@\n+rawmulti-lf   = '''null\u0010'''",
+     "sha": "1dd0199b023c397f8d9ca48f3fcfad28e44a9e2c",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/rawmulti-null.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/control/rawmulti-null.toml",
+     "sha": "1b5bd092c5c54e408681c5bc215f34136f9d6029",
+     "status": "renamed"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/rawmulti-us.toml",
+     "patch": "@@ -0,0 +1 @@\n+rawmulti-us   = '''null\u001f'''",
+     "sha": "90905fac50e41b6276cfb4894820ad9b18c039a9",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/rawstring-cr.toml",
+     "patch": "@@ -0,0 +1 @@\n+rawstring-cr   = 'null\r'",
+     "sha": "fe3cf70e611c156bfebf7b70267642168b449451",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/rawstring-del.toml",
+     "patch": "@@ -0,0 +1 @@\n+rawstring-del  = 'null\u007f'",
+     "sha": "1bed5eb37a7282f1fde0d6fa44a0f733cc8312ba",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/rawstring-lf.toml",
+     "patch": "@@ -0,0 +1 @@\n+rawstring-lf   = 'null\u0010'",
+     "sha": "88924713dd49be6af9c31051cb32bf32ab393fdf",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/rawstring-null.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/control/rawstring-null.toml",
+     "sha": "2d8d0b4cb8028a76db91a0455d23fc054577541b",
+     "status": "renamed"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/rawstring-us.toml",
+     "patch": "@@ -0,0 +1 @@\n+rawstring-us   = 'null\u001f'",
+     "sha": "0a566674643806e9aa03f7ff3152d2fe6128e7ca",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/string-bs.toml",
+     "patch": "@@ -0,0 +1 @@\n+string-bs   = \"backspace\b\"",
+     "sha": "2b32de3bbecf3a97eee1cc7a305408c2787352e7",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/string-cr.toml",
+     "patch": "@@ -0,0 +1 @@\n+string-cr   = \"null\r\"",
+     "sha": "8ae063443b03856980624f809de71e42de86d8ae",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/string-del.toml",
+     "patch": "@@ -0,0 +1 @@\n+string-del  = \"null\u007f\"",
+     "sha": "b6139785dcc63f827bafe2de68c3ce4860572681",
+     "status": "added"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/string-lf.toml",
+     "patch": "@@ -0,0 +1 @@\n+string-lf   = \"null\u0010\"",
+     "sha": "2317adcad4e4bb8f1c1b310ac88c4b96a2edf1a5",
+     "status": "added"
+    },
+    {
+     "additions": 0,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/string-null.toml",
+     "previous_filename": "tests/data/invalid/_external/burntsushi/invalid/control/string-null.toml",
+     "sha": "821c72c32cffdb36e3e090b510ad6699832fcd47",
+     "status": "renamed"
+    },
+    {
+     "additions": 1,
+     "deletions": 0,
+     "filename": "tests/data/invalid/_external/toml-test/invalid/control/string-us.toml",
+     "patch": "@@ -0,0 +1 @@\n+string-us   = \"null\u001f\"",
+     "sha": "1298c2da5166dee563115fdef5de55d4eb35adc3",
+     "status": "added"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

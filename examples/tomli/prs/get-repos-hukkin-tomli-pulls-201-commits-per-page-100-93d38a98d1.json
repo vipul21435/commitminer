@@ -1,0 +1,50 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/201/commits?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"8b5ccbf21123213906bdfe4aad551f264e19dbc529224c819831cb66748332b7\"",
+    "last-modified": "Sun, 20 Sep 2026 12:22:12 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4771",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "229"
+   },
+   "json": [
+    {
+     "commit": {
+      "message": "Add shorthand for escape character"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/e9a8c8776193433088190a3e361cb276108e1f8a",
+     "sha": "e9a8c8776193433088190a3e361cb276108e1f8a"
+    },
+    {
+     "commit": {
+      "message": "Merge branch 'master' into escape-shorthand"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/ba53224da840f6bd9f2e3e2fd2a59e552cd1336f",
+     "sha": "ba53224da840f6bd9f2e3e2fd2a59e552cd1336f"
+    },
+    {
+     "commit": {
+      "message": "Merge branch 'master' into escape-shorthand"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/1c01cde44e1e136c531e5646793407b5a964f9d5",
+     "sha": "1c01cde44e1e136c531e5646793407b5a964f9d5"
+    },
+    {
+     "commit": {
+      "message": "Merge branch 'master' into escape-shorthand"
+     },
+     "html_url": "https://github.com/hukkin/tomli/commit/29966937efafdfc6a2a796d87b5cb3788d117c65",
+     "sha": "29966937efafdfc6a2a796d87b5cb3788d117c65"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}

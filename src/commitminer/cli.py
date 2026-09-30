@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
-from dataclasses import replace
+import os
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Annotated
 
+import httpx
 import typer
 
 from commitminer import __version__
@@ -18,6 +20,14 @@ from commitminer.export import (
     render_summary,
     render_table,
     write_jsonl,
+)
+from commitminer.fixtures import RecordingTransport, ReplayTransport
+from commitminer.github import (
+    API_URL,
+    GitHubClient,
+    GitHubError,
+    ResponseCache,
+    default_cache_dir,
 )
 from commitminer.gitlog import GitError, head_sha, resolve_commit, walk
 from commitminer.history import HistoryError, read_history, write_history
@@ -36,6 +46,7 @@ from commitminer.ledger import (
     read_candidates,
 )
 from commitminer.models import Commit
+from commitminer.pulls import DEFAULT_MAX_FILES, merged_pulls
 from commitminer.ruletable import (
     classify_file,
     render_rules,
@@ -44,6 +55,7 @@ from commitminer.ruletable import (
     verdict_to_json,
 )
 from commitminer.scoring import Candidate, MineResult, evaluate, mine
+from commitminer.settings import Settings
 
 app = typer.Typer(
     name="commitminer",
@@ -233,15 +245,40 @@ def mine_command(
     settings = settings_config.settings(
         max_lines=max_lines, max_source_files=max_source_files, test_lines_cap=test_lines_cap
     )
+    if settings_config.path is not None:
+        typer.echo(settings_config.describe())
+    _report(
+        commits,
+        label,
+        settings,
+        _Output(top, explain, out, ledger, min_overlap, new_only),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _Output:
+    """What ``mine`` and ``prs`` print and write after ranking."""
+
+    top: int
+    explain: int
+    out: Path | None
+    ledger: Path | None
+    min_overlap: float
+    new_only: bool
+
+
+def _report(
+    commits: list[Commit], label: str, settings: Settings, output: _Output, unit: str = "commits"
+) -> None:
+    """Rank ``commits``, check them against the ledger, print the results and write JSONL."""
     result = mine(commits, settings)
+    ledger, new_only = output.ledger, output.new_only
     verdicts: list[Verdict] | None = None
     if ledger is not None:
         with _open(ledger) as opened:
             proposals = [_proposal(c, label) for c in result.candidates]
-            verdicts = check_all(opened, proposals, min_overlap)
-    if settings_config.path is not None:
-        typer.echo(settings_config.describe())
-    typer.echo(render_summary(result, label))
+            verdicts = check_all(opened, proposals, output.min_overlap)
+    typer.echo(render_summary(result, label, unit))
     shown, ranks = result, list(range(1, len(result.candidates) + 1))
     if verdicts is not None:
         typer.echo(render_ledger(result, verdicts, str(ledger)))
@@ -251,11 +288,11 @@ def mine_command(
             verdicts = [verdicts[i] for i in kept]
             ranks = [i + 1 for i in kept]
             typer.echo(f"showing the {len(kept)} new candidates (--new-only)")
-    _print_candidates(shown, ranks, top, explain, verdicts)
-    if out is not None:
-        count = write_jsonl(out, shown, label, verdicts, ranks)
+    _print_candidates(shown, ranks, output.top, output.explain, verdicts)
+    if output.out is not None:
+        count = write_jsonl(output.out, shown, label, verdicts, ranks)
         typer.echo("")
-        typer.echo(f"wrote {count} candidates to {out}")
+        typer.echo(f"wrote {count} candidates to {output.out}")
 
 
 def _print_candidates(
@@ -272,6 +309,139 @@ def _print_candidates(
     for rank, candidate in zip(ranks[:explain], result.candidates[:explain], strict=True):
         typer.echo("")
         typer.echo(render_explanation(candidate, rank))
+
+
+def _network_transport() -> httpx.BaseTransport:
+    """The real network (the tests replace it)."""
+    return httpx.HTTPTransport()
+
+
+@app.command(name="prs")
+def prs_command(
+    repo: Annotated[
+        str, typer.Argument(help="GitHub repository as OWNER/REPO.", show_default=False)
+    ],
+    limit: Annotated[
+        int,
+        typer.Option("--limit", min=1, help="Merged pull requests to read, newest updated first."),
+    ] = 30,
+    max_files: Annotated[
+        int,
+        typer.Option(
+            "--max-files",
+            min=1,
+            help="Skip pull requests with more changed files than this (read 100 per request).",
+        ),
+    ] = DEFAULT_MAX_FILES,
+    record_dir: Annotated[
+        Path | None,
+        typer.Option("--record", help="Save every API response as a fixture in this directory."),
+    ] = None,
+    replay_dir: Annotated[
+        Path | None,
+        typer.Option("--replay", help="Answer every request from fixtures; no network."),
+    ] = None,
+    cache_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--cache-dir",
+            help="ETag cache for conditional requests (default: ~/.cache/commitminer/github; "
+            "none with --replay unless given).",
+            show_default=False,
+        ),
+    ] = None,
+    no_cache: Annotated[
+        bool, typer.Option("--no-cache", help="Neither read nor write the ETag cache.")
+    ] = False,
+    api_url: Annotated[
+        str | None,
+        typer.Option(
+            "--api-url",
+            help=f"REST API root (default: $GITHUB_API_URL, else {API_URL}).",
+            show_default=False,
+        ),
+    ] = None,
+    max_wait: Annotated[
+        float,
+        typer.Option(
+            "--max-wait", min=0, help="Longest rate-limit wait in seconds before giving up."
+        ),
+    ] = 300.0,
+    max_lines: MaxLinesOption = None,
+    max_source_files: MaxSourceFilesOption = None,
+    test_lines_cap: TestLinesCapOption = None,
+    top: Annotated[int, typer.Option("--top", min=0, help="Rows to print in the table.")] = 10,
+    explain: Annotated[
+        int, typer.Option("--explain", min=0, help="Print the score breakdown of the best N.")
+    ] = 1,
+    out: Annotated[
+        Path | None, typer.Option("--out", help="Write all candidates to this JSONL file.")
+    ] = None,
+    config: Annotated[
+        Path | None,
+        typer.Option(
+            "--config", help="Classifier rules, limits, weights and bands.", show_default=False
+        ),
+    ] = None,
+    ledger: LedgerOption = None,
+    min_overlap: MinOverlapOption = DEFAULT_MIN_OVERLAP,
+    new_only: Annotated[
+        bool,
+        typer.Option(
+            "--new-only", help="With --ledger, leave duplicates and overlaps out of the output."
+        ),
+    ] = False,
+) -> None:
+    """Rank the merged pull requests of a GitHub repository (GITHUB_TOKEN is optional)."""
+    if new_only and ledger is None:
+        raise _fail("--new-only needs --ledger", code=2)
+    if record_dir is not None and replay_dir is not None:
+        raise _fail("give --record or --replay, not both", code=2)
+    if record_dir is not None and cache_dir is not None:
+        raise _fail("--record fetches every response in full; drop --cache-dir", code=2)
+    loaded = _config(config, None)
+    settings = loaded.settings(
+        max_lines=max_lines, max_source_files=max_source_files, test_lines_cap=test_lines_cap
+    )
+    cache = None
+    if not no_cache and record_dir is None and (cache_dir is not None or replay_dir is None):
+        cache = ResponseCache(cache_dir or default_cache_dir())
+    transport: httpx.BaseTransport
+    recorder = None
+    try:
+        if replay_dir is not None:
+            transport = ReplayTransport(replay_dir)
+        elif record_dir is not None:
+            transport = recorder = RecordingTransport(_network_transport(), record_dir)
+        else:
+            transport = _network_transport()
+        client = GitHubClient(
+            token=os.environ.get("GITHUB_TOKEN") or None,
+            api_url=api_url or os.environ.get("GITHUB_API_URL") or API_URL,
+            cache=cache,
+            transport=transport,
+            max_wait=max_wait,
+        )
+        with client:
+            walked = merged_pulls(client, repo, limit, max_files)
+    except GitHubError as exc:
+        raise _fail(str(exc)) from exc
+    source = f" (replayed from {replay_dir})" if replay_dir is not None else ""
+    typer.echo(f"github: {client.stats.describe()}{source}")
+    if recorder is not None:
+        typer.echo(f"recorded {recorder.recorded} responses to {record_dir}")
+    skipped = ""
+    if walked.too_many_files:
+        numbers = ", ".join(f"#{number}" for number in walked.too_many_files)
+        skipped = f"; skipped {numbers}: more than {max_files} changed files"
+    typer.echo(
+        f"{repo}: read {len(walked.commits)} merged pull requests "
+        f"({walked.closed_unmerged} closed without merging passed over{skipped})"
+    )
+    if loaded.path is not None:
+        typer.echo(loaded.describe())
+    output = _Output(top, explain, out, ledger, min_overlap, new_only)
+    _report(list(walked.commits), repo, settings, output, unit="pull requests")
 
 
 @app.command()

@@ -1,0 +1,30 @@
+{
+ "format": "commitminer-http-fixture",
+ "key": "GET /repos/hukkin/tomli/pulls/297/files?per_page=100",
+ "responses": [
+  {
+   "headers": {
+    "content-type": "application/json; charset=utf-8",
+    "etag": "W/\"6836ec4d7882ac77797222f6912e317d24bc4568567312576879239901627857\"",
+    "last-modified": "Thu, 10 Sep 2026 14:20:56 GMT",
+    "x-ratelimit-limit": "5000",
+    "x-ratelimit-remaining": "4809",
+    "x-ratelimit-reset": "1790731539",
+    "x-ratelimit-resource": "core",
+    "x-ratelimit-used": "191"
+   },
+   "json": [
+    {
+     "additions": 4,
+     "deletions": 2,
+     "filename": "src/tomli/_parser.py",
+     "patch": "@@ -9,7 +9,6 @@\n __lazy_modules__ = [\"tomli._re\"]\n \n import sys\n-from types import MappingProxyType\n \n from ._re import (\n     RE_DATETIME,\n@@ -20,6 +19,9 @@\n     match_to_number,\n )\n \n+if sys.version_info < (3, 15):  # pragma: no cover\n+    from types import MappingProxyType as frozendict\n+\n TYPE_CHECKING = False\n if TYPE_CHECKING:\n     from collections.abc import Iterable\n@@ -65,7 +67,7 @@\n KEY_INITIAL_CHARS: Final = BARE_KEY_CHARS | frozenset(\"\\\"'\")\n HEXDIGIT_CHARS: Final = frozenset(\"abcdef\" \"ABCDEF\" \"0123456789\")\n \n-BASIC_STR_ESCAPE_REPLACEMENTS: Final = MappingProxyType(\n+BASIC_STR_ESCAPE_REPLACEMENTS: Final = frozendict(\n     {\n         \"\\\\b\": \"\\u0008\",  # backspace\n         \"\\\\t\": \"\\u0009\",  # tab",
+     "sha": "2e4644f7458e5ab6cf6285146537b56510479a53",
+     "status": "modified"
+    }
+   ],
+   "status": 200
+  }
+ ],
+ "version": 1
+}
