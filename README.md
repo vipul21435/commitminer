@@ -1095,7 +1095,7 @@ flowchart LR
 
 | What | Command | Result |
 | --- | --- | --- |
-| Tests and coverage | `make cov` | 1036 passed, 100.00% line and branch coverage (gate 90%) |
+| Tests and coverage | `make cov` | 1090 passed, 100.00% line and branch coverage (gate 90%) |
 | Types | `make typecheck` | `mypy --strict`: no issues in 28 source files |
 | Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |
@@ -1108,8 +1108,8 @@ flowchart LR
 | Live walk of the serde clone | same on serde-rs/serde at `6693a89c` (3542 commits; aborted on a symlink type change before slice 4) | 8.47 to 9.48 s (3 runs): 484 candidates |
 | Replay of the recording | same with `--history examples/tomli/history.jsonl.gz` | 0.19 to 0.22 s (3 runs, with test ids; 0.18 to 0.20 s before them; httpx and the GitHub client are imported only by `prs`) |
 | Report | `/usr/bin/time -p uv run commitminer report out/tomli-candidates.jsonl --out r.html` | 0.08 to 0.11 s (3 runs); `ls -l out/`: 102355 bytes of Markdown, 151400 of HTML for 44 candidates and 268 rejections |
-| Batch report | `/usr/bin/time -p uv run commitminer report out/batch-candidates.jsonl --out out/batch-report.html` after `make demo` | 0.11 to 0.15 s (3 runs); 590554 bytes of Markdown (`make demo`), 897204 of HTML, from a 1156110-byte export of 4 runs and 293 candidates |
-| Likely fail-to-pass ids | `make demo-report`, then count `fail_to_pass` in the export | 30 of 44 tomli candidates (the other 14 change only `.toml`/`.json` test data); 0 of the 6 pull-request candidates: their new tests are methods of classes the diff does not show (2 got bare method names before, such as `tests/test_misc.py::test_lazy_import`, for which pytest collects 0 items) |
+| Batch report | `/usr/bin/time -p uv run commitminer report out/batch-candidates.jsonl --out out/batch-report.html` after `make demo` | 0.11 to 0.12 s (3 runs, re-measured; 0.11 to 0.15 s before); 590475 bytes of Markdown (`make demo`), 897132 of HTML, from a 1155982-byte export of 4 runs and 293 candidates (590554, 897204 and 1156110 while two pull-request candidates carried class-less test ids) |
+| Likely fail-to-pass ids | `make demo-report` and `make demo-prs`, then count `fail_to_pass` in the exports | 30 of 44 tomli candidates (the other 14 change only `.toml`/`.json` test data); 0 of the 6 pull-request candidates: their new tests are methods of classes the diff does not show (2 got bare method names before, such as `tests/test_misc.py::test_lazy_import`, for which pytest collects 0 items) |
 | Replay of the pull requests | `uv run commitminer prs hukkin/tomli --limit 25 --replay examples/tomli/prs --top 0 --explain 0` | 0.12 to 0.14 s (3 runs), 52 requests answered from 52 fixture files |
 | Live pull requests | same without `--replay`, with `GITHUB_TOKEN` and a fresh `--cache-dir`, twice | 24.65 s, 52 requests, rate limit 4700 of 5000 left; again: 23.79 s, 52 answered 304, still 4700 left |
 | Fixture size | `du -sh examples/tomli/prs`; `ls -lS` | 396 KB in 52 files, the largest 82378 bytes (the first page of 100 closed pull requests, about 1.5 MB before trimming) |

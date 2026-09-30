@@ -412,6 +412,36 @@ Its output (JSONL) is the input for downstream environment builders.
   (5) Batch-file paths were normalized lexically; the short form is now kept only when
   `realpath` agrees with the joined path, otherwise `dir/..` is left for the OS.
 
+### Review fixes committed after the late review of slices 4 and 5
+
+- Eleven confirmed findings, re-verified on `948cdbb`, each fixed in its own commit with
+  a regression test that fails on the old code (1090 tests, 100% line and branch
+  coverage; the three recordings still re-record byte for byte). Decisions:
+  (1) `--replay` ignores `$GITHUB_API_URL` (GitHub Enterprise runners set it; fixtures
+  are keyed by the path of the API they were recorded from), and an autouse fixture
+  clears `GITHUB_API_URL`, `GITHUB_TOKEN` and `GH_TOKEN` for every test.
+  (2) Live requests go through `NetworkTransport`, which sends each request through a
+  default `httpx.Client`, so environment proxies apply; chosen over reading httpx's
+  private proxy helpers.
+  (3) A cache write that fails is a warning, not an error: the cache is an optimisation,
+  so `ResponseCache` remembers the first `OSError` and stops writing. This reverses (4)
+  above for batches (the entry now runs uncached instead of failing). Recorder path
+  errors and malformed API URLs are one-line errors with exit 2.
+  (4) Pull requests listed on two pages are read once (deduplicated by number).
+  (5) Credentials are stripped from repository URLs (`sanitize.strip_credentials`) at
+  every place they are written; an `ssh://` URL keeps its user.
+  (6) Lone surrogates (non-UTF-8 history text) become U+FFFD in reports and ledger rows;
+  the JSON export keeps the escapes, listed under Known issues.
+  (7) Python test ranges skip continuation lines (open brackets, multi-line strings,
+  backslashes) found by a small scanner, instead of switching to `tokenize`, which fails
+  on files that do not parse.
+  (8) Without file contents a Python method or Java test is named only when its class is
+  among the added lines; otherwise it gets no id rather than one no runner accepts
+  (GitHub's hunk headers name the enclosing method, not the class, so they cannot help).
+  (9) `mine`/`prs --out` write errors are exit 2. (10) Report input checks cover the
+  nested values the renderer computes with. (11) A test's range search stops at the next
+  test definition in languages without test attributes; results are unchanged.
+
 ## Core (deliverable)
 
 - [x] Core: done on 2026-09-30. 127 tests, 100% line and branch coverage, CI green
