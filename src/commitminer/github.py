@@ -332,11 +332,13 @@ class GitHubClient:
             return GitHubError(f"GitHub refused the credentials (check GITHUB_TOKEN): {message}")
         return GitHubError(f"GitHub answered {status} for {url}: {message}")
 
-    def _sleep(self, seconds: float, why: str) -> None:
+    def _sleep(self, seconds: float, why: str, rate_limit: bool = True) -> None:
+        """Wait ``seconds`` because of ``why``, or fail when that is longer than ``max_wait``."""
         if seconds > self.max_wait:
+            hint = rate_limit and not self._http.headers.get("Authorization")
             raise RateLimitError(
                 f"{why}: waiting {seconds:.0f} s is more than --max-wait {self.max_wait:g} s"
-                + ("" if self._http.headers.get("Authorization") else "; set GITHUB_TOKEN")
+                + ("; set GITHUB_TOKEN" if hint else "")
             )
         self.clock.sleep(seconds)
         self.stats.waited += seconds
@@ -356,25 +358,32 @@ class GitHubClient:
         if remaining is not None:
             self.stats.limit, self.stats.remaining, self.stats.reset = limit, remaining, reset
 
-    def _retry_delay(self, response: httpx.Response, attempt: int) -> tuple[float, str] | None:
-        """How long to wait before retrying ``response``, and why; ``None``: do not retry."""
+    def _retry_delay(
+        self, response: httpx.Response, attempt: int
+    ) -> tuple[float, str, bool] | None:
+        """How long to wait before retrying ``response``, why, and whether it is a rate limit.
+
+        ``None`` means the answer is final.
+        """
         status = response.status_code
         if status >= 500:
-            return float(2**attempt), f"GitHub answered {status}"
+            return float(2**attempt), f"GitHub answered {status}", False
         if status not in (403, 429):
             return None
         retry_after = response.headers.get("retry-after")
         if retry_after is not None:
             try:
-                return max(float(retry_after), 0.0), f"GitHub answered {status} with Retry-After"
+                delay = max(float(retry_after), 0.0)
             except ValueError:
                 pass
+            else:
+                return delay, f"GitHub answered {status} with Retry-After", True
         reset = _int_header(response.headers, "x-ratelimit-reset")
         if _int_header(response.headers, "x-ratelimit-remaining") == 0 and reset is not None:
             wait = max(reset - self.clock.time(), 0.0) + 1
-            return wait, f"rate limit used up until {_utc(reset)}"
+            return wait, f"rate limit used up until {_utc(reset)}", True
         if status == 429 or "rate limit" in _message(response).lower():
-            return SECONDARY_BACKOFF * 2**attempt, "secondary rate limit"
+            return SECONDARY_BACKOFF * 2**attempt, "secondary rate limit", True
         return None
 
     def _send(self, request: httpx.Request) -> httpx.Response:
@@ -383,11 +392,16 @@ class GitHubClient:
             self._wait_for_budget()
             try:
                 response = self._http.send(request)
+            except httpx.UnsupportedProtocol as exc:
+                raise GitHubError(f"GET {request.url}: {exc}") from exc
             except httpx.TransportError as exc:
                 self.stats.requests += 1
                 if attempt >= self.max_retries:
                     raise GitHubError(f"GET {request.url}: {exc}") from exc
-                self._sleep(float(2**attempt), f"network error: {exc}")
+                self._sleep(float(2**attempt), f"network error: {exc}", rate_limit=False)
+            except httpx.RequestError as exc:
+                # Too many redirects, undecodable content: retrying cannot help.
+                raise GitHubError(f"GET {request.url}: {exc}") from exc
             else:
                 self.stats.requests += 1
                 self._note_limits(response.headers)

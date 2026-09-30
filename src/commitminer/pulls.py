@@ -78,15 +78,16 @@ def _object(value: Any, where: str) -> dict[str, Any]:
     return value
 
 
-_NO_CONTENT_CHANGE: Final = frozenset({"renamed", "copied", "unchanged"})
+_NO_CONTENT_CHANGE: Final = frozenset({"renamed", "copied", "changed", "unchanged"})
+"""File statuses that, with no line counts and no patch, mean a rename, copy or mode change."""
 
 
 def file_change(item: Any, where: str = "file") -> FileChange:
     """One entry of ``GET .../pulls/{number}/files`` as a measured :class:`FileChange`.
 
-    Without a ``patch``: a rename or copy with no line changes is an empty
-    patch, a file with line counts has no measurements (GitHub leaves out
-    large patches), and any other file is taken as binary. A patch whose
+    Without a ``patch``: a rename, copy or mode change with no line changes
+    is an empty patch, a file with line counts has no measurements (GitHub
+    leaves out large patches), and any other file is taken as binary. A patch whose
     lines do not add up to the file's counts (a truncated patch) is not
     measured either.
     """

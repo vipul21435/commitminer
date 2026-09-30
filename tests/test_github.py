@@ -343,6 +343,40 @@ def test_network_errors_are_retried(tmp_path: Path) -> None:
     assert client.stats.requests == 5
 
 
+def test_network_waits_carry_no_token_hint_and_bad_urls_fail_at_once() -> None:
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    clock = FakeClock()
+    with (
+        GitHubClient(transport=httpx.MockTransport(down), clock=clock, max_wait=0.5) as client,
+        pytest.raises(RateLimitError) as raised,
+    ):
+        client.get("/x")
+    assert "network error: connection refused: waiting 1 s" in str(raised.value)
+    assert "GITHUB_TOKEN" not in str(raised.value)
+    with (
+        GitHubClient(api_url="not-a-url", clock=clock) as client,
+        pytest.raises(GitHubError, match="missing an 'http://' or 'https://'"),
+    ):
+        client.get("/x")
+    assert clock.sleeps == []
+    assert client.stats.retries == 0
+
+
+def test_redirect_loops_are_not_retried() -> None:
+    def loop(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(302, headers={"location": str(request.url)})
+
+    clock = FakeClock()
+    with (
+        mock_client(loop, clock) as client,
+        pytest.raises(GitHubError, match="Exceeded maximum allowed redirects"),
+    ):
+        client.get("/x")
+    assert clock.sleeps == []
+
+
 def test_request_stats_describe() -> None:
     assert RequestStats().describe() == (
         "0 requests (0 answered 304 from the cache), 0 retries, waited 0 s"

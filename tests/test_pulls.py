@@ -112,6 +112,8 @@ def test_file_change_without_a_patch() -> None:
     )
     assert renamed == FileChange("b.py", 0, 0, "a.py", patch=PatchStats(0, 0, 0, 0, hunk_hashes=()))
     assert file_change(entry(filename="logo.png", additions=0, deletions=0)).binary
+    mode = file_change(entry(status="changed", additions=0, deletions=0))
+    assert (mode.binary, mode.patch) == (False, PatchStats(0, 0, 0, 0, hunk_hashes=()))
     large = file_change(entry(additions=9000, deletions=0))
     assert (large.added, large.patch) == (9000, None)
     truncated = file_change(entry(additions=5, deletions=0, patch="@@ -0,0 +1 @@\n+x"))

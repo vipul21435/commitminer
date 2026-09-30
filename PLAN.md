@@ -346,7 +346,7 @@ The smallest end-to-end path, from a git history to a ranked JSONL file:
   Done on 2026-09-30: `commitminer prs`, httpx client with an ETag cache, rate limits and
   retries on an injectable clock, record/replay transports, 52 recorded tomli responses,
   `make demo-prs`, export schema 4; four review fixes first (type changes, NUL bytes in
-  patches, pinned git settings, `*` lines); 890 tests, 100% coverage. See "Decisions made
+  patches, pinned git settings, `*` lines); 892 tests, 100% coverage. See "Decisions made
   while building slice 4".
   `commitminer prs OWNER/REPO` lists merged pull requests through the REST API (httpx), with
   their commits, changed files and linked issues (closing keywords in the body). An on-disk
