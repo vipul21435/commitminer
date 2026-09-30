@@ -906,15 +906,19 @@ def rust_test_regions(content: bytes) -> tuple[Region, ...]:
     return tuple(regions)
 
 
-def item_end(lines: Sequence[str], start: int, language: Language = Language.RUST) -> int:
+def item_end(
+    lines: Sequence[str], start: int, language: Language = Language.RUST, stop: int | None = None
+) -> int:
     """The index of the line where the braces opened from ``lines[start]`` on balance again.
 
     An item that ends in ``;`` before any brace (``mod tests;``) ends there;
-    one whose braces never balance runs to the end of the text.
+    one whose braces never balance runs to the end of the text, or to the
+    line before ``stop`` when the caller knows the item cannot reach it.
     """
     lexer = _Lexer(LEXICONS[language])
     depth = 0
-    for number in range(start, len(lines)):
+    end = len(lines) if stop is None else min(stop, len(lines))
+    for number in range(start, end):
         for char in lexer.braces(lines[number]):
             if char == "{":
                 depth += 1
@@ -924,4 +928,4 @@ def item_end(lines: Sequence[str], start: int, language: Language = Language.RUS
                     return number
             elif depth == 0:
                 return number  # "mod tests;" or "use super::*;"
-    return len(lines) - 1
+    return end - 1

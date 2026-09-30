@@ -30,6 +30,7 @@ list the gaps.
 
 from __future__ import annotations
 
+import bisect
 import re
 from collections.abc import Sequence
 from typing import Final
@@ -170,6 +171,15 @@ def _braced(lines: Sequence[str], language: Language, syntax: Syntax) -> list[Te
     scope_pattern = {Language.RUST: _RS_MOD, Language.JAVA: _JAVA_CLASS}.get(language)
     attribute_line = {Language.RUST: _RS_ATTRIBUTE, Language.JAVA: _JAVA_ANNOTATION}.get(language)
     joiner = "::" if language is Language.RUST else "#"
+    # A test without braces or ';' (a JavaScript one-liner in 'semi: false' style) would
+    # be scanned to the end of its describe block, once per test: quadratic. Where every
+    # definition line is a test (no attribute decides), the scan stops at the next one,
+    # the line _non_overlapping cuts the range at anyway.
+    starts = (
+        [i for i, text in enumerate(lines) if syntax.test_def.match(text)]
+        if syntax.test_attribute is None
+        else []
+    )
     for index, line in enumerate(lines):
         number = index + 1
         while scopes and scopes[-1][1] < number:
@@ -196,7 +206,9 @@ def _braced(lines: Sequence[str], language: Language, syntax: Syntax) -> list[Te
             continue  # a plain function
         start = armed or number
         armed = None
-        end = item_end(lines, index, language) + 1
+        following = bisect.bisect_right(starts, index)
+        stop = starts[following] if following < len(starts) else None
+        end = item_end(lines, index, language, stop) + 1
         name = definition.group("name")
         if language is Language.RUST:
             name = "::".join([*(scope for scope, _ in scopes), name])

@@ -1115,6 +1115,7 @@ flowchart LR
 | Fixture size | `du -sh examples/tomli/prs`; `ls -lS` | 396 KB in 52 files, the largest 82378 bytes (the first page of 100 closed pull requests, about 1.5 MB before trimming) |
 | One explanation | `uv run commitminer explain 55bf7fb619 --repo <semver clone>` | 0.10 s (3 runs) |
 | A minified line | `patch.code_text` on `"var a=b/c,d=e/f;x.y(z)/2;" * 8000` (200000 characters, 24000 slashes), timed with `time.perf_counter` | 0.05 s; 50.75 s before the regex check read only a bounded window before each `/` |
+| JavaScript one-liner tests | a 2-commit clone whose commits both change a 205 KB file of 4000 `it('case i', () => expect(f(i)).toBe(i))` lines (no `;`) in one `describe`, `/usr/bin/time -p uv run commitminer mine <clone> --top 2 --explain 0` | 0.18 to 0.21 s (3 runs); 18.44 s before the range search stopped at the next test (each test was scanned to the end of the `describe`) |
 | Mining against a ledger | semver walk with `--ledger` holding its 66 candidates | 0.66 to 0.67 s (3 runs): 65 duplicate, 1 overlap |
 | Checking an export | `uv run commitminer ledger check <that ledger> <semver export>` | 0.08 s (3 runs) |
 | Concurrent claims | `tests/test_ledger.py`: 8 threads, 8 connections, one fix | exactly 1 added, 7 refused |

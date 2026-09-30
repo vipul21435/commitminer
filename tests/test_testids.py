@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from typing import Any
+
+import pytest
+
+from commitminer import patch as patch_module
 from commitminer.languages import Language
 from commitminer.models import Commit, FileChange, PatchStats, TestFunction
 from commitminer.patch import SYNTAX, FilePatch, Hunk, analyze, defined_tests, touched_tests
@@ -277,6 +283,33 @@ def test_javascript_test_and_it_calls_do_not_overlap() -> None:
         ("closes over the next line", 10, 12),
     ]
     assert names(JS, Language.TYPESCRIPT) == names(JS, Language.JAVASCRIPT)
+
+
+def test_javascript_one_liners_are_scanned_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    # 'semi: false' one-liners have no brace and no ';', so each test's scan used to run to
+    # the end of the describe block: 4000 of them took 9.3 s. It now stops at the next test.
+    lexed = 0
+    braces = patch_module._Lexer.braces
+
+    def counting(self: Any, line: str) -> Iterator[str]:
+        nonlocal lexed
+        lexed += 1
+        return braces(self, line)
+
+    monkeypatch.setattr(patch_module._Lexer, "braces", counting)
+    count = 400
+    body = "".join(f"  it('case {i}', () => expect(f({i})).toBe({i}))\n" for i in range(count))
+    source = f"describe('f', () => {{\n{body}}})\n".encode()
+    found = find_tests(source, Language.JAVASCRIPT)
+    assert [(f.start, f.end) for f in found[:2]] == [(2, 2), (3, 3)]
+    assert (found[-1].start, found[-1].end) == (count + 1, count + 2)
+    assert lexed < 3 * count  # every line about once, not count * count / 2
+
+
+def test_a_test_whose_braces_never_close_ends_before_the_next_one() -> None:
+    # A file version saved mid-edit: the first test's braces never balance.
+    source = "#[test]\nfn first() {\n    assert!(true);\n\n#[test]\nfn second() {}\n"
+    assert names(source, Language.RUST) == [("first", 1, 4), ("second", 5, 6)]
 
 
 def test_unknown_or_empty_content() -> None:
