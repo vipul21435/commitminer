@@ -641,7 +641,10 @@ def _run_batch(
             if dry_run and not where.exists():
                 path = Path(stack.enter_context(tempfile.TemporaryDirectory())) / "empty.sqlite3"
             elif not where.parent.is_dir():
-                where.parent.mkdir(parents=True)
+                try:
+                    where.parent.mkdir(parents=True)
+                except OSError as exc:
+                    raise _fail(f"{where}: cannot create the ledger's directory: {exc}") from exc
             opened = stack.enter_context(_ledger(path, create=True))
             result = run_batch(
                 batch,
@@ -652,8 +655,6 @@ def _run_batch(
                 client_factory=_batch_client,
                 progress=progress,
             )
-    except OSError as exc:
-        raise _fail(f"{where}: cannot create the ledger's directory: {exc}") from exc
     except ConfigError as exc:
         raise _fail(str(exc)) from exc
     return replace(result, ledger=where)

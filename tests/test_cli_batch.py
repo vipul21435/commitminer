@@ -215,3 +215,27 @@ def test_pull_requests_go_to_the_network_without_replay(
     assert "o/cached [pull-requests]: first run, walked 24 pull requests" in result.stdout
     assert (tmp_path / "cache").is_dir()
     assert list((tmp_path / "cache").iterdir())
+
+
+def test_a_repository_whose_cache_cannot_be_written_fails_alone(tmp_path: Path) -> None:
+    # The cache_dir is occupied by a file: that entry fails and the next one still runs.
+    # This used to abort the batch and blame the ledger's directory.
+    (tmp_path / "cachefile").write_text("x")
+    config = tmp_path / "batch.toml"
+    config.write_text(
+        '[batch]\nledger = "ledger.sqlite3"\n'
+        '[[batch.repos]]\nname = "hukkin/tomli"\ngithub = "hukkin/tomli"\nlimit = 25\n'
+        f'replay = "{TOMLI / "prs"}"\ncache_dir = "cachefile"\n'
+        '[[batch.repos]]\nname = "hukkin/tomli"\n'
+        f'history = "{TOMLI / "history.jsonl.gz"}"\n'
+    )
+    result = runner.invoke(app, ["batch", str(config), "--top", "0"])
+    assert result.exit_code == 2
+    lines = result.stdout.splitlines()
+    assert lines[1].startswith("hukkin/tomli [pull-requests]: failed: hukkin/tomli: ")
+    assert "File exists" in lines[1]
+    assert lines[2].startswith("hukkin/tomli [history]: first run, walked ")
+    assert "1 of 2 repositories failed: hukkin/tomli [pull-requests]" in result.stderr
+    assert "ledger's directory" not in result.stderr
+    with open_ledger(tmp_path / "ledger.sqlite3") as ledger:
+        assert [m.source for m in ledger.watermarks()] == ["history"]

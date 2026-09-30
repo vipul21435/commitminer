@@ -330,7 +330,7 @@ def walk_clone(spec: RepoSpec, mark: Watermark | None, seen: Collection[str], fu
             note = f"watermark {previous[:10]} {where} {head[:10]}; walked everything"
             commits = walk(root, head, content=spec.content)
         url = spec.url or origin_url(root)
-    except GitError as exc:
+    except (GitError, OSError) as exc:
         raise SourceError(f"{root}: {exc}") from exc
     kept = _unseen(commits, seen)
     mode = "full" if note is not None else _mode(previous, full, len(kept))
@@ -391,7 +391,8 @@ def walk_pulls(
                 since=None if full else previous,
                 seen=seen,
             )
-    except GitHubError as exc:
+    except (GitHubError, OSError) as exc:
+        # OSError: the response cache (cache_dir, or $XDG_CACHE_HOME) cannot be written.
         raise SourceError(f"{spec.target}: {exc}") from exc
     replayed = f" (replayed from {spec.replay})" if spec.replay is not None else ""
     notes = [f"github: {client.stats.describe()}{replayed}"]

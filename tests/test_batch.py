@@ -419,6 +419,32 @@ def test_pull_request_errors_are_source_errors(tmp_path: Path) -> None:
         walk_pulls(missing, None, frozenset(), False, batch_module_client)
 
 
+def test_a_cache_that_cannot_be_written_is_a_source_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A cache_dir occupied by a file (or a read-only cache, or a full disk) raises OSError
+    # from the response cache; it used to escape and abort the whole batch.
+    occupied = write(tmp_path / "cachefile", "x")
+
+    def cached_client(spec: RepoSpec) -> GitHubClient:
+        assert spec.replay is not None
+        return GitHubClient(
+            transport=ReplayTransport(spec.replay),
+            cache=github.ResponseCache(occupied),
+            clock=FakeClock(),
+        )
+
+    with pytest.raises(batch_module.SourceError, match=r"hukkin/tomli: .*File exists"):
+        walk_pulls(pr_spec(), None, frozenset(), False, cached_client)
+
+    def unreadable(root: Path, rev: str) -> str:
+        raise PermissionError(13, "Permission denied", str(root))
+
+    monkeypatch.setattr(batch_module, "resolve_commit", unreadable)
+    with pytest.raises(batch_module.SourceError, match="Permission denied"):
+        walk_clone(spec("clone", tmp_path), None, frozenset(), full=False)
+
+
 def batch_module_client(spec: RepoSpec) -> GitHubClient:
     assert spec.replay is not None
     return GitHubClient(transport=ReplayTransport(spec.replay))
