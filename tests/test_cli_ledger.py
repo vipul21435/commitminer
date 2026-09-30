@@ -231,17 +231,26 @@ def test_ledger_add_selects_candidates(
         app,
         ["ledger", "add", str(ledger), str(exported), "--allow-overlap", "--owner", "carol"],
     )
-    assert rest.exit_code == 1
-    assert rest.stdout.splitlines()[1:3] == [
+    # The proposed #1 is claimed (taken over), not refused.
+    assert rest.exit_code == 0, rest.output
+    fix_a = shas["upstream"]["fix_a"][:10]
+    assert rest.stdout.splitlines() == [
+        f"claimed  #1 demo/durations {fix_a}  took over the proposed demo/durations {fix_a} "
+        "(first seen 2026-01-02)",
         f"added    #2 demo/durations {shas['upstream']['fix_b'][:10]}  claimed",
         f"added    #3 demo/durations {shas['upstream']['base'][:10]}  claimed",
+        f"2 added, 1 claimed, 0 refused: {ledger}",
     ]
+    again = runner.invoke(app, ["ledger", "add", str(ledger), str(exported), "--top", "1"])
+    assert again.exit_code == 1
+    assert "refused  #1" in again.stdout
+    assert "already in the ledger (claimed by carol on 2026-01-02)" in again.stdout
 
 
 def test_ledger_list(claimed: tuple[Path, Path, dict[str, dict[str, str]]]) -> None:
     ledger, _, shas = claimed
     text = runner.invoke(app, ["ledger", "list", str(ledger)]).stdout.splitlines()
-    assert text[0] == f"{ledger}: 3 entries (schema version 1)"
+    assert text[0] == f"{ledger}: 3 entries (schema version 2)"
     assert text[1].split() == [
         "first", "seen", "status", "owner", "repo", "sha", "hunks", "fingerprint", "subject",
     ]  # fmt: skip
@@ -257,7 +266,7 @@ def test_ledger_list(claimed: tuple[Path, Path, dict[str, dict[str, str]]]) -> N
         shas["upstream"][key] for key in ("fix_a", "fix_b", "base")
     ]
     empty = runner.invoke(app, ["ledger", "list", str(ledger), "--repo", "nope"])
-    assert empty.stdout == f"{ledger}: 0 entries (schema version 1)\n"
+    assert empty.stdout == f"{ledger}: 0 entries (schema version 2)\n"
 
 
 def test_ledger_errors_are_plain_and_exit_2(tmp_path: Path) -> None:

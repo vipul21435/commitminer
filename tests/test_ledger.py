@@ -59,17 +59,18 @@ def ledger(path: Path) -> Ledger:
 
 def test_a_new_ledger_gets_the_versioned_schema(path: Path) -> None:
     with open_ledger(path) as opened:
-        assert opened.schema_version == SCHEMA_VERSION == 1
+        assert opened.schema_version == SCHEMA_VERSION == 2
         assert opened.entries() == []
+        assert opened.watermarks() == []
     db = sqlite3.connect(path)
     assert db.execute("PRAGMA application_id").fetchone()[0] == APPLICATION_ID
     tables = {row[0] for row in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
-    assert tables == {"meta", "entries", "hunks"}
+    assert tables == {"meta", "entries", "hunks", "watermarks", "walked"}
     assert db.execute("SELECT value FROM meta").fetchall() == [(str(FINGERPRINT_VERSION),)]
     db.close()
     # Opening again keeps what is there.
     with open_ledger(path) as again:
-        assert again.schema_version == 1
+        assert again.schema_version == SCHEMA_VERSION
 
 
 def test_add_records_an_entry_and_refuses_the_same_fix(ledger: Ledger) -> None:
@@ -112,7 +113,9 @@ def test_partial_overlaps_are_refused_unless_allowed(ledger: Ledger) -> None:
     added, noted = ledger.add(proposal("d", "h1", "h2", "x9"), min_overlap=None)
     assert added is not None
     assert noted.status is Status.NEW
-    assert ledger.add(proposal("e", "h1", "h2", "h3"), min_overlap=None)[0] is None
+    exact = ledger.add(proposal("e", "h1", "h2", "h3"), status="proposed", min_overlap=None)
+    assert exact[0] is None
+    assert exact[1].status is Status.DUPLICATE
 
 
 def test_overlap_is_measured_against_the_smaller_fix(ledger: Ledger) -> None:
@@ -309,7 +312,7 @@ def test_an_empty_file_becomes_a_ledger(tmp_path: Path) -> None:
     empty = tmp_path / "empty.sqlite3"
     empty.write_bytes(b"")
     with open_ledger(empty) as opened:
-        assert opened.schema_version == 1
+        assert opened.schema_version == SCHEMA_VERSION
 
 
 def _set_version(path: Path, version: int) -> None:
@@ -318,28 +321,36 @@ def _set_version(path: Path, version: int) -> None:
     db.close()
 
 
+NEXT = SCHEMA_VERSION + 1
+"""A schema version this commitminer does not know yet, for migration tests."""
+
+
+def _future(monkeypatch: pytest.MonkeyPatch, *steps: tuple[str, ...]) -> None:
+    """Pretend the schema has ``len(steps)`` more versions, migrated by ``steps``."""
+    monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", SCHEMA_VERSION + len(steps))
+    future = {SCHEMA_VERSION + i: step for i, step in enumerate(steps)}
+    monkeypatch.setattr(ledger_module, "MIGRATIONS", {**ledger_module.MIGRATIONS, **future})
+
+
 def test_a_newer_schema_is_refused(path: Path) -> None:
     open_ledger(path).close()
-    _set_version(path, 2)
-    with pytest.raises(LedgerError, match="schema version 2 is newer than this commitminer"):
+    _set_version(path, NEXT)
+    with pytest.raises(LedgerError, match=f"schema version {NEXT} is newer than this commitminer"):
         open_ledger(path)
 
 
 def test_older_schemas_are_migrated_forward(path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     with open_ledger(path, now=clock) as opened:
         opened.add(proposal("a", "h1"))
-    monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", 2)
-    monkeypatch.setattr(
-        ledger_module, "MIGRATIONS", {1: ("ALTER TABLE entries ADD COLUMN note TEXT",)}
-    )
+    _future(monkeypatch, ("ALTER TABLE entries ADD COLUMN note TEXT",))
     with open_ledger(path) as migrated:
-        assert migrated.schema_version == 2
+        assert migrated.schema_version == NEXT
         assert len(migrated.entries()) == 1
     db = sqlite3.connect(path)
     assert "note" in [row[1] for row in db.execute("PRAGMA table_info(entries)")]
     db.close()
-    monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", 3)
-    with pytest.raises(LedgerError, match="no migration from schema version 2"):
+    monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", NEXT + 1)
+    with pytest.raises(LedgerError, match=f"no migration from schema version {NEXT}"):
         open_ledger(path)
 
 
@@ -347,22 +358,44 @@ def test_a_failed_migration_leaves_the_file_unchanged(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     open_ledger(path).close()
-    monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", 3)
-    monkeypatch.setattr(
-        ledger_module,
-        "MIGRATIONS",
-        {1: ("ALTER TABLE entries ADD COLUMN note TEXT",), 2: ("ALTER TABLE nope ADD COLUMN x",)},
-    )
+    _future(monkeypatch, ("ALTER TABLE entries ADD COLUMN note TEXT",), ("ALTER TABLE nope ADD x",))
     with pytest.raises(LedgerError, match="cannot use as a ledger: no such table: nope"):
         open_ledger(path)
     # One transaction for the whole chain: the first step was rolled back with the second.
     db = sqlite3.connect(path)
-    assert db.execute("PRAGMA user_version").fetchone()[0] == 1
+    assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     assert "note" not in [row[1] for row in db.execute("PRAGMA table_info(entries)")]
     db.close()
-    monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", 1)
+    monkeypatch.undo()
     with open_ledger(path) as opened:
-        assert opened.schema_version == 1
+        assert opened.schema_version == SCHEMA_VERSION
+
+
+def _version_1_ledger(path: Path) -> None:
+    """A ledger as schema version 1 created it (before watermarks), with one entry."""
+    db = sqlite3.connect(path, isolation_level=None)
+    for statement in ledger_module._TABLES_V1:
+        db.execute(statement)
+    db.execute("INSERT INTO meta VALUES ('fingerprint_version', ?)", (str(FINGERPRINT_VERSION),))
+    db.execute(
+        "INSERT INTO entries VALUES (1, ?, 'demo/up', ?, 'fix a', 'claimed', 'alice', ?, 1)",
+        (fp("h1").patch, "a" * 40, NOW),
+    )
+    db.execute("INSERT INTO hunks VALUES (1, 'h1')")
+    db.execute(f"PRAGMA application_id = {APPLICATION_ID}")
+    db.execute("PRAGMA user_version = 1")
+    db.close()
+
+
+def test_a_version_1_ledger_gains_watermarks_and_keeps_its_entries(path: Path) -> None:
+    _version_1_ledger(path)
+    with open_ledger(path, now=clock) as migrated:
+        assert migrated.schema_version == 2
+        assert [(e.sha[0], e.owner) for e in migrated.entries()] == [("a", "alice")]
+        assert migrated.watermarks() == []
+        assert migrated.verdict(fp("h1"), 0.5).status is Status.DUPLICATE
+        migrated.record_run("demo/up", "clone", "c" * 40, ["c" * 40], [proposal("c", "h9")])
+        assert migrated.watermark("demo/up", "clone") is not None
 
 
 COUNTING_MIGRATION = (
@@ -407,7 +440,7 @@ def test_a_ledger_created_by_another_process_after_the_first_look_is_used(
 
     _race(monkeypatch, other_process_creates_it)
     with open_ledger(path) as opened:
-        assert opened.schema_version == 1
+        assert opened.schema_version == SCHEMA_VERSION
         assert [e.owner for e in opened.entries()] == ["other"]
     db = sqlite3.connect(path)
     assert db.execute("SELECT count(*) FROM meta").fetchone()[0] == 1
@@ -434,12 +467,11 @@ def test_a_migration_done_by_another_process_after_the_first_look_is_not_repeate
 ) -> None:
     """Regression: the version was read before the lock, so every opener migrated."""
     open_ledger(path).close()
-    monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", 2)
-    monkeypatch.setattr(ledger_module, "MIGRATIONS", {1: (COUNTING_MIGRATION,)})
+    _future(monkeypatch, (COUNTING_MIGRATION,))
     _race(monkeypatch, lambda: open_ledger(path).close())
     with open_ledger(path) as opened:
-        assert opened.schema_version == 2
-    assert _migrations_applied(path) == (2, "1")
+        assert opened.schema_version == NEXT
+    assert _migrations_applied(path) == (NEXT, "1")
 
 
 def _open_from_another_process(
@@ -448,8 +480,8 @@ def _open_from_another_process(
     from commitminer import ledger as module
 
     if migrate:
-        module.SCHEMA_VERSION = 2  # type: ignore[misc]
-        module.MIGRATIONS[1] = (COUNTING_MIGRATION,)
+        module.MIGRATIONS[module.SCHEMA_VERSION] = (COUNTING_MIGRATION,)
+        module.SCHEMA_VERSION += 1  # type: ignore[misc]
     barrier.wait()
     try:
         module.open_ledger(Path(path), timeout=30).close()
@@ -464,7 +496,7 @@ def test_processes_opening_one_new_or_old_ledger_at_once_set_it_up_once(
     path: Path, migrate: bool
 ) -> None:
     if migrate:
-        open_ledger(path).close()  # a schema version 1 ledger for everyone to migrate
+        open_ledger(path).close()  # a ledger at today's version for everyone to migrate
     context = multiprocessing.get_context("spawn")
     count = 5
     barrier, results = context.Barrier(count), context.Queue()
@@ -480,7 +512,7 @@ def test_processes_opening_one_new_or_old_ledger_at_once_set_it_up_once(
     for worker in workers:
         worker.join(timeout=120)
     assert outcomes == ["ok"] * count
-    assert _migrations_applied(path) == ((2, "1") if migrate else (1, None))
+    assert _migrations_applied(path) == ((NEXT, "1") if migrate else (SCHEMA_VERSION, None))
 
 
 def test_fingerprint_versions_must_match(path: Path) -> None:
@@ -612,7 +644,7 @@ def test_a_missing_ledger_is_only_created_on_request(path: Path) -> None:
     assert not path.exists()
     open_ledger(path).close()
     with open_ledger(path, create=False) as opened:
-        assert opened.schema_version == 1
+        assert opened.schema_version == SCHEMA_VERSION
 
 
 def test_sqlite_errors_after_opening_are_ledger_errors(path: Path, tmp_path: Path) -> None:

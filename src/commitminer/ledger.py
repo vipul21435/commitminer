@@ -5,7 +5,7 @@ shared drive or travel between CI runs. Each entry is one fix, identified by
 its patch fingerprint (see :mod:`commitminer.fingerprint`)::
 
     PRAGMA application_id = 0x434D4C47   -- "CMLG": other SQLite files are refused
-    PRAGMA user_version = 1              -- the schema version, migrated forward on open
+    PRAGMA user_version = 2              -- the schema version, migrated forward on open
 
     meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)      -- fingerprint_version
     entries(id INTEGER PRIMARY KEY,
@@ -17,6 +17,12 @@ its patch fingerprint (see :mod:`commitminer.fingerprint`)::
             UNIQUE (repo, sha))
     hunks(entry_id INTEGER NOT NULL REFERENCES entries(id), hash TEXT NOT NULL,
           PRIMARY KEY (entry_id, hash)) WITHOUT ROWID    -- indexed by hash
+    watermarks(repo TEXT, source TEXT,                   -- version 2: batch runs
+               position TEXT NOT NULL,                   -- head sha, or newest update time
+               walked INTEGER NOT NULL, runs INTEGER NOT NULL, updated TEXT NOT NULL,
+               PRIMARY KEY (repo, source)) WITHOUT ROWID
+    walked(repo TEXT, source TEXT, sha TEXT,             -- every commit a batch evaluated
+           PRIMARY KEY (repo, source, sha)) WITHOUT ROWID
 
 A candidate checked against the ledger is a **duplicate** when an entry has the
 same patch fingerprint (a cherry-pick, a fork, a re-indented or moved copy), an
@@ -37,6 +43,14 @@ happens under ``BEGIN IMMEDIATE``, and the decision is taken again once the
 lock is held, so processes that open a new or an old ledger at the same time
 create or migrate it exactly once. Every SQLite error after that surfaces as a
 :class:`LedgerError` naming the file, never as a bare traceback.
+
+Batch runs (:mod:`commitminer.batch`) keep a **watermark** per repository and
+source: where the last run stopped (the head commit walked, or for pull
+requests the newest update time listed) and the shas it evaluated, so a re-run
+walks only new commits. :meth:`Ledger.record_run` stores a repository's new
+fixes (as ``proposed``), its walked shas and its watermark in one transaction:
+an interrupted batch leaves each repository either fully recorded or untouched.
+A ``claimed`` add of a fix held as ``proposed`` takes it over (:meth:`Ledger.add`).
 """
 
 from __future__ import annotations
@@ -55,12 +69,12 @@ from typing import Any, Final
 from commitminer.fingerprint import FINGERPRINT_VERSION, Fingerprint
 
 APPLICATION_ID: Final = 0x434D4C47
-SCHEMA_VERSION: Final = 1
+SCHEMA_VERSION: Final = 2
 DEFAULT_MIN_OVERLAP: Final = 0.5
 STATUSES: Final = ("proposed", "claimed")
 """Entry statuses: recorded as proposed to authors, or taken by an author."""
 
-_SCHEMA: Final = (
+_TABLES_V1: Final = (
     "CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
     """CREATE TABLE entries (
         id INTEGER PRIMARY KEY,
@@ -81,10 +95,31 @@ _SCHEMA: Final = (
     ) WITHOUT ROWID""",
     "CREATE INDEX hunks_by_hash ON hunks (hash)",
 )
-MIGRATIONS: dict[int, tuple[str, ...]] = {}
+_WATERMARKS: Final = (
+    """CREATE TABLE watermarks (
+        repo TEXT NOT NULL,
+        source TEXT NOT NULL,
+        position TEXT NOT NULL,
+        walked INTEGER NOT NULL CHECK (walked >= 0),
+        runs INTEGER NOT NULL CHECK (runs > 0),
+        updated TEXT NOT NULL,
+        PRIMARY KEY (repo, source)
+    ) WITHOUT ROWID""",
+    """CREATE TABLE walked (
+        repo TEXT NOT NULL,
+        source TEXT NOT NULL,
+        sha TEXT NOT NULL,
+        PRIMARY KEY (repo, source, sha)
+    ) WITHOUT ROWID""",
+)
+"""Schema version 2: where each repository's batch runs stopped, and what they walked."""
+_SCHEMA: Final = _TABLES_V1 + _WATERMARKS
+"""Everything a new ledger is created with, at :data:`SCHEMA_VERSION`."""
+MIGRATIONS: dict[int, tuple[str, ...]] = {1: _WATERMARKS}
 """Statements that take the schema from version ``k`` to ``k + 1``, keyed by ``k``."""
 
 _ENTRY_COLUMNS: Final = "id, fingerprint, repo, sha, subject, status, owner, first_seen, hunk_count"
+_WATERMARK_COLUMNS: Final = "repo, source, position, walked, runs, updated"
 _CHUNK: Final = 500
 """Hunk hashes per query, well below SQLite's limit on bound parameters."""
 
@@ -121,6 +156,22 @@ class Proposal:
     sha: str
     subject: str
     fingerprint: Fingerprint | None
+
+
+@dataclass(frozen=True, slots=True)
+class Watermark:
+    """Where the batch runs of one repository and source stopped."""
+
+    repo: str
+    source: str
+    """``clone``, ``history`` or ``pull-requests`` (see :mod:`commitminer.batch`)."""
+    position: str
+    """The head commit walked, or for pull requests the newest update time listed."""
+    walked: int
+    """Commits (or pull requests) evaluated over all runs."""
+    runs: int
+    updated: str
+    """UTC time of the last run, ISO 8601."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,8 +217,13 @@ class Verdict:
     status: Status
     matches: tuple[Match, ...] = ()
 
-    def describe(self, sha: str) -> str:
-        """One line: the status and the best match."""
+    def describe(self, sha: str, repo: str | None = None) -> str:
+        """One line: the status and the best match.
+
+        ``sha`` and ``repo`` are the candidate's: a match on the same commit is
+        "already in the ledger", or "same commit as" when it was recorded under
+        another repository (a fork shares its upstream's commits).
+        """
         if self.status is Status.NEW:
             return "new"
         if self.status is Status.UNKNOWN:
@@ -179,10 +235,13 @@ class Verdict:
         entry, where = best.entry, f"{best.entry.repo} {best.entry.sha[:10]}"
         more = len(self.matches) - 1
         extra = f" (+{more} more)" if more else ""
-        if self.status is Status.DUPLICATE and entry.sha == sha and not best.in_run:
+        same_commit = entry.sha == sha
+        own = same_commit and (repo is None or entry.repo == repo)
+        if self.status is Status.DUPLICATE and own and not best.in_run:
             return f"duplicate: already in the ledger ({_who(entry, False)}){extra}"
         if self.status is Status.DUPLICATE:
-            return f"duplicate: same fix as {where} ({_who(entry, best.in_run)}){extra}"
+            kind = "same commit as" if same_commit else "same fix as"
+            return f"duplicate: {kind} {where} ({_who(entry, best.in_run)}){extra}"
         return (
             f"overlap: {best.shared} of {best.smaller} hunks shared with {where} "
             f"({_who(entry, best.in_run)}){extra}"
@@ -330,17 +389,29 @@ class Ledger:
         )
         return self._by_id(entry_id)
 
+    def _commit_entry(self, repo: str, sha: str) -> Entry | None:
+        row = self._db.execute(
+            f"SELECT {_ENTRY_COLUMNS} FROM entries WHERE repo = ? AND sha = ?", (repo, sha)
+        ).fetchone()
+        return None if row is None else _entry(row)
+
     def _holder(self, proposal: Proposal) -> Entry:
         """The entry that blocks ``proposal``: same fingerprint, or same repo and sha."""
         assert proposal.fingerprint is not None
         found = self._exact(proposal.fingerprint.patch)
         if found is not None:
             return found
-        row = self._db.execute(
-            f"SELECT {_ENTRY_COLUMNS} FROM entries WHERE repo = ? AND sha = ?",
-            (proposal.repo, proposal.sha),
-        ).fetchone()
-        return _entry(row)
+        held = self._commit_entry(proposal.repo, proposal.sha)
+        assert held is not None  # one of the two unique constraints refused the insert
+        return held
+
+    def _claim(self, entry: Entry, owner: str | None) -> Entry:
+        """Turn a ``proposed`` entry into a ``claimed`` one (inside a transaction)."""
+        self._db.execute(
+            "UPDATE entries SET status = 'claimed', owner = ? WHERE id = ? AND status = 'proposed'",
+            (owner, entry.id),
+        )
+        return self._by_id(entry.id)
 
     def add(
         self,
@@ -353,7 +424,10 @@ class Ledger:
         """Record ``proposal`` unless it duplicates (or, with ``min_overlap``, overlaps) an entry.
 
         Returns the new entry and the verdict it was added under, or ``None``
-        and the verdict that refused it. The check and the insert are one
+        and the verdict that refused it. A ``claimed`` add of a fix the ledger
+        holds as ``proposed`` (same fingerprint, as a batch run records them)
+        claims that entry instead: the claimed entry comes back with the
+        ``duplicate`` verdict that found it. The check and the write are one
         transaction; the unique constraints refuse the fix if another writer got
         there first. A ledger that cannot be written (read-only, locked longer
         than the timeout, I/O error) raises :class:`LedgerError`.
@@ -366,6 +440,11 @@ class Ledger:
             self._db.execute("BEGIN IMMEDIATE")
             try:
                 verdict = self.verdict(proposal.fingerprint, min_overlap)
+                held = verdict.matches[0].entry if verdict.status is Status.DUPLICATE else None
+                if held is not None and held.status == "proposed" and status == "claimed":
+                    claimed = self._claim(held, owner)
+                    self._db.execute("COMMIT")
+                    return claimed, verdict
                 if verdict.status is not Status.NEW:
                     self._db.execute("ROLLBACK")
                     return None, verdict
@@ -381,6 +460,99 @@ class Ledger:
                 self._db.execute("ROLLBACK")
                 raise
         return entry, verdict
+
+    def _propose(
+        self, proposal: Proposal, owner: str | None, min_overlap: float | None
+    ) -> tuple[Entry | None, Verdict]:
+        """Add ``proposal`` as ``proposed`` if it is new (inside a transaction)."""
+        if proposal.fingerprint is None:
+            return None, Verdict(Status.UNKNOWN)
+        own = self._commit_entry(proposal.repo, proposal.sha)
+        if own is not None:
+            # Walked again (--full, or a pull request updated after the watermark).
+            count, exact = own.hunk_count, own.fingerprint == proposal.fingerprint.patch
+            match = Match(own, count, count, exact, own.id in self._run)
+            return None, Verdict(Status.DUPLICATE, (match,))
+        verdict = self.verdict(proposal.fingerprint, min_overlap)
+        if verdict.status is not Status.NEW:
+            return None, verdict
+        entry = self._insert(proposal, "proposed", owner)
+        self._run.add(entry.id)
+        return entry, verdict
+
+    def record_run(
+        self,
+        repo: str,
+        source: str,
+        position: str,
+        walked: Iterable[str],
+        proposals: Sequence[Proposal],
+        *,
+        owner: str | None = None,
+        min_overlap: float | None = DEFAULT_MIN_OVERLAP,
+    ) -> list[tuple[Entry | None, Verdict]]:
+        """Record one repository's batch run in one transaction.
+
+        Each proposal, in order, is compared with the ledger (including the
+        proposals recorded before it in this run, which its matches mark as
+        ``in_run``) and added as ``proposed`` when it is new. The shas in
+        ``walked`` are remembered, and the watermark of ``repo`` and ``source``
+        moves to ``position``. Returns each proposal's new entry (or ``None``)
+        and verdict. If anything fails, nothing of this run is kept.
+        """
+        shas = sorted(set(walked))
+        added: list[int] = []
+        with self._guard("write"):
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                results = []
+                for proposal in proposals:
+                    entry, verdict = self._propose(proposal, owner, min_overlap)
+                    if entry is not None:
+                        added.append(entry.id)
+                    results.append((entry, verdict))
+                self._db.executemany(
+                    "INSERT OR IGNORE INTO walked (repo, source, sha) VALUES (?, ?, ?)",
+                    ((repo, source, sha) for sha in shas),
+                )
+                self._db.execute(
+                    "INSERT INTO watermarks (repo, source, position, walked, runs, updated) "
+                    "VALUES (?, ?, ?, ?, 1, ?) ON CONFLICT (repo, source) DO UPDATE SET "
+                    "position = excluded.position, walked = watermarks.walked + excluded.walked, "
+                    "runs = watermarks.runs + 1, updated = excluded.updated",
+                    (repo, source, position, len(shas), self._now()),
+                )
+                self._db.execute("COMMIT")
+            except BaseException:
+                self._db.execute("ROLLBACK")
+                self._run.difference_update(added)
+                raise
+        return results
+
+    def watermark(self, repo: str, source: str) -> Watermark | None:
+        """The watermark of one repository and source, if a batch has run it."""
+        with self._guard("read"):
+            row = self._db.execute(
+                f"SELECT {_WATERMARK_COLUMNS} FROM watermarks WHERE repo = ? AND source = ?",
+                (repo, source),
+            ).fetchone()
+        return None if row is None else Watermark(*row)
+
+    def watermarks(self) -> list[Watermark]:
+        """Every watermark, by repository and source."""
+        with self._guard("read"):
+            rows = self._db.execute(
+                f"SELECT {_WATERMARK_COLUMNS} FROM watermarks ORDER BY repo, source"
+            ).fetchall()
+        return [Watermark(*row) for row in rows]
+
+    def walked_shas(self, repo: str, source: str) -> frozenset[str]:
+        """The shas that batch runs of one repository and source evaluated."""
+        with self._guard("read"):
+            rows = self._db.execute(
+                "SELECT sha FROM walked WHERE repo = ? AND source = ?", (repo, source)
+            ).fetchall()
+        return frozenset(row[0] for row in rows)
 
     def snapshot(self) -> Ledger:
         """An in-memory copy to check candidates against without writing to the file."""
@@ -605,6 +777,18 @@ def entry_to_json(entry: Entry) -> dict[str, Any]:
         "owner": entry.owner,
         "first_seen": entry.first_seen,
         "hunks": entry.hunk_count,
+    }
+
+
+def watermark_to_json(mark: Watermark) -> dict[str, Any]:
+    """One watermark as printed by ``ledger watermarks --json``."""
+    return {
+        "repo": mark.repo,
+        "source": mark.source,
+        "position": mark.position,
+        "walked": mark.walked,
+        "runs": mark.runs,
+        "updated": mark.updated,
     }
 
 

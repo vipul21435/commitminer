@@ -39,6 +39,7 @@ from commitminer.ledger import (
     ledger_verdict_to_json,
     open_ledger,
     read_candidates,
+    watermark_to_json,
 )
 from commitminer.models import Commit
 from commitminer.report import FORMATS, ReportError, format_for, read_export, render
@@ -309,7 +310,7 @@ def _report(
     typer.echo(render_summary(result, label, unit))
     shown, ranks, all_verdicts = result, list(range(1, len(result.candidates) + 1)), verdicts
     if verdicts is not None:
-        typer.echo(render_ledger(result, verdicts, str(ledger)))
+        typer.echo(render_ledger(result, verdicts, str(ledger), repo=label))
         if new_only:
             kept = [i for i, v in enumerate(verdicts) if v.status is Status.NEW]
             shown = replace(result, candidates=tuple(result.candidates[i] for i in kept))
@@ -749,7 +750,11 @@ def ledger_add(
         typer.Option("--allow-overlap", help="Refuse only exact duplicates, not partial overlaps."),
     ] = False,
 ) -> None:
-    """Record candidates in the ledger, refusing any fix it already holds (exit 1 if refused)."""
+    """Record candidates, refusing fixes the ledger holds (exit 1 if refused).
+
+    A claim of a fix the ledger holds as proposed (as batch runs record them)
+    takes that entry over.
+    """
     if status not in STATUSES:
         raise _fail(f"--status must be {' or '.join(STATUSES)}, not {status!r}")
     chosen = _read_candidates(candidates)
@@ -760,7 +765,7 @@ def ledger_add(
             raise _fail(f"no candidate in {candidates} matches --sha {' '.join(sha)}")
     if top is not None:
         chosen = chosen[:top]
-    added = refused = 0
+    added = claimed = refused = 0
     with _ledger(ledger, create=True) as opened:
         for rank, proposal in chosen:
             entry, verdict = opened.add(
@@ -772,12 +777,19 @@ def ledger_add(
             label = _label(rank, proposal)
             if entry is None:
                 refused += 1
-                typer.echo(f"refused  {label}  {verdict.describe(proposal.sha)}")
+                typer.echo(f"refused  {label}  {verdict.describe(proposal.sha, proposal.repo)}")
+            elif verdict.status is Status.DUPLICATE:
+                claimed += 1
+                typer.echo(
+                    f"claimed  {label}  took over the proposed {entry.repo} {entry.sha[:10]} "
+                    f"(first seen {entry.first_seen[:10]})"
+                )
             else:
                 added += 1
                 note = "" if verdict.status is Status.NEW else f" ({verdict.status.value})"
                 typer.echo(f"added    {label}  {entry.status}{note}")
-    typer.echo(f"{added} added, {refused} refused: {ledger}")
+    took = f", {claimed} claimed" if claimed else ""
+    typer.echo(f"{added} added{took}, {refused} refused: {ledger}")
     if refused:
         raise typer.Exit(code=1)
 
@@ -801,7 +813,7 @@ def ledger_check(
             record.update(ledger_verdict_to_json(verdict))
             typer.echo(json.dumps(record, sort_keys=True, ensure_ascii=True))
         else:
-            typer.echo(f"{_label(rank, proposal)}  {verdict.describe(proposal.sha)}")
+            typer.echo(f"{_label(rank, proposal)}  {verdict.describe(proposal.sha, proposal.repo)}")
     if any(verdict.status is not Status.NEW for verdict in verdicts):
         raise typer.Exit(code=1)
 
@@ -836,6 +848,36 @@ def ledger_list(
             f"{entry.first_seen[:10]:<10}  {entry.status:<8}  {_ascii(entry.owner or '-'):<10}  "
             f"{_ascii(entry.repo):<18}  {entry.sha[:10]:<10}  {entry.hunk_count:>5}  "
             f"{entry.fingerprint:<16}  {_ascii(entry.subject)[:50]}"
+        )
+
+
+@ledger_app.command(name="watermarks")
+def ledger_watermarks(
+    ledger: LedgerArgument,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Print one JSON object per watermark.")
+    ] = False,
+) -> None:
+    """List where the batch runs of each repository stopped."""
+    with _ledger(ledger) as opened:
+        marks = opened.watermarks()
+    if as_json:
+        for mark in marks:
+            typer.echo(json.dumps(watermark_to_json(mark), sort_keys=True, ensure_ascii=True))
+        return
+    typer.echo(f"{ledger}: {len(marks)} watermark{'' if len(marks) == 1 else 's'}")
+    if not marks:
+        return
+    typer.echo(
+        f"{'repo':<24}  {'source':<13}  {'position':<20}  {'walked':>6}  {'runs':>4}  updated"
+    )
+    for mark in marks:
+        position = mark.position or "-"
+        if len(position) >= 40 and "-" not in position:
+            position = position[:10]  # a commit sha; update times are shown in full
+        typer.echo(
+            f"{_ascii(mark.repo):<24}  {mark.source:<13}  {_ascii(position):<20}  "
+            f"{mark.walked:>6}  {mark.runs:>4}  {mark.updated}"
         )
 
 

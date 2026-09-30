@@ -371,11 +371,16 @@ def render_table(
 
 
 def render_ledger(
-    result: MineResult, verdicts: Sequence[Verdict], where: str, ranks: Sequence[int] | None = None
+    result: MineResult,
+    verdicts: Sequence[Verdict],
+    where: str,
+    ranks: Sequence[int] | None = None,
+    repo: str | None = None,
 ) -> str:
     """The ledger summary line, then one line per candidate that is not new.
 
-    ``ranks`` are the candidates' ranks when ``result`` holds only some of them.
+    ``ranks`` are the candidates' ranks when ``result`` holds only some of them;
+    ``repo`` is the candidates' repository label.
     """
     counts = Counter(verdict.status for verdict in _verdicts(result, verdicts) if verdict)
     summary = ", ".join(f"{counts[status]} {status.value}" for status in Status if counts[status])
@@ -386,7 +391,7 @@ def render_ledger(
         if verdict.status is not Status.NEW:
             rows.append(
                 f"  #{rank} {reference(candidate.commit)} "
-                f"{_ascii(verdict.describe(candidate.commit.sha))}"
+                f"{_ascii(verdict.describe(candidate.commit.sha, repo))}"
             )
     return "\n".join(rows)
 

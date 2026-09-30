@@ -553,7 +553,7 @@ rank   score         diff  sha         date        lines  src  test  ledger   su
    2    4.67    0.92 easy  e275649a9e  2025-03-11     11    1     1  dup      Reject numbers without a unit
    3    4.36    1.95 easy  6dbfaa8121  2025-03-10     25    1     1  dup      Import durations with two-space indentation
    4    4.34    0.92 easy  287f42b780  2025-03-13      8    1     1  dup      Accept days and weeks
-.commitminer/ledger-demo/ledger.sqlite3: 3 entries (schema version 1)
+.commitminer/ledger-demo/ledger.sqlite3: 3 entries (schema version 2)
 first seen  status    owner       repo                sha         hunks  fingerprint       subject
 2026-09-29  claimed   alice       demo/durations      536d6c4adf      3  d3c6af7bc86c6f62  Reject numbers without a unit (fixes #7)
 2026-09-29  claimed   alice       demo/durations      0287bf15bc      3  c282f61bc585bf9b  Accept days and weeks (fixes #9)
