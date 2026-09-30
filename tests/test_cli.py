@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import runpy
 from pathlib import Path
 
@@ -9,6 +8,7 @@ from typer.testing import CliRunner
 
 from commitminer import __version__
 from commitminer.cli import app
+from exportfile import read_export
 from gitrepo import GitRepo, lines
 
 runner = CliRunner()
@@ -68,8 +68,21 @@ def test_mine_a_clone_prints_summary_table_and_breakdown(
     assert "Fix off-by-one in core (fixes #4)" in text
     assert "linked_reference" in text
     assert f"wrote 1 candidates to {out}" in text
-    (record,) = [json.loads(line) for line in out.read_text().splitlines()]
+    run, (record,) = read_export(out)
+    assert (run["repo"], run["source"], run["walked"], run["exported"]) == ("repo", "clone", 4, 1)
+    assert run["url"] is None  # the synthetic clone has no origin remote
     assert record["repo"] == "repo"
+    assert record["repo_url"] is None
+    small_repo.git("remote", "add", "origin", "https://example.invalid/demo/repo.git")
+    again = runner.invoke(app, ["mine", str(small_repo.root), "--out", str(out), "--top", "0"])
+    assert again.exit_code == 0, again.output
+    run, (record,) = read_export(out)
+    assert run["url"] == record["repo_url"] == "https://example.invalid/demo/repo.git"
+    given = runner.invoke(
+        app, ["mine", str(small_repo.root), "--out", str(out), "--url", "https://example.invalid/r"]
+    )
+    assert given.exit_code == 0, given.output
+    assert read_export(out)[0]["url"] == "https://example.invalid/r"
     assert record["subject"] == "Fix off-by-one in core (fixes #4)"
     assert record["test_files"] == ["tests/test_core.py"]
 

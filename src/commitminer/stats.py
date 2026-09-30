@@ -150,6 +150,21 @@ class DiffStats:
         return sum(f.change.patch.asserts for f in tests if f.change.patch)
 
     @property
+    def fail_to_pass(self) -> tuple[str, ...]:
+        """Likely fail-to-pass test ids: ``path::name`` for each test the patch touched.
+
+        Test functions of the changed test files and of source files with
+        inline tests, as :mod:`commitminer.testids` names them; sorted.
+        """
+        found = {
+            f"{f.change.path}::{name}"
+            for f in self.test_files + self.inline_test_files
+            if f.change.patch is not None
+            for name in f.change.patch.tests
+        }
+        return tuple(sorted(found))
+
+    @property
     def public_api(self) -> tuple[str, ...] | None:
         """Public declarations touched by source code changes (``None``: unknown)."""
         if not self.source_patched:

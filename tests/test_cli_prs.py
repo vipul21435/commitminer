@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import httpx
@@ -14,6 +13,7 @@ from commitminer.cli import app
 from commitminer.fixtures import ReplayTransport
 from commitminer.history import read_history
 from commitminer.scoring import mine
+from exportfile import read_export
 
 runner = CliRunner()
 EXAMPLE = Path(__file__).resolve().parent.parent / "examples" / "tomli"
@@ -39,9 +39,12 @@ def test_prs_ranks_the_recorded_pull_requests(tmp_path: Path) -> None:
     assert lines[4].split()[3] == "pull"
     assert [line.split()[4] for line in lines[5:8]] == ["#200", "#295", "#286"]
     assert lines[9].startswith("#1 #200 score 6.55, difficulty 2.10 (medium)")
-    records = [json.loads(line) for line in out.read_text().splitlines()]
+    run, records = read_export(out)
     assert len(records) == 6
-    assert {r["schema_version"] for r in records} == {4}
+    assert {r["schema_version"] for r in records} == {5}
+    assert (run["source"], run["unit"], run["walked"]) == ("pull-requests", "pull requests", 24)
+    assert run["url"] == records[0]["repo_url"] == "https://github.com/hukkin/tomli"
+    assert run["rejections"][0]["pull_request"] is not None
     first = records[0]["pull_request"]
     assert (first["number"], first["base_ref"]) == (200, "master")
     assert first["url"] == "https://github.com/hukkin/tomli/pull/200"
@@ -53,8 +56,7 @@ def test_pull_requests_score_like_the_squashed_commits_they_became(tmp_path: Pat
     assert runner.invoke(app, [*REPLAY, "--top", "0", "--out", str(out)]).exit_code == 0
     _, commits = read_history(EXAMPLE / "history.jsonl.gz")
     mined = {c.commit.sha: c for c in mine(commits).candidates}
-    for line in out.read_text().splitlines():
-        record = json.loads(line)
+    for record in read_export(out)[1]:
         commit = mined[record["sha"]]
         assert record["fingerprint"]["patch"] == commit.fingerprint.patch  # type: ignore[union-attr]
         assert record["score"] == commit.score
@@ -120,6 +122,17 @@ def test_live_runs_use_the_default_cache_and_the_token(
     assert len(list((tmp_path / "commitminer" / "github").glob("*.json"))) == len(seen) == 5
     uncached = runner.invoke(app, ["prs", "hukkin/tomli", "--limit", "2", "--no-cache"])
     assert "(0 answered 304 from the cache)" in uncached.stdout
+
+
+def test_web_url_for_github_and_an_enterprise_host() -> None:
+    assert cli.web_url("https://api.github.com", "o/r") == "https://github.com/o/r"
+    assert cli.web_url("https://api.github.com/", "o/r") == "https://github.com/o/r"
+    assert cli.web_url("https://ghe.example.invalid/api/v3", "o/r") == (
+        "https://ghe.example.invalid/o/r"
+    )
+    assert (
+        cli.web_url("https://proxy.example.invalid/", "o/r") == "https://proxy.example.invalid/o/r"
+    )
 
 
 @pytest.mark.parametrize(

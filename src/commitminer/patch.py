@@ -24,6 +24,10 @@ for a header.
   items, exported Go identifiers, ``export``, ``public``.
 - **Hunk hashes**: one whitespace- and position-insensitive hash per hunk that
   changes more than whitespace, for dedupe (see :mod:`commitminer.fingerprint`).
+- **Tests touched**: the test functions whose lines the hunks add to, change or
+  delete from, by the line ranges :mod:`commitminer.testids` finds in the new
+  file version; without the file's contents, only test definitions among the
+  added lines are named.
 
 Everything is line based; nothing is parsed into a syntax tree, so the rules
 are heuristics with known gaps (see the README's Known issues).
@@ -39,7 +43,7 @@ from typing import Final
 
 from commitminer.fingerprint import hunk_hash
 from commitminer.languages import Language
-from commitminer.models import PatchStats
+from commitminer.models import PatchStats, TestFunction
 
 DIFF_HEADER: Final = b"diff --git "
 """First bytes of every file block in ``git log -p`` output."""
@@ -248,8 +252,12 @@ class Syntax:
     assertion: re.Pattern[str]
     api: tuple[tuple[re.Pattern[str], str], ...]
     """Declaration patterns and label templates; ``{kind}`` and ``{name}`` come from the match."""
+    test_def: re.Pattern[str]
+    """A line that defines a test, with a ``name`` group."""
     regex_literals: bool = False
     """``/.../`` regular expression literals (JavaScript), whose ``//`` is not a comment."""
+    test_attribute: re.Pattern[str] | None = None
+    """An attribute or annotation that makes the next definition a test (``#[test]``, ``@Test``)."""
 
 
 _IDENT_JS = r"[A-Za-z_$][\w$]*"
@@ -272,6 +280,7 @@ SYNTAX: Final[dict[Language, Syntax]] = {
             (re.compile(r"^(?:async\s+)?def\s+(?P<name>[A-Za-z]\w*)\s*[(\[]"), "def {name}"),
             (re.compile(r"^class\s+(?P<name>[A-Za-z]\w*)\b"), "class {name}"),
         ),
+        test_def=re.compile(r"^\s*(?:async\s+)?def\s+(?P<name>test\w*)\s*\("),
     ),
     Language.RUST: Syntax(
         line_comment="//",
@@ -292,6 +301,11 @@ SYNTAX: Final[dict[Language, Syntax]] = {
                 "pub {kind} {name}",
             ),
         ),
+        test_def=re.compile(
+            r"^\s*(?:pub(?:\([^)]*\))?\s+)?(?:(?:async|const|unsafe|extern(?:\s+\"[^\"]*\")?)\s+)*"
+            r"fn\s+(?P<name>\w+)\s*[<(]"
+        ),
+        test_attribute=re.compile(r"^\s*#\[(?:\w+::)*test\b[^\]]*\]"),
     ),
     Language.GO: Syntax(
         line_comment="//",
@@ -306,6 +320,7 @@ SYNTAX: Final[dict[Language, Syntax]] = {
             (re.compile(r"^func\s+(?:\([^)]*\)\s*)?(?P<name>[A-Z]\w*)\s*[\[(]"), "func {name}"),
             (re.compile(r"^(?P<kind>type|var|const)\s+(?P<name>[A-Z]\w*)\b"), "{kind} {name}"),
         ),
+        test_def=re.compile(r"^func\s+(?P<name>Test\w*)\s*\("),
     ),
     Language.JAVA: Syntax(
         line_comment="//",
@@ -328,6 +343,14 @@ SYNTAX: Final[dict[Language, Syntax]] = {
                 ),
                 "public {name}()",
             ),
+        ),
+        test_def=re.compile(
+            r"^\s*(?:(?:public|protected|private|static|final|synchronized|default)\s+)*"
+            r"(?:<[^>]*>\s*)?(?:void|[\w.$]+(?:<[^>]*>)?(?:\[\])*)\s+(?P<name>\w+)\s*\("
+        ),
+        test_attribute=re.compile(
+            r"^\s*@(?:Test|ParameterizedTest|RepeatedTest|TestFactory|TestTemplate)\b"
+            r"(?:\([^)]*\))?"
         ),
     ),
 }
@@ -357,6 +380,10 @@ _JS_SYNTAX = Syntax(
         (re.compile(r"^module\.exports\s*="), "module.exports"),
     ),
     regex_literals=True,
+    test_def=re.compile(
+        r"^\s*(?:test|it)(?:\.(?:only|skip|concurrent|failing|todo))*"
+        r"(?:\.each\s*(?:\([^)]*\)|`[^`]*`))?\s*\(\s*(?P<quote>['\"`])(?P<name>.*?)(?P=quote)"
+    ),
 )
 SYNTAX[Language.JAVASCRIPT] = _JS_SYNTAX
 SYNTAX[Language.TYPESCRIPT] = _JS_SYNTAX
@@ -517,6 +544,50 @@ def _codes(
     return [code_text(line, syntax, flag) for line, flag in zip(lines, inside, strict=True)]
 
 
+def defined_tests(lines: Iterable[str], syntax: Syntax) -> set[str]:
+    """Names of the tests defined on ``lines`` (added lines of one hunk, without the file).
+
+    A language with a test attribute (``#[test]``, ``@Test``) names a
+    definition only when the attribute came first on these lines.
+    """
+    found: set[str] = set()
+    armed = syntax.test_attribute is None
+    for line in lines:
+        if syntax.test_attribute is not None:
+            attribute = syntax.test_attribute.match(line)
+            if attribute is not None:
+                armed = True
+                line = line[attribute.end() :]  # "@Test void x() {" on one line
+        match = syntax.test_def.match(line)
+        if match is not None:
+            if armed:
+                found.add(match.group("name"))
+            armed = syntax.test_attribute is None
+    return found
+
+
+def touched_tests(
+    patch: FilePatch, syntax: Syntax, functions: Sequence[TestFunction] | None
+) -> tuple[str, ...]:
+    """The tests whose lines the patch touches, sorted.
+
+    With ``functions`` (the test functions of the new file version, see
+    :mod:`commitminer.testids`), a hunk touches every function whose lines
+    overlap its added lines; a hunk that only deletes touches the function
+    around the line git numbers it by. Without them, only the tests defined on
+    added lines are named.
+    """
+    names: set[str] = set()
+    for hunk in patch.hunks:
+        if functions is None:
+            names |= defined_tests(hunk.added, syntax)
+            continue
+        first = hunk.new_start
+        last = first + len(hunk.added) - 1 if hunk.added else first
+        names.update(f.name for f in functions if f.start <= last and first <= f.end)
+    return tuple(sorted(names))
+
+
 def analyze(
     patch: FilePatch,
     language: Language | None,
@@ -524,19 +595,22 @@ def analyze(
     old_regions: Sequence[Region] = (),
     new_comments: Sequence[Region] | None = None,
     old_comments: Sequence[Region] | None = None,
+    tests: Sequence[TestFunction] | None = None,
 ) -> PatchStats:
     """Measure one file's patch.
 
     ``*_regions`` are inline test modules in each version of the file.
     ``*_comments`` are the lines of each version that start inside a block
     comment (see :func:`comment_regions`), or ``None`` when the contents were
-    not read.
+    not read. ``tests`` are the test functions of the new version, or ``None``
+    when it was not read (see :func:`touched_tests`).
     """
     hashes = tuple(h for hunk in patch.hunks if (h := hunk_hash(hunk.deleted, hunk.added)))
     syntax = SYNTAX.get(language) if language is not None else None
     if syntax is None or language is None:
         count = len(patch.hunks)
         return PatchStats(count, count, patch.added, patch.deleted, hunk_hashes=hashes)
+    touched = touched_tests(patch, syntax, tests)
     lexicon = LEXICONS.get(language)
     code_hunks = code_added = code_deleted = test_added = test_deleted = asserts = 0
     api: set[str] = set()
@@ -571,6 +645,7 @@ def analyze(
         asserts=asserts,
         api=tuple(sorted(api)[:MAX_API_NAMES]),
         hunk_hashes=hashes,
+        tests=touched,
     )
 
 
@@ -770,14 +845,19 @@ def rust_test_regions(content: bytes) -> tuple[Region, ...]:
         if not _CFG_TEST_LINE.match(lines[index]):
             index += 1
             continue
-        end = _item_end(lines, index)
+        end = item_end(lines, index)
         regions.append((index + 1, end + 1))
         index = end + 1
     return tuple(regions)
 
 
-def _item_end(lines: Sequence[str], start: int) -> int:
-    lexer = _Lexer(LEXICONS[Language.RUST])
+def item_end(lines: Sequence[str], start: int, language: Language = Language.RUST) -> int:
+    """The index of the line where the braces opened from ``lines[start]`` on balance again.
+
+    An item that ends in ``;`` before any brace (``mod tests;``) ends there;
+    one whose braces never balance runs to the end of the text.
+    """
+    lexer = _Lexer(LEXICONS[language])
     depth = 0
     for number in range(start, len(lines)):
         for char in lexer.braces(lines[number]):

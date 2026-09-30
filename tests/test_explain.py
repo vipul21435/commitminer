@@ -320,7 +320,8 @@ def test_render_commit_without_patch_data_with_binaries_and_renames() -> None:
         "patch    fingerprint unknown (no hunk hashes recorded, or only indentation "
         "and blank lines changed)"
     )
-    assert rows[9].split() == [
+    assert rows[6] == "tests    no test function recognised in the changed tests"
+    assert rows[10].split() == [
         "source",
         "py-source",
         "3",
@@ -333,10 +334,10 @@ def test_render_commit_without_patch_data_with_binaries_and_renames() -> None:
         "->",
         "src/pkg/img.py",
     ]
-    assert rows[10].split()[2:8] == ["-", "-", "-", "-", "-", "-"]
+    assert rows[11].split()[2:8] == ["-", "-", "-", "-", "-", "-"]
     docs = Commit("b" * 40, (), commit.date, "Docs\n", (FileChange("README.md", 1, 0),))
     record = explain_json(evaluate(docs, settings), settings, "r")
     assert record["reason"] == "docs-only"
     assert "reason_detail" not in record
-    assert record["schema_version"] == 4
+    assert record["schema_version"] == 5
     assert record["pull_request"] is None

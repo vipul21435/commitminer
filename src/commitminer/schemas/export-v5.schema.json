@@ -1,0 +1,278 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/vipul21435/commitminer/schemas/export-v5.schema.json",
+  "title": "CommitMiner export record (schema version 5)",
+  "description": "One line of a file written by `commitminer mine --out` or `commitminer prs --out`. The first line is the run record; every other line is one candidate, best first. A downstream environment builder reads `repo_url`, `base` (the commit a task starts from), `sha` (the fix), `source_files`, `test_files` and `fail_to_pass` (likely test ids, to be verified by running the flip).",
+  "oneOf": [
+    { "$ref": "#/$defs/run" },
+    { "$ref": "#/$defs/candidate" }
+  ],
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0 },
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40,64}$" },
+    "date": {
+      "type": "string",
+      "description": "ISO 8601 with a UTC offset, as git's %aI prints it.",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}[+-][0-9]{2}:[0-9]{2}$"
+    },
+    "reason": {
+      "type": "string",
+      "description": "Hard-filter reason codes, in the order the filter checks them.",
+      "enum": ["empty", "docs-only", "generated-only", "no-source", "source-unchanged", "source-cosmetic", "no-test", "oversize"]
+    },
+    "band": { "type": "string", "enum": ["easy", "medium", "hard"] },
+    "ledger_status": { "type": "string", "enum": ["new", "duplicate", "overlap", "unknown"] },
+    "strings": { "type": "array", "items": { "type": "string" } },
+    "feature": {
+      "type": "object",
+      "description": "One feature of a linear model: contribution = weight * value, value in [0, 1].",
+      "properties": {
+        "name": { "type": "string" },
+        "value": { "type": "number", "minimum": 0, "maximum": 1 },
+        "weight": { "type": "number", "minimum": 0 },
+        "contribution": { "type": "number", "minimum": 0 },
+        "detail": { "type": "string" }
+      },
+      "required": ["name", "value", "weight", "contribution", "detail"],
+      "additionalProperties": false
+    },
+    "features": { "type": "array", "items": { "$ref": "#/$defs/feature" } },
+    "patch": {
+      "type": "object",
+      "description": "Measurements of one file's --unified=0 patch (hunk hashes are in the fingerprint).",
+      "properties": {
+        "hunks": { "$ref": "#/$defs/count" },
+        "code_hunks": { "$ref": "#/$defs/count" },
+        "code_added": { "$ref": "#/$defs/count" },
+        "code_deleted": { "$ref": "#/$defs/count" },
+        "test_added": { "$ref": "#/$defs/count", "description": "Lines added inside inline test modules (Rust #[cfg(test)])." },
+        "test_deleted": { "$ref": "#/$defs/count" },
+        "asserts": { "$ref": "#/$defs/count", "description": "Assertion lines added, net of identical deleted ones." },
+        "api": { "$ref": "#/$defs/strings", "description": "Public declarations the code hunks touch." },
+        "tests": { "$ref": "#/$defs/strings", "description": "Test functions the hunks touch, without the file path." }
+      },
+      "required": ["hunks", "code_hunks", "code_added", "code_deleted", "test_added", "test_deleted", "asserts", "api", "tests"],
+      "additionalProperties": false
+    },
+    "file": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "old_path": { "type": "string", "description": "Present for renames: the path in the base commit." },
+        "category": { "type": "string", "enum": ["source", "test", "docs", "config", "generated", "vendored", "other"] },
+        "rule": { "type": "string", "description": "The classifier rule that decided the category." },
+        "added": { "oneOf": [{ "$ref": "#/$defs/count" }, { "type": "null" }], "description": "null for binary files." },
+        "deleted": { "oneOf": [{ "$ref": "#/$defs/count" }, { "type": "null" }] },
+        "signals": { "$ref": "#/$defs/strings", "description": "Present when content signals were found." },
+        "patch": { "$ref": "#/$defs/patch", "description": "Present when the patch was measured." }
+      },
+      "required": ["path", "category", "rule", "added", "deleted"],
+      "additionalProperties": false
+    },
+    "fingerprint": {
+      "type": "object",
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "patch": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
+        "hunks": { "type": "array", "items": { "type": "string", "pattern": "^[0-9a-f]{16}$" }, "minItems": 1 }
+      },
+      "required": ["version", "patch", "hunks"],
+      "additionalProperties": false
+    },
+    "match": {
+      "type": "object",
+      "description": "A ledger entry, or an earlier candidate of the same run, that the candidate duplicates or overlaps.",
+      "properties": {
+        "source": { "type": "string", "enum": ["ledger", "run"] },
+        "repo": { "type": "string" },
+        "sha": { "type": "string" },
+        "subject": { "type": "string" },
+        "status": { "type": ["string", "null"], "description": "proposed or claimed; null for a match from this run." },
+        "owner": { "type": ["string", "null"] },
+        "first_seen": { "type": ["string", "null"] },
+        "exact": { "type": "boolean" },
+        "shared": { "$ref": "#/$defs/count" },
+        "hunks": { "$ref": "#/$defs/count" },
+        "overlap": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "required": ["source", "repo", "sha", "subject", "status", "owner", "first_seen", "exact", "shared", "hunks", "overlap"],
+      "additionalProperties": false
+    },
+    "ledger_verdict": {
+      "type": "object",
+      "properties": {
+        "status": { "$ref": "#/$defs/ledger_status" },
+        "matches": { "type": "array", "items": { "$ref": "#/$defs/match" } }
+      },
+      "required": ["status", "matches"],
+      "additionalProperties": false
+    },
+    "pull_request": {
+      "type": "object",
+      "properties": {
+        "number": { "type": "integer", "minimum": 1 },
+        "url": { "type": "string" },
+        "title": { "type": "string" },
+        "merged_at": { "$ref": "#/$defs/date" },
+        "base_ref": { "type": "string" },
+        "base_sha": { "$ref": "#/$defs/sha" },
+        "head_sha": { "$ref": "#/$defs/sha" },
+        "merge_commit_sha": { "oneOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }] },
+        "labels": { "$ref": "#/$defs/strings" },
+        "linked_issues": { "$ref": "#/$defs/strings", "description": "#12 in the same repository, owner/repo#12 elsewhere." },
+        "commits": { "type": "array", "items": { "$ref": "#/$defs/sha" } }
+      },
+      "required": ["number", "url", "title", "merged_at", "base_ref", "base_sha", "head_sha", "merge_commit_sha", "labels", "linked_issues", "commits"],
+      "additionalProperties": false
+    },
+    "candidate": {
+      "type": "object",
+      "properties": {
+        "kind": { "const": "candidate" },
+        "schema_version": { "const": 5 },
+        "rank": { "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }], "description": "Rank among all candidates of the run (null outside a ranking)." },
+        "repo": { "type": "string", "description": "The repository label (--repo-name, OWNER/REPO, or the clone's directory name)." },
+        "repo_url": { "type": ["string", "null"], "description": "The repository URL: --url, the recording's URL, the clone's origin remote or the GitHub web URL." },
+        "sha": { "$ref": "#/$defs/sha", "description": "The fix: the commit, or the merge commit (else head) of a pull request." },
+        "base": { "oneOf": [{ "$ref": "#/$defs/sha" }, { "type": "null" }], "description": "The commit a task starts from: the first parent, or a pull request's base sha (null for a root commit)." },
+        "date": { "$ref": "#/$defs/date" },
+        "subject": { "type": "string" },
+        "score": { "type": "number", "minimum": 0 },
+        "features": { "$ref": "#/$defs/features", "description": "The score breakdown; the contributions sum to the score." },
+        "difficulty": {
+          "type": "object",
+          "properties": {
+            "value": { "type": "number", "minimum": 0 },
+            "band": { "$ref": "#/$defs/band" },
+            "features": { "$ref": "#/$defs/features" }
+          },
+          "required": ["value", "band", "features"],
+          "additionalProperties": false
+        },
+        "public_api": { "$ref": "#/$defs/strings" },
+        "lines": {
+          "type": "object",
+          "properties": {
+            "changed": { "$ref": "#/$defs/count", "description": "Added plus deleted lines over source and test files." },
+            "source_added": { "$ref": "#/$defs/count" },
+            "source_deleted": { "$ref": "#/$defs/count" },
+            "test_added": { "$ref": "#/$defs/count" },
+            "test_deleted": { "$ref": "#/$defs/count" }
+          },
+          "required": ["changed", "source_added", "source_deleted", "test_added", "test_deleted"],
+          "additionalProperties": false
+        },
+        "source_files": { "$ref": "#/$defs/strings" },
+        "test_files": { "$ref": "#/$defs/strings" },
+        "inline_test_files": { "$ref": "#/$defs/strings", "description": "Source files that gained inline tests (Rust #[cfg(test)])." },
+        "fail_to_pass": {
+          "$ref": "#/$defs/strings",
+          "description": "Likely fail-to-pass test ids, `path::name`, from the test functions the patch touched: pytest node ids (`tests/test_x.py::TestCase::test_y`), Rust `src/lib.rs::tests::name`, Go `pkg/x_test.go::TestName`, Java `src/test/java/.../XTest.java::XTest#method`, JavaScript `x.test.js::test name`. A guess to verify by running the flip; empty when no test function was recognised."
+        },
+        "files": { "type": "array", "items": { "$ref": "#/$defs/file" } },
+        "fingerprint": { "oneOf": [{ "$ref": "#/$defs/fingerprint" }, { "type": "null" }] },
+        "ledger": { "oneOf": [{ "$ref": "#/$defs/ledger_verdict" }, { "type": "null" }], "description": "The dedupe verdict when mined with --ledger, else null." },
+        "pull_request": { "oneOf": [{ "$ref": "#/$defs/pull_request" }, { "type": "null" }] }
+      },
+      "required": ["kind", "schema_version", "rank", "repo", "repo_url", "sha", "base", "date", "subject", "score", "features", "difficulty", "public_api", "lines", "source_files", "test_files", "inline_test_files", "fail_to_pass", "files", "fingerprint", "ledger", "pull_request"],
+      "additionalProperties": false
+    },
+    "weights": {
+      "type": "object",
+      "additionalProperties": { "type": "number", "minimum": 0 }
+    },
+    "run": {
+      "type": "object",
+      "description": "The first line of an export: the funnel, every rejected commit with its reason, the ledger summary and the settings.",
+      "properties": {
+        "kind": { "const": "run" },
+        "schema_version": { "const": 5 },
+        "commitminer": { "type": "string", "description": "The CommitMiner version that wrote the file." },
+        "repo": { "type": "string" },
+        "url": { "type": ["string", "null"] },
+        "source": { "type": "string", "enum": ["clone", "history", "pull-requests"] },
+        "unit": { "type": "string", "enum": ["commits", "pull requests"] },
+        "walked": { "$ref": "#/$defs/count" },
+        "candidates": { "$ref": "#/$defs/count" },
+        "bands": {
+          "type": "object",
+          "properties": {
+            "easy": { "$ref": "#/$defs/count" },
+            "medium": { "$ref": "#/$defs/count" },
+            "hard": { "$ref": "#/$defs/count" }
+          },
+          "additionalProperties": false
+        },
+        "rejected": {
+          "type": "object",
+          "description": "Rejection counts per reason, in filter order; reasons with no commits are left out.",
+          "propertyNames": { "$ref": "#/$defs/reason" },
+          "additionalProperties": { "$ref": "#/$defs/count" }
+        },
+        "rejections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "sha": { "$ref": "#/$defs/sha" },
+              "date": { "$ref": "#/$defs/date" },
+              "subject": { "type": "string" },
+              "reason": { "$ref": "#/$defs/reason" },
+              "pull_request": { "oneOf": [{ "type": "integer", "minimum": 1 }, { "type": "null" }] }
+            },
+            "required": ["sha", "date", "subject", "reason", "pull_request"],
+            "additionalProperties": false
+          }
+        },
+        "ledger": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "path": { "type": "string" },
+                "min_overlap": { "type": ["number", "null"] },
+                "new_only": { "type": "boolean" },
+                "counts": {
+                  "type": "object",
+                  "properties": {
+                    "new": { "$ref": "#/$defs/count" },
+                    "duplicate": { "$ref": "#/$defs/count" },
+                    "overlap": { "$ref": "#/$defs/count" },
+                    "unknown": { "$ref": "#/$defs/count" }
+                  },
+                  "required": ["new", "duplicate", "overlap", "unknown"],
+                  "additionalProperties": false
+                }
+              },
+              "required": ["path", "min_overlap", "new_only", "counts"],
+              "additionalProperties": false
+            },
+            { "type": "null" }
+          ]
+        },
+        "exported": { "$ref": "#/$defs/count", "description": "Candidate records that follow (fewer than `candidates` with --new-only)." },
+        "settings": {
+          "type": "object",
+          "properties": {
+            "max_lines": { "type": "integer", "minimum": 1 },
+            "max_source_files": { "type": "integer", "minimum": 1 },
+            "test_lines_cap": { "type": "integer", "minimum": 1 },
+            "assertions_cap": { "type": "integer", "minimum": 1 },
+            "files_cap": { "type": "integer", "minimum": 1 },
+            "hunks_cap": { "type": "integer", "minimum": 1 },
+            "lines_cap": { "type": "integer", "minimum": 1 },
+            "cross_file_cap": { "type": "integer", "minimum": 1 },
+            "medium_at": { "type": "number", "minimum": 0 },
+            "hard_at": { "type": "number", "minimum": 0 },
+            "weights": { "$ref": "#/$defs/weights" },
+            "difficulty_weights": { "$ref": "#/$defs/weights" }
+          },
+          "required": ["max_lines", "max_source_files", "test_lines_cap", "assertions_cap", "files_cap", "hunks_cap", "lines_cap", "cross_file_cap", "medium_at", "hard_at", "weights", "difficulty_weights"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["kind", "schema_version", "commitminer", "repo", "url", "source", "unit", "walked", "candidates", "bands", "rejected", "rejections", "ledger", "exported", "settings"],
+      "additionalProperties": false
+    }
+  }
+}

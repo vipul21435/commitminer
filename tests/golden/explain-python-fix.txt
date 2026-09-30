@@ -4,6 +4,7 @@ date     2024-01-01T01:00:00+00:00
 subject  Fix divide by zero handling (fixes #12)
 verdict  candidate: score 7.58 of 10, difficulty 1.62 of 10 (easy)
 patch    fingerprint 7e2edf63c86e5d05 (2 source and test hunks)
+tests    likely fail-to-pass: tests/test_ops.py::test_divide_by_zero
 
   files
     category  rule               added   del hunks  code tests asserts  path

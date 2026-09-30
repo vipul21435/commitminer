@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import ClassVar
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,7 +21,10 @@ class PatchStats:
     ``hunk_hashes`` are the whitespace-, path- and line-number-insensitive
     hashes of the hunks that change more than whitespace, in patch order (see
     :mod:`commitminer.fingerprint`); ``None`` when they were not computed
-    (recordings made before fingerprints).
+    (recordings made before fingerprints). ``tests`` names the test functions
+    the hunks touch (see :mod:`commitminer.testids`), sorted: ``test_x`` or
+    ``TestCase::test_x``, ``tests::name``, ``TestName``, ``Class#method``, or
+    a ``test("...")`` name.
     """
 
     hunks: int
@@ -32,6 +36,7 @@ class PatchStats:
     asserts: int = 0
     api: tuple[str, ...] = ()
     hunk_hashes: tuple[str, ...] | None = None
+    tests: tuple[str, ...] = ()
 
     @property
     def code_lines(self) -> int:
@@ -42,6 +47,19 @@ class PatchStats:
     def test_lines(self) -> int:
         """Inline test lines added plus deleted."""
         return self.test_added + self.test_deleted
+
+
+@dataclass(frozen=True, slots=True)
+class TestFunction:
+    """A test function of one file version: its id within the file and the lines it spans."""
+
+    __test__: ClassVar[bool] = False  # not a pytest test class, whatever its name says
+
+    name: str
+    start: int
+    """First line (1-based): the definition, or the first decorator or attribute above it."""
+    end: int
+    """Last line (inclusive) of its body."""
 
 
 @dataclass(frozen=True, slots=True)

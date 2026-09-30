@@ -4,6 +4,7 @@ date     2024-01-01T03:00:00+00:00
 subject  Parse negative numbers in any base (#31)
 verdict  candidate: score 5.13 of 10, difficulty 2.94 of 10 (medium)
 patch    fingerprint 908dcabdfff239c9 (5 source and test hunks)
+tests    likely fail-to-pass: parse/parse_test.go::TestInt
 
   files
     category  rule               added   del hunks  code tests asserts  path

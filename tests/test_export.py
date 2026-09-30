@@ -5,18 +5,23 @@ from pathlib import Path
 
 import pytest
 
+from commitminer import __version__
 from commitminer.export import (
     SCHEMA_VERSION,
+    Run,
     candidate_to_json,
     render_explanation,
     render_ledger,
     render_summary,
     render_table,
+    run_to_json,
+    settings_to_json,
     write_jsonl,
 )
 from commitminer.ledger import Entry, Match, Status, Verdict
 from commitminer.models import Commit, FileChange, PatchStats
 from commitminer.scoring import mine
+from commitminer.settings import Settings, Weights
 
 FILES = (
     FileChange("src/pkg/parser.py", 4, 1),
@@ -68,6 +73,7 @@ def test_write_jsonl_ranks_and_is_ascii(tmp_path: Path) -> None:
     assert write_jsonl(out, result, "r") == 2
     text = out.read_text(encoding="ascii")
     records = [json.loads(line) for line in text.splitlines()]
+    assert [r["kind"] for r in records] == ["candidate", "candidate"]  # no run: no run record
     assert [r["rank"] for r in records] == [1, 2]
     assert records[0]["sha"] == "a" * 40  # same score, same date: sha breaks the tie
     assert records[1]["subject"] == "Fix caf\u00e9 parsing (#3)"
@@ -77,6 +83,63 @@ def test_write_jsonl_with_no_candidates_writes_an_empty_file(tmp_path: Path) -> 
     out = tmp_path / "empty.jsonl"
     assert write_jsonl(out, mine([]), "r") == 0
     assert out.read_bytes() == b""
+
+
+def test_the_run_record_describes_the_funnel_the_ledger_and_the_settings(tmp_path: Path) -> None:
+    rejected = Commit("c" * 40, (), "2024-01-01T00:00:00+00:00", "docs", (FILES[2],))
+    result = mine([_commit("a" * 40, "Fix parser"), _commit("b" * 40, "Fix lexer"), rejected])
+    settings = Settings(max_lines=50, weights=Weights(small_diff=4.0))
+    run = Run("demo/repo", "https://example.invalid/demo/repo", "clone", "commits", settings)
+    record = run_to_json(run, result, None, 2)
+    assert record["kind"] == "run"
+    assert record["schema_version"] == SCHEMA_VERSION
+    assert record["commitminer"] == __version__
+    assert (record["repo"], record["url"], record["source"], record["unit"]) == (
+        "demo/repo",
+        "https://example.invalid/demo/repo",
+        "clone",
+        "commits",
+    )
+    assert (record["walked"], record["candidates"], record["exported"]) == (3, 2, 2)
+    assert record["bands"] == {"easy": 2}
+    assert record["rejected"] == {"docs-only": 1}
+    assert record["rejections"] == [
+        {
+            "sha": "c" * 40,
+            "date": "2024-01-01T00:00:00+00:00",
+            "subject": "docs",
+            "reason": "docs-only",
+            "pull_request": None,
+        }
+    ]
+    assert record["ledger"] is None
+    assert record["settings"]["max_lines"] == 50
+    assert record["settings"]["weights"]["small_diff"] == 4.0
+    assert "rules" not in record["settings"]
+    assert set(settings_to_json(Settings())) == {
+        "max_lines", "max_source_files", "test_lines_cap", "assertions_cap", "files_cap",
+        "hunks_cap", "lines_cap", "cross_file_cap", "medium_at", "hard_at", "weights",
+        "difficulty_weights",
+    }  # fmt: skip
+    # With a ledger: the verdict counts of every candidate, even when --new-only narrowed the file.
+    verdicts = [Verdict(Status.NEW), Verdict(Status.UNKNOWN)]
+    with_ledger = Run(
+        "r", None, "history", "commits", settings, ledger="team.sqlite3", min_overlap=0.5,
+        new_only=True,
+    )  # fmt: skip
+    record = run_to_json(with_ledger, result, verdicts, 1)
+    assert record["ledger"] == {
+        "path": "team.sqlite3",
+        "min_overlap": 0.5,
+        "new_only": True,
+        "counts": {"new": 1, "duplicate": 0, "overlap": 0, "unknown": 1},
+    }
+    out = tmp_path / "c.jsonl"
+    narrowed = mine([_commit("a" * 40, "Fix parser")])
+    assert write_jsonl(out, narrowed, "r", verdicts[:1], [1], with_ledger, result, verdicts) == 1
+    first, second = (json.loads(line) for line in out.read_text().splitlines())
+    assert (first["kind"], first["candidates"], first["exported"]) == ("run", 2, 1)
+    assert (second["kind"], second["repo_url"], second["fail_to_pass"]) == ("candidate", None, [])
 
 
 def test_render_summary_table_and_explanation() -> None:
@@ -156,6 +219,7 @@ def test_patch_data_and_difficulty_are_exported() -> None:
         "test_deleted": 0,
         "asserts": 0,
         "api": ["def load"],
+        "tests": [],
     }
     assert record["public_api"] == ["def load"]
     difficulty = record["difficulty"]

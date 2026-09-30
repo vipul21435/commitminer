@@ -13,10 +13,11 @@ A file entry has ``path``, ``added``, ``deleted`` and, only when set,
 To keep recordings small, ``patch`` always has ``hunks`` but leaves out every
 other field that has its default: ``code_hunks`` equal to ``hunks``,
 ``code_added`` and ``code_deleted`` equal to the file's ``added`` and
-``deleted``, zero counts and an empty ``api``. ``hunk_hashes`` is written
-whenever it was computed, even when empty, because its absence means "not
-computed". Recordings made before patches were read have no ``patch``, and
-those made before fingerprints have no ``hunk_hashes``; both still load.
+``deleted``, zero counts, an empty ``api`` and an empty ``tests``.
+``hunk_hashes`` is written whenever it was computed, even when empty, because
+its absence means "not computed". Recordings made before patches were read
+have no ``patch``, and those made before fingerprints have no ``hunk_hashes``;
+both still load.
 
 Replaying a recording yields the same :class:`~commitminer.models.Commit` objects
 as walking the clone, so everything after parsing runs the same code path.
@@ -64,6 +65,7 @@ def _patch_to_json(change: FileChange, patch: PatchStats) -> dict[str, Any]:
         "test_deleted": 0,
         "asserts": 0,
         "api": [],
+        "tests": [],
     }
     values: dict[str, Any] = {
         "code_hunks": patch.code_hunks,
@@ -73,6 +75,7 @@ def _patch_to_json(change: FileChange, patch: PatchStats) -> dict[str, Any]:
         "test_deleted": patch.test_deleted,
         "asserts": patch.asserts,
         "api": list(patch.api),
+        "tests": list(patch.tests),
     }
     record: dict[str, Any] = {"hunks": patch.hunks}
     record.update((key, value) for key, value in values.items() if value != defaults[key])
@@ -123,7 +126,7 @@ def _string(value: Any, where: str) -> str:
 
 _PATCH_KEYS = frozenset(
     {"hunks", "code_hunks", "code_added", "code_deleted", "test_added", "test_deleted"}
-    | {"asserts", "api", "hunk_hashes"}
+    | {"asserts", "api", "hunk_hashes", "tests"}
 )
 
 
@@ -145,6 +148,9 @@ def _patch_from_json(raw: Any, added: int | None, deleted: int | None, where: st
     api = raw.get("api", [])
     if not isinstance(api, list):
         raise HistoryError(f"{where}.api: expected a list")
+    tests = raw.get("tests", [])
+    if not isinstance(tests, list):
+        raise HistoryError(f"{where}.tests: expected a list")
     hashes = raw.get("hunk_hashes")
     if hashes is not None and not isinstance(hashes, list):
         raise HistoryError(f"{where}.hunk_hashes: expected a list")
@@ -161,6 +167,7 @@ def _patch_from_json(raw: Any, added: int | None, deleted: int | None, where: st
         hunk_hashes=None
         if hashes is None
         else tuple(_string(item, f"{where}.hunk_hashes") for item in hashes),
+        tests=tuple(_string(name, f"{where}.tests") for name in tests),
     )
 
 

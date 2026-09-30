@@ -21,6 +21,7 @@ from commitminer.patch import (
     star_sides,
     strip_comment,
 )
+from commitminer.testids import test_functions as find_tests
 from gitrepo import unhashed
 
 PY = SYNTAX[Language.PYTHON]
@@ -512,7 +513,12 @@ def test_inline_test_lines_are_split_from_code() -> None:
     )
     regions = rust_test_regions(LIB.encode())
     stats = analyze(fix, Language.RUST, regions, ((12, 17),))
-    assert unhashed(stats) == PatchStats(3, 2, 2, 1, test_added=4, asserts=1)
+    # Without the file's test functions, the added "#[test] fn adds" names itself.
+    assert unhashed(stats) == PatchStats(3, 2, 2, 1, test_added=4, asserts=1, tests=("adds",))
+    with_functions = analyze(
+        fix, Language.RUST, regions, ((12, 17),), tests=find_tests(LIB.encode(), Language.RUST)
+    )
+    assert with_functions.tests == ("tests::adds",)
 
 
 def test_assertions_outside_inline_test_modules_do_not_count_when_there_are_some() -> None:

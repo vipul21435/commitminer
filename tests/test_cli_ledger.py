@@ -23,6 +23,7 @@ from typer.testing import CliRunner
 from commitminer import cli
 from commitminer import ledger as ledger_module
 from commitminer.cli import app
+from exportfile import read_export
 from gitrepo import GitRepo
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -130,7 +131,8 @@ def test_the_fork_copies_are_duplicates_and_its_own_fix_is_new(
         assert f"{fork[mine_key][:10]} duplicate: same fix as demo/durations {up[up_key][:10]}" in (
             text
         )
-    records = [json.loads(line) for line in out.read_text().splitlines()]
+    run, records = read_export(out)
+    assert run["ledger"]["counts"] == {"new": 1, "duplicate": 3, "overlap": 0, "unknown": 0}
     by_sha = {r["sha"]: r for r in records}
     assert by_sha[fork["spaces"]]["ledger"] == {"matches": [], "status": "new"}
     match = by_sha[fork["fix_b"]]["ledger"]["matches"][0]
@@ -159,8 +161,11 @@ def test_new_only_leaves_out_duplicates_and_keeps_ranks(
     assert len(rows) == 1
     assert rows[0].startswith("   2 ")
     assert "new      Accept upper-case units" in rows[0]
-    (record,) = [json.loads(line) for line in out.read_text().splitlines()]
+    run, (record,) = read_export(out)
     assert (record["rank"], record["sha"]) == (2, shas["upstream"]["upper"])
+    # The run record still describes the whole run, not only the new candidates.
+    assert (run["candidates"], run["exported"], run["ledger"]["new_only"]) == (4, 1, True)
+    assert run["ledger"]["counts"] == {"new": 1, "duplicate": 2, "overlap": 1, "unknown": 0}
     explained = runner.invoke(
         app,
         [
@@ -359,7 +364,7 @@ def test_a_fix_to_the_spaces_inside_a_string_is_fingerprinted(
     assert f"ledger {ledger}: 2 new" in text
     assert "unknown" not in text
     assert "showing the 2 new candidates (--new-only)" in text
-    (first, _) = [json.loads(line) for line in out.read_text().splitlines()]
+    _, (first, _) = read_export(out)
     assert first["sha"] == fixed
     assert first["fingerprint"]["version"] == 2
     assert len(first["fingerprint"]["hunks"]) == 2

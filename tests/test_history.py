@@ -34,7 +34,12 @@ SAMPLE = Commit(
             patch=PatchStats(3, 2, 5, 3, test_added=1, test_deleted=1, asserts=2, api=("def a",)),
         ),
         FileChange("tests/data/case.toml", 4, 0, patch=PatchStats(1, 1, 4, 0)),
-        FileChange("tests/test_api.py", 2, 0, patch=PatchStats(1, 1, 2, 0, hunk_hashes=("f1",))),
+        FileChange(
+            "tests/test_api.py",
+            2,
+            0,
+            patch=PatchStats(1, 1, 2, 0, hunk_hashes=("f1",), tests=("TestApi::test_a",)),
+        ),
         FileChange("src/pkg/ws.py", 1, 1, patch=PatchStats(1, 0, 0, 0, hunk_hashes=())),
     ),
 )
@@ -220,6 +225,13 @@ def test_patch_fields_are_recorded_only_when_they_differ_from_the_defaults(
         ["f1"],
         [],
     ]
+    # Touched tests are written only when there are any.
+    assert [f["patch"].get("tests") for f in record["files"][-4:]] == [
+        None,
+        None,
+        ["TestApi::test_a"],
+        None,
+    ]
 
 
 def _with_patch(patch: object, added: int | None = 1) -> dict[str, object]:
@@ -239,6 +251,7 @@ def _with_patch(patch: object, added: int | None = 1) -> dict[str, object]:
         (_with_patch({"hunks": 1, "lines": 2}), "unknown key 'lines'"),
         (_with_patch({"hunks": 1}, added=None), "a binary file has no patch"),
         (_with_patch({"hunks": 1, "api": "def a"}), r"patch.api: expected a list"),
+        (_with_patch({"hunks": 1, "tests": "test_a"}), r"patch.tests: expected a list"),
         (_with_patch({"hunks": 1, "api": [1]}), r"patch.api: expected a string"),
         (_with_patch({}), r"patch.hunks: required"),
         (_with_patch({"hunks": 1, "asserts": -1}), r"patch.asserts: expected a non-negative"),

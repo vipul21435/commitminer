@@ -51,7 +51,7 @@ from types import TracebackType
 from typing import IO
 
 from commitminer.languages import Language, language_of
-from commitminer.models import Commit, FileChange
+from commitminer.models import Commit, FileChange, TestFunction
 from commitminer.patch import (
     DIFF_HEADER,
     FilePatch,
@@ -70,6 +70,7 @@ from commitminer.signals import (
     detect,
     rust_tests_added,
 )
+from commitminer.testids import test_functions
 
 MARKER = "commitminer:v1"
 _FORMAT = f"--format=%x00{MARKER}%x00%H%x00%P%x00%aI%x00%B"
@@ -389,6 +390,13 @@ def _comments(content: bytes | None, language: Language) -> tuple[Region, ...] |
     return comment_regions(content, language)
 
 
+def _tests(content: bytes | None, language: Language) -> tuple[TestFunction, ...] | None:
+    """Test functions of a file version; ``None`` if unread or cut at the read limit."""
+    if content is None or len(content) >= MAX_CONTENT:
+        return None
+    return test_functions(content, language)
+
+
 def file_details(
     commit: Commit,
     change: FileChange,
@@ -402,7 +410,8 @@ def file_details(
     ``#[test]`` functions, it gets ``rust-tests-added``, and lines inside its
     ``#[cfg(test)]`` modules are measured as test lines. When a changed line
     starts with ``*``, the version it belongs to is lexed to tell a block
-    comment continuation from an operator-first line of code.
+    comment continuation from an operator-first line of code. The new version
+    also gives the test functions the patch touches.
     """
     language = language_of(change.path)
     signals: tuple[str, ...] = ()
@@ -413,7 +422,7 @@ def file_details(
         return replace(change, signals=signals, patch=None)
     new_regions: tuple[Region, ...] = ()
     old_regions: tuple[Region, ...] = ()
-    new_comments = old_comments = None
+    new_comments = old_comments = tests = None
     if blobs is not None and language is not None:
         old_stars, new_stars = star_sides(patch, language)
         rust = language is Language.RUST
@@ -425,7 +434,8 @@ def file_details(
             new_comments = _comments(new, language)
         if old_stars:
             old_comments = _comments(old, language)
-    stats = analyze(patch, language, new_regions, old_regions, new_comments, old_comments)
+        tests = _tests(new, language)
+    stats = analyze(patch, language, new_regions, old_regions, new_comments, old_comments, tests)
     return replace(change, signals=signals, patch=stats)
 
 
@@ -465,6 +475,15 @@ def head_sha(repo: Path, rev: str = "HEAD") -> str:
 def resolve_commit(repo: Path, rev: str) -> str:
     """Resolve ``rev`` to the full sha of the commit it names (tags are peeled)."""
     return head_sha(repo, f"{rev}^{{commit}}")
+
+
+def origin_url(repo: Path) -> str | None:
+    """The clone's ``remote.origin.url``, or ``None`` when it has no origin remote."""
+    try:
+        out = run_git(["git", "-C", str(repo), *GIT_CONFIG, "config", "--get", "remote.origin.url"])
+    except GitError:
+        return None
+    return out.decode(_ENCODING, "replace").strip() or None
 
 
 def normalize_date(date: str) -> str:

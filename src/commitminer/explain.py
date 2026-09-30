@@ -112,6 +112,12 @@ def render_commit(outcome: Candidate | Rejection, settings: Settings) -> str:
         else f"patch    fingerprint {printed.patch} ({len(printed.hunks)} source and test "
         f"hunk{'' if len(printed.hunks) == 1 else 's'})"
     )
+    tests = outcome.stats.fail_to_pass
+    rows.append(
+        f"tests    likely fail-to-pass: {_ascii(', '.join(tests))}"
+        if tests
+        else "tests    no test function recognised in the changed tests"
+    )
     rows += ["", *render_files(outcome.stats), ""]
     rows += render_features("score (ranks candidates)", outcome.features, outcome.score)
     rows.append("")

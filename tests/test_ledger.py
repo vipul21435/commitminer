@@ -543,7 +543,11 @@ def _line(**overrides: object) -> str:
 
 def test_read_candidates(tmp_path: Path) -> None:
     path = tmp_path / "c.jsonl"
-    path.write_text(_line() + "\n\n" + _line(rank=None, fingerprint=None) + "\n")
+    run = json.dumps({"kind": "run", "schema_version": 5, "walked": 3})
+    path.write_text(
+        run + "\n" + _line(kind="candidate", schema_version=5) + "\n\n"
+        + _line(rank=None, fingerprint=None) + "\n"
+    )  # fmt: skip
     first, second = read_candidates(path)
     assert first.rank == 1
     assert first.proposal == Proposal("r", "a" * 40, "fix", fp("h1"))
@@ -556,7 +560,8 @@ def test_read_candidates(tmp_path: Path) -> None:
     [
         ("{", "invalid JSON"),
         ("[]", "expected an object"),
-        (_line(schema_version=2), "schema_version 2, expected 3"),
+        (_line(schema_version=2), "schema_version 2, expected 3 to 5"),
+        (_line(schema_version=6), "schema_version 6, expected 3 to 5"),
         (_line(rank="1"), "rank: expected int"),
         (_line(repo=None), "repo: expected str"),
         (_line(fingerprint=[]), "fingerprint: expected an object or null"),

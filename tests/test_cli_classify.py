@@ -227,8 +227,9 @@ def test_mine_a_rust_repository_with_inline_tests(git_repo: GitRepo, tmp_path: P
     result = runner.invoke(app, ["mine", str(git_repo.root), "--out", str(out), "--explain", "0"])
     assert result.exit_code == 0, result.output
     assert "2 candidates" in result.stdout.splitlines()[0]
-    best = json.loads(out.read_text(encoding="ascii").splitlines()[0])
+    best = json.loads(out.read_text(encoding="ascii").splitlines()[1])  # after the run record
     assert best["subject"] == "Round half up (fixes #7)"
+    assert best["fail_to_pass"] == ["src/lib.rs::tests::rounds_up"]
     assert best["inline_test_files"] == ["src/lib.rs"]
     paths = runner.invoke(app, ["mine", str(git_repo.root), "--no-content", "--explain", "0"])
     assert paths.stdout.splitlines()[0].endswith("0 candidates, 2 rejected (no-test 2)")

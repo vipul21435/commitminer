@@ -42,6 +42,9 @@
     ],
     "value": 1.62
   },
+  "fail_to_pass": [
+    "tests/test_ops.py::test_divide_by_zero"
+  ],
   "features": [
     {
       "contribution": 2.9325,
@@ -101,7 +104,8 @@
         "code_hunks": 1,
         "hunks": 1,
         "test_added": 0,
-        "test_deleted": 0
+        "test_deleted": 0,
+        "tests": []
       },
       "path": "src/calc/ops.py",
       "rule": "py-source"
@@ -120,7 +124,10 @@
         "code_hunks": 1,
         "hunks": 1,
         "test_added": 0,
-        "test_deleted": 0
+        "test_deleted": 0,
+        "tests": [
+          "test_divide_by_zero"
+        ]
       },
       "path": "tests/test_ops.py",
       "rule": "test-dir"
@@ -135,6 +142,7 @@
     "version": 2
   },
   "inline_test_files": [],
+  "kind": "candidate",
   "ledger": null,
   "lines": {
     "changed": 9,
@@ -149,7 +157,8 @@
   "pull_request": null,
   "rank": null,
   "repo": "calc",
-  "schema_version": 4,
+  "repo_url": null,
+  "schema_version": 5,
   "score": 7.5825,
   "sha": "ee901400752f14af77c85e0ddf24b3a0f2ae3b3e",
   "source_files": [

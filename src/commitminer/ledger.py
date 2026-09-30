@@ -547,12 +547,16 @@ class RankedProposal:
     proposal: Proposal
 
 
-READABLE_SCHEMAS: Final = (3, 4)
-"""Export schema versions whose candidates the ledger can read (4 only adds ``pull_request``)."""
+READABLE_SCHEMAS: Final = (3, 4, 5)
+"""Export schema versions whose candidates the ledger can read.
+
+4 only adds ``pull_request``; 5 adds a run record (skipped here) and fields
+the ledger does not use.
+"""
 
 
 def read_candidates(path: Path) -> list[RankedProposal]:
-    """Read the candidates of a ``mine --out`` or ``prs --out`` file (schema version 3 or 4)."""
+    """Read the candidates of a ``mine --out`` or ``prs --out`` file (schema version 3 to 5)."""
     try:
         text = path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError) as exc:
@@ -570,9 +574,11 @@ def read_candidates(path: Path) -> list[RankedProposal]:
             raise LedgerError(f"{where}: expected an object")
         if record.get("schema_version") not in READABLE_SCHEMAS:
             raise LedgerError(
-                f"{where}: schema_version {record.get('schema_version')!r}, expected 3 or 4 "
+                f"{where}: schema_version {record.get('schema_version')!r}, expected 3 to 5 "
                 "(mine the candidates again)"
             )
+        if record.get("kind") == "run":
+            continue
         rank = record.get("rank")
         found.append(
             RankedProposal(

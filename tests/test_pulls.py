@@ -230,7 +230,7 @@ def test_pull_request_metadata_feeds_the_score() -> None:
     assert features["fix_keyword"].value == 1.0
     assert features["fix_keyword"].detail == "label 'type: bug'"
     record = candidate_to_json(candidate, 1, "o/r")
-    assert record["schema_version"] == 4
+    assert record["schema_version"] == 5
     assert record["base"] == BASE
     assert record["pull_request"]["number"] == 7
     assert record["pull_request"]["linked_issues"] == ["#3", "#4"]

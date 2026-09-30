@@ -25,10 +25,15 @@ def test_walk_measures_code_comments_api_and_inline_tests(git_repo: GitRepo) -> 
     rust, api, pragma, _ = walk(git_repo.root)
     assert unhashed(pragma.files[0].patch) == PatchStats(1, 0, 0, 0)
     assert unhashed(api.files[0].patch) == PatchStats(1, 1, 1, 1, api=("def load",))
-    assert unhashed(rust.files[0].patch) == PatchStats(2, 1, 1, 1, test_added=5, asserts=1)
+    assert unhashed(rust.files[0].patch) == PatchStats(
+        2, 1, 1, 1, test_added=5, asserts=1, tests=("tests::saturates",)
+    )
     # Without file contents the test module cannot be found: every line is code.
     (rust_no_content, *_) = walk(git_repo.root, content=False)
-    assert unhashed(rust_no_content.files[0].patch) == PatchStats(2, 2, 5, 1, asserts=1)
+    # ... and the added #[test] fn names itself, without its module path.
+    assert unhashed(rust_no_content.files[0].patch) == PatchStats(
+        2, 2, 5, 1, asserts=1, tests=("saturates",)
+    )
 
 
 def test_walk_ignores_repository_diff_settings(git_repo: GitRepo) -> None:

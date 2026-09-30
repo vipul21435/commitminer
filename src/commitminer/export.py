@@ -1,22 +1,37 @@
-"""Candidate export (JSON Lines) and plain-text rendering for the terminal."""
+"""Candidate export (JSON Lines) and plain-text rendering for the terminal.
+
+An export is one JSON object per line. The first line is the **run record**
+(``"kind": "run"``): what was mined, the funnel counts, every rejected commit
+with its reason, the ledger summary and the settings. Every other line is one
+**candidate** (``"kind": "candidate"``), best first, self-contained: the
+repository URL, base and fix commits, the classified files, the likely
+fail-to-pass test ids, both feature breakdowns, the fingerprint and the ledger
+verdict. The committed JSON Schema (``schemas/export-v5.schema.json``, printed
+by ``commitminer schema``) describes both records; the tests validate every
+export against it.
+"""
 
 from __future__ import annotations
 
 import json
 from collections import Counter
 from collections.abc import Sequence
+from dataclasses import asdict, dataclass
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
+from commitminer import __version__
 from commitminer.classify import Category
 from commitminer.fingerprint import FINGERPRINT_VERSION, Fingerprint
 from commitminer.ledger import Status, Verdict, ledger_verdict_to_json
 from commitminer.models import Commit, PatchStats, PullRequest
 from commitminer.scoring import Candidate, Feature, MineResult
+from commitminer.settings import Settings
 from commitminer.stats import ClassifiedFile
 
-SCHEMA_VERSION = 4
-"""Version of the per-candidate JSON object; bumped on incompatible changes.
+SCHEMA_VERSION = 5
+"""Version of the export records; bumped on incompatible changes.
 
 2: ``added_assertions`` score feature, ``difficulty``, per-file ``patch``, and
 inline Rust test lines counted as test lines in ``lines``.
@@ -26,7 +41,33 @@ with ``--ledger``, else ``null``).
 4: ``pull_request`` (number, URL, labels, linked issues, base, head and merge
 commit shas, commits) for candidates mined with ``commitminer prs``, else
 ``null``.
+5: ``kind`` on every record and a ``run`` record first; on candidates
+``repo_url``, ``fail_to_pass`` (likely test ids from the test functions the
+patch touched) and per-file ``patch.tests``; a committed JSON Schema.
 """
+
+SCHEMA_FILE = f"export-v{SCHEMA_VERSION}.schema.json"
+
+
+def schema_text() -> str:
+    """The JSON Schema of the export records, as committed in the package."""
+    return resources.files("commitminer").joinpath("schemas", SCHEMA_FILE).read_text("utf-8")
+
+
+@dataclass(frozen=True, slots=True)
+class Run:
+    """What one ``mine`` or ``prs`` run looked at: the run record's identity."""
+
+    repo: str
+    url: str | None
+    source: str
+    """``clone``, ``history`` or ``pull-requests``."""
+    unit: str
+    """``commits`` or ``pull requests``."""
+    settings: Settings
+    ledger: str | None = None
+    min_overlap: float | None = None
+    new_only: bool = False
 
 
 def _feature_to_json(feature: Feature) -> dict[str, Any]:
@@ -50,6 +91,7 @@ def patch_to_json(patch: PatchStats) -> dict[str, Any]:
         "test_deleted": patch.test_deleted,
         "asserts": patch.asserts,
         "api": list(patch.api),
+        "tests": list(patch.tests),
     }
 
 
@@ -98,17 +140,24 @@ def fingerprint_to_json(value: Fingerprint | None) -> dict[str, Any] | None:
 
 
 def candidate_to_json(
-    candidate: Candidate, rank: int | None, repo: str, verdict: Verdict | None = None
+    candidate: Candidate,
+    rank: int | None,
+    repo: str,
+    verdict: Verdict | None = None,
+    url: str | None = None,
 ) -> dict[str, Any]:
     """The JSON object written for one candidate (``rank`` is ``None`` outside a ranking).
 
-    ``verdict`` is the ledger's verdict when the candidates were checked against one.
+    ``verdict`` is the ledger's verdict when the candidates were checked
+    against one; ``url`` is the repository URL, when known.
     """
     commit, stats = candidate.commit, candidate.stats
     return {
+        "kind": "candidate",
         "schema_version": SCHEMA_VERSION,
         "rank": rank,
         "repo": repo,
+        "repo_url": url,
         "sha": commit.sha,
         "base": commit.base,
         "date": commit.date,
@@ -131,6 +180,7 @@ def candidate_to_json(
         "source_files": [f.change.path for f in stats.source_files],
         "test_files": [f.change.path for f in stats.test_files],
         "inline_test_files": [f.change.path for f in stats.inline_test_files],
+        "fail_to_pass": list(stats.fail_to_pass),
         "files": [file_to_json(item) for item in stats.files],
         "fingerprint": fingerprint_to_json(candidate.fingerprint),
         "ledger": None if verdict is None else ledger_verdict_to_json(verdict),
@@ -150,26 +200,95 @@ def _ranks(result: MineResult, ranks: Sequence[int] | None) -> Sequence[int]:
     return range(1, len(result.candidates) + 1) if ranks is None else ranks
 
 
+def settings_to_json(settings: Settings) -> dict[str, Any]:
+    """The limits, caps, weights and bands a run used (the classifier rules are left out)."""
+    record = asdict(settings)
+    del record["rules"]
+    return record
+
+
+def run_to_json(
+    run: Run,
+    result: MineResult,
+    all_verdicts: Sequence[Verdict] | None,
+    exported: int,
+) -> dict[str, Any]:
+    """The run record: the funnel, every rejected commit with its reason, ledger and settings.
+
+    ``all_verdicts`` are the ledger verdicts of every candidate of ``result``
+    (before ``--new-only`` narrowed the export), or ``None`` without a ledger;
+    ``exported`` is how many candidate records follow.
+    """
+    ledger: dict[str, Any] | None = None
+    if run.ledger is not None:
+        counts = Counter(v.status for v in all_verdicts or ())
+        ledger = {
+            "path": run.ledger,
+            "min_overlap": run.min_overlap,
+            "new_only": run.new_only,
+            "counts": {status.value: counts[status] for status in Status},
+        }
+    return {
+        "kind": "run",
+        "schema_version": SCHEMA_VERSION,
+        "commitminer": __version__,
+        "repo": run.repo,
+        "url": run.url,
+        "source": run.source,
+        "unit": run.unit,
+        "walked": result.walked,
+        "candidates": len(result.candidates),
+        "bands": result.bands(),
+        "rejected": result.rejected_by_reason(),
+        "rejections": [
+            {
+                "sha": r.commit.sha,
+                "date": r.commit.date,
+                "subject": r.commit.subject,
+                "reason": r.reason.value,
+                "pull_request": None
+                if r.commit.pull_request is None
+                else r.commit.pull_request.number,
+            }
+            for r in result.rejections
+        ],
+        "ledger": ledger,
+        "exported": exported,
+        "settings": settings_to_json(run.settings),
+    }
+
+
 def write_jsonl(
     path: Path,
     result: MineResult,
     repo: str,
     verdicts: Sequence[Verdict] | None = None,
     ranks: Sequence[int] | None = None,
+    run: Run | None = None,
+    funnel: MineResult | None = None,
+    all_verdicts: Sequence[Verdict] | None = None,
 ) -> int:
-    """Write every candidate, best first, one JSON object per line; return the count.
+    """Write the export: the run record (with ``run``), then every candidate, best first.
 
-    ``ranks`` are the candidates' ranks when ``result`` holds only some of them.
+    Returns the number of candidates written. ``ranks`` are the candidates'
+    ranks when ``result`` holds only some of them (``--new-only``); ``funnel``
+    and ``all_verdicts`` are then the full result and its verdicts, which the
+    run record describes.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    lines = [
-        json.dumps(candidate_to_json(c, rank, repo, verdict), sort_keys=True, ensure_ascii=True)
+    rows = [
+        candidate_to_json(c, rank, repo, verdict, run.url if run else None)
         for rank, c, verdict in zip(
             _ranks(result, ranks), result.candidates, _verdicts(result, verdicts), strict=True
         )
     ]
+    records: list[dict[str, Any]] = []
+    if run is not None:
+        records.append(run_to_json(run, funnel or result, all_verdicts, len(rows)))
+    records += rows
+    lines = [json.dumps(record, sort_keys=True, ensure_ascii=True) for record in records]
     path.write_text("".join(line + "\n" for line in lines), encoding="ascii", newline="\n")
-    return len(lines)
+    return len(rows)
 
 
 def _ascii(text: str) -> str:

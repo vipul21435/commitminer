@@ -16,13 +16,15 @@ from commitminer import __version__
 from commitminer.config import Config, ConfigError, find_config, load_config
 from commitminer.explain import ExplainError, explain_json, find_commit, render_commit
 from commitminer.export import (
+    Run,
     render_explanation,
     render_ledger,
     render_summary,
     render_table,
+    schema_text,
     write_jsonl,
 )
-from commitminer.gitlog import GitError, head_sha, resolve_commit, walk
+from commitminer.gitlog import GitError, head_sha, origin_url, resolve_commit, walk
 from commitminer.history import HistoryError, read_history, write_history
 from commitminer.ledger import (
     DEFAULT_MIN_OVERLAP,
@@ -232,6 +234,15 @@ def mine_command(
             "--new-only", help="With --ledger, leave duplicates and overlaps out of the output."
         ),
     ] = False,
+    url: Annotated[
+        str | None,
+        typer.Option(
+            "--url",
+            help="Repository URL written to the export (default: the recording's URL, "
+            "or the clone's origin remote).",
+            show_default=False,
+        ),
+    ] = None,
 ) -> None:
     """Filter and rank the commits of a clone or a recorded history."""
     if new_only and ledger is None:
@@ -245,10 +256,12 @@ def mine_command(
         if history is not None:
             header, commits = read_history(history)
             label = repo_name or header.repo
+            url = url or header.url
         else:
             assert repo is not None
             commits = walk(repo, rev, max_count, content)
             label = repo_name or repo.resolve().name
+            url = url or origin_url(repo)
     except (GitError, HistoryError, OSError) as exc:
         raise _fail(str(exc)) from exc
     if history is not None and max_count is not None:
@@ -258,11 +271,12 @@ def mine_command(
     )
     if settings_config.path is not None:
         typer.echo(settings_config.describe())
+    source = "history" if history is not None else "clone"
     _report(
         commits,
         label,
         settings,
-        _Output(top, explain, out, ledger, min_overlap, new_only),
+        _Output(top, explain, out, ledger, min_overlap, new_only, url, source),
     )
 
 
@@ -276,6 +290,8 @@ class _Output:
     ledger: Path | None
     min_overlap: float
     new_only: bool
+    url: str | None
+    source: str
 
 
 def _report(
@@ -290,7 +306,7 @@ def _report(
             proposals = [_proposal(c, label) for c in result.candidates]
             verdicts = check_all(opened, proposals, output.min_overlap)
     typer.echo(render_summary(result, label, unit))
-    shown, ranks = result, list(range(1, len(result.candidates) + 1))
+    shown, ranks, all_verdicts = result, list(range(1, len(result.candidates) + 1)), verdicts
     if verdicts is not None:
         typer.echo(render_ledger(result, verdicts, str(ledger)))
         if new_only:
@@ -301,7 +317,17 @@ def _report(
             typer.echo(f"showing the {len(kept)} new candidates (--new-only)")
     _print_candidates(shown, ranks, output.top, output.explain, verdicts)
     if output.out is not None:
-        count = write_jsonl(output.out, shown, label, verdicts, ranks)
+        run = Run(
+            repo=label,
+            url=output.url,
+            source=output.source,
+            unit=unit,
+            settings=settings,
+            ledger=None if ledger is None else str(ledger),
+            min_overlap=None if ledger is None else output.min_overlap,
+            new_only=new_only,
+        )
+        count = write_jsonl(output.out, shown, label, verdicts, ranks, run, result, all_verdicts)
         typer.echo("")
         typer.echo(f"wrote {count} candidates to {output.out}")
 
@@ -430,6 +456,7 @@ def prs_command(
         cache = ResponseCache(cache_dir or default_cache_dir())
     transport: httpx.BaseTransport
     recorder = None
+    root = api_url or os.environ.get("GITHUB_API_URL") or API_URL
     try:
         if replay_dir is not None:
             transport = ReplayTransport(replay_dir)
@@ -439,7 +466,7 @@ def prs_command(
             transport = _network_transport()
         client = GitHubClient(
             token=os.environ.get("GITHUB_TOKEN") or None,
-            api_url=api_url or os.environ.get("GITHUB_API_URL") or API_URL,
+            api_url=root,
             cache=cache,
             transport=transport,
             max_wait=max_wait,
@@ -462,8 +489,24 @@ def prs_command(
     )
     if loaded.path is not None:
         typer.echo(loaded.describe())
-    output = _Output(top, explain, out, ledger, min_overlap, new_only)
+    output = _Output(
+        top, explain, out, ledger, min_overlap, new_only, web_url(root, repo), "pull-requests"
+    )
     _report(list(walked.commits), repo, settings, output, unit="pull requests")
+
+
+def web_url(api_url: str, repo: str) -> str:
+    """The repository's web URL from the REST API root: github.com, or a GHES host."""
+    root = api_url.rstrip("/")
+    if root == API_URL:
+        return f"https://github.com/{repo}"
+    return f"{root.removesuffix('/api/v3')}/{repo}"
+
+
+@app.command()
+def schema() -> None:
+    """Print the JSON Schema of the export records written by mine --out and prs --out."""
+    typer.echo(schema_text(), nl=False)
 
 
 @app.command()
