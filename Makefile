@@ -1,5 +1,5 @@
 .PHONY: help install lint fmt typecheck test cov check demo demo-explain demo-classify \
-	demo-ledger demo-prs record-prs rules-doc docker verify-recording
+	demo-ledger demo-prs demo-report record-prs rules-doc docker verify-recording
 
 UV ?= uv
 IMAGE ?= commitminer:local
@@ -85,6 +85,15 @@ demo-prs: ## Rank tomli's merged pull requests from recorded API responses (offl
 		--owner demo > $(PRS_DEMO)/ledger-add.txt && tail -1 $(PRS_DEMO)/ledger-add.txt
 	$(UV) run commitminer prs $(PRS_ARGS) --ledger $(PRS_DEMO)/ledger.sqlite3 --top 0 --explain 0
 
+EXPORT := out/tomli-candidates.jsonl
+
+demo-report: ## Export the recorded tomli history and render it as Markdown and HTML reports
+	$(UV) run commitminer mine --history $(HISTORY) --top 0 --explain 0 --out $(EXPORT)
+	$(UV) run commitminer report $(EXPORT) --out out/tomli-report.md
+	$(UV) run commitminer report $(EXPORT) --out out/tomli-report.html
+	@echo
+	@sed -n '1,22p' out/tomli-report.md
+
 record-prs: ## Re-record the pull-request fixtures from GitHub (network; GITHUB_TOKEN optional)
 	rm -f $(PRS)/*.json
 	$(UV) run commitminer prs hukkin/tomli --limit 25 --record $(PRS) --top 0 --explain 0
@@ -97,6 +106,8 @@ docker: ## Build the image, run the demo in it, prune this project's dangling im
 	docker build -t $(IMAGE) .
 	docker run --rm $(IMAGE) mine --history $(HISTORY) --top 5 --explain 1
 	docker run --rm --network none $(IMAGE) prs $(PRS_ARGS) --top 5 --explain 0
+	docker run --rm --entrypoint sh $(IMAGE) -c 'commitminer mine --history $(HISTORY) --top 0 \
+		--explain 0 --out /tmp/c.jsonl && commitminer report /tmp/c.jsonl --top 3 | head -20'
 	docker image prune -f --filter label=project=commitminer
 
 verify-recording: ## Re-record tomli from GitHub and compare with the bundled file (network)

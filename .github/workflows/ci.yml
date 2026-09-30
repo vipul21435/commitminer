@@ -41,6 +41,20 @@ jobs:
         run: make demo-ledger
       - name: Pull-request demo (recorded GitHub responses, offline)
         run: make demo-prs
+      - name: Report demo (export schema 5, Markdown and HTML reports)
+        run: make demo-report
+      - name: Exported candidates validate against the committed JSON Schema
+        run: |
+          uv run python -c '
+          import json, sys
+          from jsonschema import Draft202012Validator
+          from commitminer.export import schema_text
+          validator = Draft202012Validator(json.loads(schema_text()))
+          records = [json.loads(line) for line in open("out/tomli-candidates.jsonl")]
+          for record in records:
+              validator.validate(record)
+          kinds = [record["kind"] for record in records]
+          print(len(records), "records valid:", kinds[0], "+", kinds.count("candidate"), "candidates")'
       - name: Recording still matches upstream tomli
         run: make verify-recording
 
@@ -78,6 +92,15 @@ jobs:
         run: |
           docker run --rm --network none commitminer:ci prs hukkin/tomli --limit 25 \
             --replay examples/tomli/prs --top 5 --explain 0
+      - name: Export and report inside the image
+        run: |
+          docker run --rm --entrypoint sh commitminer:ci -c '
+            set -e
+            commitminer mine --history examples/tomli/history.jsonl.gz --top 0 --explain 0 \
+              --out /tmp/candidates.jsonl
+            commitminer report /tmp/candidates.jsonl --top 3 | head -20
+            commitminer report /tmp/candidates.jsonl --format html --top 3 | grep -c "<details>"
+            commitminer schema | head -3'
       - name: Mine this repository's own history inside the image
         run: |
           docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/repo:ro" commitminer:ci \

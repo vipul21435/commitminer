@@ -41,6 +41,7 @@ from commitminer.ledger import (
     read_candidates,
 )
 from commitminer.models import Commit
+from commitminer.report import FORMATS, ReportError, format_for, read_export, render
 from commitminer.ruletable import (
     classify_file,
     render_rules,
@@ -507,6 +508,46 @@ def web_url(api_url: str, repo: str) -> str:
 def schema() -> None:
     """Print the JSON Schema of the export records written by mine --out and prs --out."""
     typer.echo(schema_text(), nl=False)
+
+
+@app.command(name="report")
+def report_command(
+    candidates: Annotated[
+        Path,
+        typer.Argument(help="Export written by mine --out or prs --out.", show_default=False),
+    ],
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", help="Write the report here (default: print it)."),
+    ] = None,
+    fmt: Annotated[
+        str | None,
+        typer.Option(
+            "--format",
+            help=f"{' or '.join(FORMATS)} (default: from the --out suffix, else markdown).",
+            show_default=False,
+        ),
+    ] = None,
+    top: Annotated[
+        int | None,
+        typer.Option("--top", min=1, help="Candidates in the ranked table (default: all)."),
+    ] = None,
+) -> None:
+    """Render an export as a Markdown or self-contained HTML report."""
+    try:
+        chosen = format_for(out, fmt)
+        text = render(read_export(candidates), chosen, top)
+    except ReportError as exc:
+        raise _fail(str(exc)) from exc
+    if out is None:
+        typer.echo(text, nl=False)
+        return
+    try:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(text, encoding="utf-8", newline="\n")
+    except OSError as exc:
+        raise _fail(f"{out}: cannot write: {exc}") from exc
+    typer.echo(f"wrote the {chosen} report to {out}")
 
 
 @app.command()
