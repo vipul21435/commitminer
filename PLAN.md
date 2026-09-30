@@ -211,6 +211,20 @@ Its output (JSONL) is the input for downstream environment builders.
   and the repository-selecting variables (`GIT_DIR`, `GIT_WORK_TREE`, ...) are removed
   from git's environment. tomli, semver and pflag mine to byte-identical JSONL after
   these three fixes.
+- (4) A changed line starting with `*` was always a comment, so operator-first
+  continuations (`* height`, the default of rustfmt and google-java-format) made real
+  fixes `source-cosmetic`; `strip_comment` also cut JavaScript lines at the `//` of a regex
+  literal. The Rust test-module lexer became a C-like lexer for Rust, Go, Java and
+  JavaScript/TypeScript (text blocks, Go raw strings, template literals, rune and char
+  literals, regex literals), and `comment_regions` lists the lines that start inside a
+  block comment. A `*` line is a comment only when the file version it belongs to puts it
+  inside one. The contents are lexed only for files whose hunks have `*` lines on that
+  side, and the parent version is read only then (or for Rust test modules). Without
+  contents the rule errs towards code: only a comment opened in the same hunk, a bare `*`
+  or a leading `*/` counts. Checked on six real histories (tomli, semver, pflag, serde,
+  gson, ky; 7363 commits): no verdict changed, and two gson files gained one code line
+  each (`*/package ...` after a license header, which was dropped before). gson mines in
+  3.8 s either way.
 
 ## Core (deliverable)
 

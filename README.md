@@ -35,7 +35,11 @@ the flip is the downstream builder's job.
   public declarations touched (top-level `def`/`class` without a leading underscore,
   `pub` items, exported Go identifiers, `export`, `public`); and for Rust, the lines inside
   `#[cfg(test)]` modules, found with a small lexer that skips braces in comments, strings,
-  raw strings and char literals. Those lines count as test lines, not source lines.
+  raw strings and char literals. Those lines count as test lines, not source lines. A
+  changed line that starts with `*` is a comment only when the same lexer puts it inside
+  a `/* ... */` comment of that file version (Rust, Go, Java, JavaScript/TypeScript); an
+  operator-first continuation such as `* height` (rustfmt's and google-java-format's
+  style) is code. JavaScript regex literals such as `/^https?:\/\//` are not comments.
 - **Record and replay**: `commitminer record` saves a walked history, measurements
   included, as deterministic JSON Lines (gzipped when the name ends in `.gz`);
   `commitminer mine --history` replays it through the same code path. Mining the live tomli
@@ -633,7 +637,11 @@ flowchart LR
   code lines are the same sequence after dropping comments and blank lines and, outside
   Python, surrounding whitespace. Whitespace inside a line is kept: semver's `5e87530d55`
   changes `"{} {}"` to `"{}{}"`, a real behaviour change. Hunks are compared one at a time,
-  so moving a statement to another place still counts as a change.
+  so moving a statement to another place still counts as a change. A `*` line is judged
+  by where it sits: when a hunk has one, the file version it belongs to (read anyway for
+  content signals, or the parent version for deleted lines) is lexed for block comments.
+  Without the contents (`--no-content`, or a file cut at the 1 MiB read limit) only a
+  comment opened in the same hunk, a bare `*` or a leading `*/` makes it a comment.
 - **Record once, replay everywhere.** Demos, the Docker image and CI mine a recorded
   history, so they are offline and reproducible; recordings have sorted keys and no
   timestamps, and gzip uses `mtime=0`. Recordings keep commit messages but not the author
@@ -694,8 +702,11 @@ flowchart LR
   drops it.
 - **Line-based heuristics, no syntax tree.** Python docstrings count as code; a line inside
   a `/* ... */` comment that does not start with `*` counts as code; a trailing comment
-  after a string that opens a multi-line literal is kept. All of these err towards "code",
-  so they can keep a cosmetic commit, not drop a real one.
+  after a string that opens a multi-line literal is kept; with `--no-content` a Javadoc
+  line edited in the middle of a comment counts as code. All of these err towards "code",
+  so they can keep a cosmetic commit, not drop a real one. The block-comment lexer does
+  not follow `${...}` inside JavaScript template literals, and tells a regex literal from
+  a division by the character before the `/`.
 - **Public API by naming convention.** Python counts only top-level `def`/`class` without a
   leading underscore, in any module: tomli's `_parser.py` is private by name but its
   `loads` is re-exported, and its `DEPRECATED_DEFAULT` class counts too. Methods, Go struct

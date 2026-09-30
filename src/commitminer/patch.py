@@ -165,10 +165,15 @@ class Syntax:
     assertion: re.Pattern[str]
     api: tuple[tuple[re.Pattern[str], str], ...]
     """Declaration patterns and label templates; ``{kind}`` and ``{name}`` come from the match."""
+    regex_literals: bool = False
+    """``/.../`` regular expression literals (JavaScript), whose ``//`` is not a comment."""
 
 
 _IDENT_JS = r"[A-Za-z_$][\w$]*"
 _C_LIKE_STAR = re.compile(r"^\s*\*(?:\s|/|$)")
+"""A line that starts like a block comment continuation: ``*`` then a space, ``/`` or nothing."""
+_COMMENT_TAIL = re.compile(r"^\s*\*(?:/|\s*$)")
+"""A bare ``*`` or a line that starts by closing a block comment: never code."""
 
 SYNTAX: Final[dict[Language, Syntax]] = {
     Language.PYTHON: Syntax(
@@ -268,16 +273,39 @@ _JS_SYNTAX = Syntax(
         (re.compile(rf"^(?:module\.)?exports\.(?P<name>{_IDENT_JS})\s*="), "exports.{name}"),
         (re.compile(r"^module\.exports\s*="), "module.exports"),
     ),
+    regex_literals=True,
 )
 SYNTAX[Language.JAVASCRIPT] = _JS_SYNTAX
 SYNTAX[Language.TYPESCRIPT] = _JS_SYNTAX
+
+
+_REGEX_LITERAL = re.compile(r"/(?![*/])(?:\\.|\[(?:\\.|[^\]\\])*\]|[^/\\\[])+/")
+_REGEX_BEFORE_CHARS = frozenset("(,=:[!&|?{};+-*%<>~^")
+_REGEX_BEFORE_WORD = re.compile(
+    r"\b(?:return|typeof|instanceof|in|of|new|delete|void|throw|case|do|else|yield|await)$"
+)
+
+
+def regex_end(line: str, start: int) -> int | None:
+    """Where the JavaScript regex literal at ``line[start]`` (a ``/``) ends, or ``None``.
+
+    A ``/`` opens a regex only where an expression can start: at the start of
+    the line, after an operator or opening bracket, or after a keyword such as
+    ``return``. Elsewhere it divides. The literal must close on the same line.
+    """
+    before = line[:start].rstrip()
+    if before and before[-1] not in _REGEX_BEFORE_CHARS and not _REGEX_BEFORE_WORD.search(before):
+        return None
+    found = _REGEX_LITERAL.match(line, start)
+    return found.end() if found is not None else None
 
 
 def strip_comment(line: str, syntax: Syntax) -> str:
     """``line`` without its trailing comment; a comment marker inside a string is kept.
 
     A string still open at the end of the line (a multi-line literal) keeps the
-    rest of the line, so nothing is ever removed on a guess.
+    rest of the line, so nothing is ever removed on a guess. In JavaScript and
+    TypeScript a regex literal such as ``/^https?:\\/\\//`` is skipped like a string.
     """
     quote = ""
     i = 0
@@ -298,14 +326,32 @@ def strip_comment(line: str, syntax: Syntax) -> str:
             if end == -1:
                 return line[:i]
             line = line[:i] + " " + line[end + 2 :]
+        elif syntax.regex_literals and char == "/" and (stop := regex_end(line, i)) is not None:
+            i = stop
+            continue
         i += 1
     return line
 
 
-def code_text(line: str, syntax: Syntax) -> str | None:
-    """The normalised code on a line, or ``None`` for blank and comment-only lines."""
+def code_text(line: str, syntax: Syntax, in_comment: bool | None = None) -> str | None:
+    """The normalised code on a line, or ``None`` for blank and comment-only lines.
+
+    ``in_comment`` says whether the line starts inside a block comment, when
+    that is known from the file's contents. It matters only for a line that
+    starts with ``*``, which is either a comment continuation (`` * Returns``)
+    or code (an operator-first continuation such as ``* height``, the default
+    style of rustfmt and google-java-format). When it is not known, only a
+    bare ``*`` or a line that starts with ``*/`` is taken as comment; every
+    other ``*`` line is code, so a real change is never dropped on a guess.
+    """
     if syntax.block_comments and _C_LIKE_STAR.match(line):
-        return None
+        if in_comment is None:
+            in_comment = _COMMENT_TAIL.match(line) is not None
+        if in_comment:
+            end = line.find("*/")
+            if end == -1:
+                return None
+            line = line[end + 2 :]
     text = strip_comment(line, syntax)
     text = text.rstrip() if syntax.indent_matters else text.strip()
     return text if text.strip() else None
@@ -339,9 +385,53 @@ def _in(regions: Sequence[Region], line: int) -> bool:
     return any(start <= line <= end for start, end in regions)
 
 
-def _assertions(lines: Iterable[str], syntax: Syntax) -> Counter[str]:
-    codes = (code_text(line, syntax) for line in lines)
+def _assertions(codes: Iterable[str | None], syntax: Syntax) -> Counter[str]:
     return Counter(c.strip() for c in codes if c is not None and syntax.assertion.search(c))
+
+
+def _has_star_lines(lines: Iterable[str]) -> bool:
+    return any(_C_LIKE_STAR.match(line) for line in lines)
+
+
+def star_sides(patch: FilePatch, language: Language | None) -> tuple[bool, bool]:
+    """Whether the deleted and the added lines of ``patch`` have lines that start with ``*``.
+
+    Only for languages with block comments: those lines need to know whether
+    they sit inside a comment (see :func:`code_text` and :func:`comment_regions`).
+    """
+    syntax = SYNTAX.get(language) if language is not None else None
+    if syntax is None or not syntax.block_comments:
+        return False, False
+    old = any(_has_star_lines(hunk.deleted) for hunk in patch.hunks)
+    new = any(_has_star_lines(hunk.added) for hunk in patch.hunks)
+    return old, new
+
+
+def _codes(
+    lines: Sequence[str],
+    start: int,
+    syntax: Syntax,
+    lexicon: _Lexicon | None,
+    comments: Sequence[Region] | None,
+) -> list[str | None]:
+    """The code text of each line on one side of a hunk (``start`` is its first line number).
+
+    With ``comments`` (the lines of the file that start inside a block
+    comment) a ``*`` line is judged by where it sits. Without them, only a
+    comment opened earlier in the same hunk makes a ``*`` line a comment.
+    """
+    if lexicon is None or not _has_star_lines(lines):
+        return [code_text(line, syntax) for line in lines]
+    inside: list[bool | None]
+    if comments is not None:
+        inside = [_in(comments, start + offset) for offset in range(len(lines))]
+    else:
+        lexer = _Lexer(lexicon)
+        inside = []
+        for line in lines:
+            inside.append(True if lexer.in_comment else None)
+            lexer.skip(line)
+    return [code_text(line, syntax, flag) for line, flag in zip(lines, inside, strict=True)]
 
 
 def analyze(
@@ -349,36 +439,43 @@ def analyze(
     language: Language | None,
     new_regions: Sequence[Region] = (),
     old_regions: Sequence[Region] = (),
+    new_comments: Sequence[Region] | None = None,
+    old_comments: Sequence[Region] | None = None,
 ) -> PatchStats:
-    """Measure one file's patch; ``*_regions`` are inline test modules in each version."""
+    """Measure one file's patch.
+
+    ``*_regions`` are inline test modules in each version of the file.
+    ``*_comments`` are the lines of each version that start inside a block
+    comment (see :func:`comment_regions`), or ``None`` when the contents were
+    not read.
+    """
     hashes = tuple(h for hunk in patch.hunks if (h := hunk_hash(hunk.deleted, hunk.added)))
     syntax = SYNTAX.get(language) if language is not None else None
-    if syntax is None:
+    if syntax is None or language is None:
         count = len(patch.hunks)
         return PatchStats(count, count, patch.added, patch.deleted, hunk_hashes=hashes)
+    lexicon = LEXICONS.get(language)
     code_hunks = code_added = code_deleted = test_added = test_deleted = asserts = 0
     api: set[str] = set()
     tests_only = bool(new_regions or old_regions)
     for hunk in patch.hunks:
-        old = list(enumerate(hunk.deleted, hunk.old_start))
-        new = list(enumerate(hunk.added, hunk.new_start))
-        old_test = [line for number, line in old if _in(old_regions, number)]
-        new_test = [line for number, line in new if _in(new_regions, number)]
+        old_codes = _codes(hunk.deleted, hunk.old_start, syntax, lexicon, old_comments)
+        new_codes = _codes(hunk.added, hunk.new_start, syntax, lexicon, new_comments)
+        old = list(enumerate(old_codes, hunk.old_start))
+        new = list(enumerate(new_codes, hunk.new_start))
+        old_test = [code for number, code in old if _in(old_regions, number)]
+        new_test = [code for number, code in new if _in(new_regions, number)]
         test_deleted += len(old_test)
         test_added += len(new_test)
-        old_code = [
-            c for n, line in old if not _in(old_regions, n) and (c := code_text(line, syntax))
-        ]
-        new_code = [
-            c for n, line in new if not _in(new_regions, n) and (c := code_text(line, syntax))
-        ]
+        old_code = [c for n, c in old if c is not None and not _in(old_regions, n)]
+        new_code = [c for n, c in new if c is not None and not _in(new_regions, n)]
         if old_code != new_code:
             code_hunks += 1
             code_added += len(new_code)
             code_deleted += len(old_code)
             api |= declarations(old_code + new_code, syntax)
-        added_scope = new_test if tests_only else hunk.added
-        deleted_scope = old_test if tests_only else hunk.deleted
+        added_scope = new_test if tests_only else new_codes
+        deleted_scope = old_test if tests_only else old_codes
         gained = _assertions(added_scope, syntax) - _assertions(deleted_scope, syntax)
         asserts += sum(gained.values())
     return PatchStats(
@@ -394,65 +491,187 @@ def analyze(
     )
 
 
-_CFG_TEST_LINE = re.compile(r"^\s*#\[cfg\((?:all\()?test\b")
-_CODE_TOKEN = re.compile(r"//|/\*|(?<![\w])b?r(#*)\"|\"|'|[{};]")
-_COMMENT_TOKEN = re.compile(r"/\*|\*/")
-_STRING_TOKEN = re.compile(r"\\.|\"", re.DOTALL)
-_CHAR_LITERAL = re.compile(r"'(?:\\(?:u\{[0-9A-Fa-f_]*\}|x[0-9A-Fa-f]{2}|.)|[^\\'])'")
+# --- a small lexer for C-like languages -----------------------------------------------
 
 
-class _RustLexer:
-    """Just enough of Rust's lexical grammar to match braces: comments, strings, chars.
+@dataclass(frozen=True, slots=True)
+class _Quote:
+    """How a string literal ends: its closing text, and whether it may span lines."""
 
-    State (an open block comment or string) carries over from one line to the
-    next. Each step jumps with a regex to the next token that matters.
+    end: str
+    multiline: bool
+    escape: re.Pattern[str] | None = None
+    """``\\\\.|<end>`` when backslash escapes apply."""
+
+
+@dataclass(frozen=True, slots=True)
+class _Lexicon:
+    """The tokens of one C-like language that matter for comments and braces."""
+
+    code: re.Pattern[str]
+    """Comment starts, string and char openers, and ``{``, ``}``, ``;``."""
+    quotes: dict[str, _Quote]
+    nested_comments: bool = False
+    char_literals: bool = False
+    """``'x'`` is a char literal (Rust, Go, Java), not a string (JavaScript)."""
+    regex_literals: bool = False
+
+
+def _quote(end: str, multiline: bool, escapes: bool = True) -> _Quote:
+    return _Quote(end, multiline, re.compile(r"\\.|" + re.escape(end)) if escapes else None)
+
+
+_DOUBLE = _quote('"', multiline=False)
+_JS_LEXICON = _Lexicon(
+    code=re.compile(r"//|/\*|\"|'|`|/|[{};]"),
+    quotes={'"': _DOUBLE, "'": _quote("'", multiline=False), "`": _quote("`", multiline=True)},
+    regex_literals=True,
+)
+LEXICONS: Final[dict[Language, _Lexicon]] = {
+    Language.RUST: _Lexicon(
+        code=re.compile(r"//|/\*|(?<![\w])b?r(#*)\"|\"|'|[{};]"),
+        quotes={'"': _quote('"', multiline=True)},
+        nested_comments=True,
+        char_literals=True,
+    ),
+    Language.GO: _Lexicon(
+        code=re.compile(r"//|/\*|\"|`|'|[{};]"),
+        quotes={'"': _DOUBLE, "`": _quote("`", multiline=True, escapes=False)},
+        char_literals=True,
+    ),
+    Language.JAVA: _Lexicon(
+        code=re.compile(r"//|/\*|\"\"\"|\"|'|[{};]"),
+        quotes={'"': _DOUBLE, '"""': _quote('"""', multiline=True)},
+        char_literals=True,
+    ),
+    Language.JAVASCRIPT: _JS_LEXICON,
+    Language.TYPESCRIPT: _JS_LEXICON,
+}
+"""Lexical rules of the languages with block comments."""
+
+_NESTED_COMMENT = re.compile(r"/\*|\*/")
+_CHAR_LITERAL = re.compile(
+    r"'(?:\\(?:u\{[0-9A-Fa-f_]*\}|u[0-9A-Fa-f]{4}|U[0-9A-Fa-f]{8}|x[0-9A-Fa-f]{2}|[0-7]{1,3}|.)"
+    r"|[^\\'])'"
+)
+
+
+class _Lexer:
+    """Just enough of a C-like lexical grammar to find comments and match braces.
+
+    State (an open block comment or a multi-line string) carries over from one
+    line to the next; a one-line string left open at the end of a line is
+    dropped there. Each step jumps with a regex to the next token that matters.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, lexicon: _Lexicon) -> None:
+        self.lexicon = lexicon
         self.comment_depth = 0
-        self.raw_end: str | None = None
-        self.in_string = False
+        self.string: _Quote | None = None
+
+    @property
+    def in_comment(self) -> bool:
+        """True while inside a block comment."""
+        return self.comment_depth > 0
+
+    def skip(self, line: str) -> None:
+        """Read ``line`` for its effect on the state."""
+        for _ in self.braces(line):
+            pass
 
     def braces(self, line: str) -> Iterator[str]:
         """Yield the ``{``, ``}`` and ``;`` characters of ``line`` that are code."""
         i = 0
         while i < len(line):
             if self.comment_depth:
-                found = _COMMENT_TOKEN.search(line, i)
-                if found is None:
-                    return
-                self.comment_depth += 1 if found.group() == "/*" else -1
-                i = found.end()
-            elif self.raw_end is not None:
-                end = line.find(self.raw_end, i)
-                if end == -1:
-                    return
-                i = end + len(self.raw_end)
-                self.raw_end = None
-            elif self.in_string:
-                found = _STRING_TOKEN.search(line, i)
-                if found is None:
-                    return
-                i = found.end()
-                self.in_string = found.group() != '"'
+                i = self._comment(line, i)
+            elif self.string is not None:
+                i = self._string(line, i, self.string)
             else:
-                found = _CODE_TOKEN.search(line, i)
+                found = self.lexicon.code.search(line, i)
                 if found is None:
                     return
                 token, i = found.group(), found.end()
                 if token == "//":
                     return
-                if token == "/*":
-                    self.comment_depth = 1
-                elif found.group(1) is not None:
-                    self.raw_end = '"' + found.group(1)
-                elif token == '"':
-                    self.in_string = True
-                elif token == "'":
-                    char = _CHAR_LITERAL.match(line, found.start())
-                    i = char.end() if char is not None else i  # else a lifetime such as 'a
-                else:
+                if token in "{};":
                     yield token
+                else:
+                    i = self._open(line, found, token, i)
+        if self.string is not None and not self.string.multiline:
+            self.string = None
+
+    def _open(self, line: str, found: re.Match[str], token: str, i: int) -> int:
+        """Enter the comment, string or literal that ``token`` opens; return the next index."""
+        lexicon = self.lexicon
+        if token == "/*":
+            self.comment_depth = 1
+        elif found.lastindex:  # a Rust raw string: r"...", r#"..."#, br"..."
+            self.string = _Quote('"' + (found.group(1) or ""), multiline=True)
+        elif token == "'" and lexicon.char_literals:
+            char = _CHAR_LITERAL.match(line, found.start())
+            return char.end() if char is not None else i  # else a lifetime such as 'a
+        elif token == "/":
+            end = regex_end(line, found.start())
+            return end if end is not None else i
+        else:
+            self.string = lexicon.quotes[token]
+        return i
+
+    def _comment(self, line: str, i: int) -> int:
+        if not self.lexicon.nested_comments:
+            end = line.find("*/", i)
+            if end == -1:
+                return len(line)
+            self.comment_depth = 0
+            return end + 2
+        found = _NESTED_COMMENT.search(line, i)
+        if found is None:
+            return len(line)
+        self.comment_depth += 1 if found.group() == "/*" else -1
+        return found.end()
+
+    def _string(self, line: str, i: int, quote: _Quote) -> int:
+        if quote.escape is None:
+            end = line.find(quote.end, i)
+            if end == -1:
+                return len(line)
+            self.string = None
+            return end + len(quote.end)
+        found = quote.escape.search(line, i)
+        if found is None:
+            return len(line)
+        if found.group() == quote.end:
+            self.string = None
+        return found.end()
+
+
+def _text_lines(content: bytes) -> list[str]:
+    return content.decode("utf-8", "replace").split("\n")
+
+
+def comment_regions(content: bytes, language: Language) -> tuple[Region, ...]:
+    """Line ranges whose lines start inside a block comment (``/* ... */``).
+
+    In ``/**``, `` * doc``, `` */`` the second and third lines start inside the
+    comment, the first does not. Languages without block comments have none.
+    """
+    lexicon = LEXICONS.get(language)
+    if lexicon is None:
+        return ()
+    lexer = _Lexer(lexicon)
+    regions: list[Region] = []
+    for number, line in enumerate(_text_lines(content), 1):
+        if lexer.in_comment:
+            if regions and regions[-1][1] == number - 1:
+                regions[-1] = (regions[-1][0], number)
+            else:
+                regions.append((number, number))
+        lexer.skip(line)
+    return tuple(regions)
+
+
+_CFG_TEST_LINE = re.compile(r"^\s*#\[cfg\((?:all\()?test\b")
 
 
 def rust_test_regions(content: bytes) -> tuple[Region, ...]:
@@ -461,7 +680,7 @@ def rust_test_regions(content: bytes) -> tuple[Region, ...]:
     An item that ends in ``;`` before any brace (``mod tests;``) ends there; one
     whose braces never balance runs to the end of the text.
     """
-    lines = content.decode("utf-8", "replace").split("\n")
+    lines = _text_lines(content)
     regions: list[Region] = []
     index = 0
     while index < len(lines):
@@ -475,7 +694,7 @@ def rust_test_regions(content: bytes) -> tuple[Region, ...]:
 
 
 def _item_end(lines: Sequence[str], start: int) -> int:
-    lexer = _RustLexer()
+    lexer = _Lexer(LEXICONS[Language.RUST])
     depth = 0
     for number in range(start, len(lines)):
         for char in lexer.braces(lines[number]):

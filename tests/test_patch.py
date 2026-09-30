@@ -13,9 +13,12 @@ from commitminer.patch import (
     PatchError,
     analyze,
     code_text,
+    comment_regions,
     declarations,
     parse_patch,
+    regex_end,
     rust_test_regions,
+    star_sides,
     strip_comment,
 )
 from gitrepo import unhashed
@@ -150,6 +153,14 @@ def test_parse_rejects_malformed_patches(text: bytes, message: str) -> None:
         (RS, "a(); /* opens", "a(); "),
         (GO, "x := `raw // text`", "x := `raw // text`"),
         (JAVA, "char c = '\"'; // quote", "char c = '\"'; "),
+        (
+            JS,
+            "  return /^https?:\\/\\//.test(url) || ok(url);",
+            "  return /^https?:\\/\\//.test(url) || ok(url);",
+        ),
+        (JS, "x = /[/]/g; // tail", "x = /[/]/g; "),
+        (JS, "half = total / 2; // tail", "half = total / 2; "),
+        (GO, "x := a / b // tail", "x := a / b "),
     ],
 )
 def test_strip_comment(syntax: object, line: str, expected: str) -> None:
@@ -157,20 +168,110 @@ def test_strip_comment(syntax: object, line: str, expected: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ("syntax", "line", "expected"),
+    ("syntax", "line", "in_comment", "expected"),
     [
-        (PY, "    x = 1  # why", "    x = 1"),
-        (PY, "    # only a comment", None),
-        (PY, "   ", None),
-        (GO, "\t\tx := 1 // why", "x := 1"),
-        (GO, " * continued block comment", None),
-        (GO, " */", None),
-        (GO, "*p = 1", "*p = 1"),
-        (RS, "/* whole */", None),
+        (PY, "    x = 1  # why", None, "    x = 1"),
+        (PY, "    # only a comment", None, None),
+        (PY, "   ", None, None),
+        (PY, "    * rest", True, "    * rest"),
+        (GO, "\t\tx := 1 // why", None, "x := 1"),
+        (GO, " * continued block comment", True, None),
+        (GO, " */", None, None),
+        (GO, " *", None, None),
+        (GO, " */ x := 1", True, "x := 1"),
+        (GO, " */ x := 1", None, "x := 1"),
+        (GO, "*p = 1", None, "*p = 1"),
+        (RS, "/* whole */", None, None),
+        # Operator-first continuation lines (rustfmt, google-java-format) are code
+        # unless the file's contents put them inside a comment.
+        (RS, "        * height", None, "* height"),
+        (RS, "        * height", False, "* height"),
+        (RS, "        * height", True, None),
+        (JAVA, "        * rate * rate;", None, "* rate * rate;"),
     ],
 )
-def test_code_text(syntax: object, line: str, expected: str | None) -> None:
-    assert code_text(line, syntax) == expected  # type: ignore[arg-type]
+def test_code_text(
+    syntax: object, line: str, in_comment: bool | None, expected: str | None
+) -> None:
+    assert code_text(line, syntax, in_comment) == expected  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("line", "start", "end"),
+    [
+        ("x = /a\\/b/.test(s)", 4, 10),
+        ("if (/[/*]/.test(s)) {}", 4, 10),
+        ("  return /x/g", 9, 12),
+        ("/^#/.test(line)", 0, 4),
+        ("a = b / c / d", 6, None),
+        ("f(x) / 2", 5, None),
+        ("x = / unclosed", 4, None),
+    ],
+)
+def test_regex_end(line: str, start: int, end: int | None) -> None:
+    assert line[start] == "/"
+    assert regex_end(line, start) == end
+
+
+BLOCK_COMMENTS = {
+    Language.RUST: (
+        "/* one\n"
+        " * two /* nested */\n"
+        " */\n"
+        'let s = "/* not a comment";\n'
+        'let r = r#"/* raw "# ;\n'
+        "let c = '\"'; let l: &'a str = x; /* x\n"
+        "*/ a\n"
+        "    * height\n"
+    ),
+    Language.GO: ("x := `/* raw\n  still raw */`\n/* doc\n * more */ y := '\"'\n    * rate\n"),
+    Language.JAVA: (
+        'String t = """\n'
+        "   /* text block\n"
+        '   """;\n'
+        "/**\n"
+        " * Doc.\n"
+        " */\n"
+        "        * rate;\n"
+        'String s = "unterminated\n'
+        " * after\n"
+    ),
+    Language.JAVASCRIPT: (
+        "const re = /\\/\\*/g; const t = `\n"
+        " /* template */\n"
+        "`; /* open\n"
+        " * doc\n"
+        " */ const u = '/*';\n"
+        "  * factor\n"
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    ("language", "expected"),
+    [
+        (Language.RUST, ((2, 3), (7, 7))),
+        (Language.GO, ((4, 4),)),
+        (Language.JAVA, ((5, 6),)),
+        (Language.JAVASCRIPT, ((4, 5),)),
+    ],
+)
+def test_comment_regions_skip_strings_raw_strings_chars_and_regexes(
+    language: Language, expected: tuple[tuple[int, int], ...]
+) -> None:
+    assert comment_regions(BLOCK_COMMENTS[language].encode(), language) == expected
+
+
+def test_comment_regions_of_languages_without_block_comments() -> None:
+    assert comment_regions(b"x = 1\n", Language.PYTHON) == ()
+
+
+def test_star_sides() -> None:
+    edit = patch(Hunk(3, 3, ("  * old",), ("  new",)), Hunk(9, 9, (), ("  * added",)))
+    assert star_sides(edit, Language.JAVA) == (True, True)
+    assert star_sides(patch(Hunk(3, 3, ("x",), (" * y",))), Language.GO) == (False, True)
+    assert star_sides(edit, Language.PYTHON) == (False, False)
+    assert star_sides(edit, None) == (False, False)
 
 
 # --- public API ---------------------------------------------------------------------
@@ -303,6 +404,44 @@ def test_assertions_are_counted_net_of_deletions() -> None:
 )
 def test_assertion_patterns(language: Language, line: str) -> None:
     assert analyze(patch(Hunk(0, 1, (), (line,))), language).asserts == 1
+
+
+@pytest.mark.parametrize(
+    ("language", "old", "new"),
+    [
+        (Language.RUST, "        * height", "        * width"),
+        (Language.JAVA, "        * rate;", "        * rate * rate;"),
+        (
+            Language.JAVASCRIPT,
+            "  return /^https?:\\/\\//.test(url) || isLocal(url);",
+            "  return /^https?:\\/\\//.test(url) && isLocal(url);",
+        ),
+    ],
+)
+def test_operator_first_lines_and_regex_literals_are_code(
+    language: Language, old: str, new: str
+) -> None:
+    edit = patch(Hunk(4, 4, (old,), (new,)))
+    assert analyze(edit, language).code_hunks == 1
+    # Known to sit outside any comment: still code.
+    assert analyze(edit, language, (), (), (), ()).code_hunks == 1
+
+
+def test_star_lines_inside_block_comments_are_comments() -> None:
+    doc = patch(Hunk(3, 3, (" * Returns the width.",), (" * Returns the height.",)))
+    # The file's contents put line 3 inside a comment: a cosmetic hunk.
+    assert analyze(doc, Language.JAVA, (), (), ((2, 4),), ((2, 4),)).code_hunks == 0
+    # Unknown: a real change is never dropped on a guess.
+    assert analyze(doc, Language.JAVA).code_hunks == 1
+    # The hunk itself opens the comment, or the lines only close it.
+    opened = patch(Hunk(0, 1, (), ("/**", " * Returns the height.", " *", " */")))
+    assert analyze(opened, Language.JAVA).code_hunks == 0
+    tail = patch(Hunk(5, 5, (" */",), (" *", " */")))
+    assert analyze(tail, Language.GO).code_hunks == 0
+    closing = patch(Hunk(5, 5, (" */ int x = 1;",), (" */ int x = 2;",)))
+    assert analyze(closing, Language.JAVA, (), (), ((5, 5),), ((5, 5),)).code_hunks == 1
+    asserted = patch(Hunk(2, 2, (), (" * assertEquals(1, f());",)))
+    assert analyze(asserted, Language.JAVA, (), (), ((2, 2),), None).asserts == 0
 
 
 def test_unknown_languages_count_every_line_as_code() -> None:

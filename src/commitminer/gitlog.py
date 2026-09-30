@@ -58,8 +58,10 @@ from commitminer.patch import (
     PatchError,
     Region,
     analyze,
+    comment_regions,
     parse_patch,
     rust_test_regions,
+    star_sides,
 )
 from commitminer.signals import (
     MAX_CONTENT,
@@ -380,6 +382,13 @@ def _regions(content: bytes | None) -> tuple[Region, ...]:
     return rust_test_regions(content) if content else ()
 
 
+def _comments(content: bytes | None, language: Language) -> tuple[Region, ...] | None:
+    """Block comment lines of a file version; ``None`` if unread or cut at the read limit."""
+    if content is None or len(content) >= MAX_CONTENT:
+        return None
+    return comment_regions(content, language)
+
+
 def file_details(
     commit: Commit,
     change: FileChange,
@@ -391,23 +400,32 @@ def file_details(
     A file deleted by the commit is judged as it was in the parent. A Rust file
     with inline tests is also compared with its parent version: if it gained
     ``#[test]`` functions, it gets ``rust-tests-added``, and lines inside its
-    ``#[cfg(test)]`` modules are measured as test lines.
+    ``#[cfg(test)]`` modules are measured as test lines. When a changed line
+    starts with ``*``, the version it belongs to is lexed to tell a block
+    comment continuation from an operator-first line of code.
     """
     language = language_of(change.path)
     signals: tuple[str, ...] = ()
     new = old = None
     if blobs is not None and language is not None and not change.binary:
         signals, new, old = _signals(commit, change, language, blobs)
-    stats = None
-    if patch is not None and not change.binary:
-        new_regions: tuple[Region, ...] = ()
-        old_regions: tuple[Region, ...] = ()
-        if language is Language.RUST and blobs is not None:
-            new_regions = _regions(new)
-            if old is None and patch.deleted and commit.base:
-                old = blobs.read(commit.base, change.old_path or change.path)
-            old_regions = _regions(old)
-        stats = analyze(patch, language, new_regions, old_regions)
+    if patch is None or change.binary:
+        return replace(change, signals=signals, patch=None)
+    new_regions: tuple[Region, ...] = ()
+    old_regions: tuple[Region, ...] = ()
+    new_comments = old_comments = None
+    if blobs is not None and language is not None:
+        old_stars, new_stars = star_sides(patch, language)
+        rust = language is Language.RUST
+        if old is None and ((rust and patch.deleted) or old_stars) and commit.base:
+            old = blobs.read(commit.base, change.old_path or change.path)
+        if rust:
+            new_regions, old_regions = _regions(new), _regions(old)
+        if new_stars:
+            new_comments = _comments(new, language)
+        if old_stars:
+            old_comments = _comments(old, language)
+    stats = analyze(patch, language, new_regions, old_regions, new_comments, old_comments)
     return replace(change, signals=signals, patch=stats)
 
 
