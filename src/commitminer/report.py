@@ -74,16 +74,64 @@ class BatchExport:
     runs: list[Export]
 
 
-def _field(record: dict[str, Any], key: str, kind: type | tuple[type, ...], where: str) -> Any:
+Kind = type | tuple[type, ...]
+
+
+def _is(value: Any, kind: Kind) -> bool:
+    """``isinstance``, except that a bool is not a number."""
+    return isinstance(value, kind) and (kind is bool or not isinstance(value, bool))
+
+
+def _wrong(where: str, kind: Kind, value: Any, null: bool = False) -> ReportError:
+    expected = kind.__name__ if isinstance(kind, type) else " or ".join(k.__name__ for k in kind)
+    expected += " or null" if null else ""
+    return ReportError(f"{where}: expected {expected}, got {type(value).__name__}")
+
+
+def _field(record: dict[str, Any], key: str, kind: Kind, where: str) -> Any:
     if key not in record:
         raise ReportError(f"{where}: missing field {key!r}")
     value = record[key]
-    if (isinstance(value, bool) and kind is not bool) or not isinstance(value, kind):
-        expected = (
-            kind.__name__ if isinstance(kind, type) else " or ".join(k.__name__ for k in kind)
-        )
-        raise ReportError(f"{where}.{key}: expected {expected}, got {type(value).__name__}")
+    if not _is(value, kind):
+        raise _wrong(f"{where}.{key}", kind, value)
     return value
+
+
+def _values(mapping: dict[str, Any], kind: Kind, where: str) -> None:
+    """Every value of ``mapping`` is a ``kind``: the report computes with them."""
+    for name, value in mapping.items():
+        if not _is(value, kind):
+            raise _wrong(f"{where}.{name}", kind, value)
+
+
+def _optional_object(record: dict[str, Any], key: str, where: str) -> dict[str, Any] | None:
+    value = record.get(key)
+    if value is not None and not isinstance(value, dict):
+        raise _wrong(f"{where}.{key}", dict, value, null=True)
+    return value
+
+
+def _check_run(record: dict[str, Any], where: str) -> None:
+    """The run record's fields, and the nested values the funnel and settings compute with."""
+    for key, expected in _RUN_FIELDS.items():
+        _field(record, key, expected, where)
+    _values(record["rejected"], int, f"{where}.rejected")
+    _values(record["bands"], int, f"{where}.bands")
+    ledger = _optional_object(record, "ledger", where)
+    if ledger is not None:
+        counts = ledger.get("counts", {})
+        if not isinstance(counts, dict):
+            raise _wrong(f"{where}.ledger.counts", dict, counts)
+        _values(counts, int, f"{where}.ledger.counts")
+    for key, value in record["settings"].items():
+        if isinstance(value, dict):
+            _values(value, (int, float), f"{where}.settings.{key}")
+
+
+def _check_candidate(record: dict[str, Any], where: str) -> None:
+    for key, expected in _CANDIDATE_FIELDS.items():
+        _field(record, key, expected, where)
+    _optional_object(record, "pull_request", where)
 
 
 _RUN_FIELDS: Final[dict[str, type | tuple[type, ...]]] = {
@@ -112,6 +160,7 @@ _BATCH_FIELDS: Final[dict[str, type | tuple[type, ...]]] = {
 }
 _CANDIDATE_FIELDS: Final[dict[str, type | tuple[type, ...]]] = {
     "rank": int,
+    "repo": str,
     "sha": str,
     "date": str,
     "subject": str,
@@ -152,12 +201,10 @@ def _runs(records: Sequence[tuple[int, dict[str, Any]]], where: str, batch: bool
     for number, record in records:
         kind = record.get("kind")
         if kind == "run" and (batch or not runs):
-            for key, expected in _RUN_FIELDS.items():
-                _field(record, key, expected, f"line {number}")
+            _check_run(record, f"line {number}")
             runs.append(Export(record, []))
         elif kind == "candidate" and runs:
-            for key, expected in _CANDIDATE_FIELDS.items():
-                _field(record, key, expected, f"line {number}")
+            _check_candidate(record, f"line {number}")
             runs[-1].candidates.append(record)
         elif batch and not runs:
             raise ReportError(f"{where}: line {number}: expected a run record after the batch")
@@ -276,7 +323,7 @@ def repo_web_url(url: str | None) -> str | None:
 
 def _commit_link(sha: str, base: str | None, pull: dict[str, Any] | None) -> Link:
     """``#123`` linking to the pull request, or the short sha linking to the commit."""
-    if pull is not None and isinstance(pull.get("number"), int):
+    if isinstance(pull, dict) and isinstance(pull.get("number"), int):
         url = pull.get("url")
         if not (isinstance(url, str) and _HTTP.match(url)):
             url = f"{base}/pull/{pull['number']}" if base else None

@@ -15,6 +15,7 @@ import json
 import os
 import re
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner
@@ -261,6 +262,44 @@ def test_report_errors_exit_2(tmp_path: Path) -> None:
     fmt = runner.invoke(app, ["report", str(export), "--format", "pdf"])
     assert fmt.exit_code == 2
     assert "--format must be markdown or html" in fmt.stderr
+
+
+def _edit(record: dict[str, Any], path: str, value: Any) -> None:
+    *parents, last = path.split(".")
+    for key in parents:
+        record = record[key]
+    record[last] = value
+
+
+@pytest.mark.parametrize(
+    ("line", "path", "value", "message"),
+    [
+        (0, "settings.weights.small_diff", "3", "line 1.settings.weights.small_diff: expected"),
+        (0, "rejected.no-test", "115", "line 1.rejected.no-test: expected int, got str"),
+        (0, "bands.easy", 1.5, "line 1.bands.easy: expected int, got float"),
+        (0, "ledger", {"path": "x", "counts": []}, "line 1.ledger.counts: expected dict, got list"),
+        (0, "ledger", {"counts": {"new": "1"}}, "line 1.ledger.counts.new: expected int, got str"),
+        (0, "ledger", "l.sqlite3", "line 1.ledger: expected dict or null, got str"),
+        (1, "pull_request", "#12", "line 2.pull_request: expected dict or null, got str"),
+        (1, "repo", None, "line 2.repo: expected str, got NoneType"),
+    ],
+)
+def test_nested_values_of_the_wrong_type_are_report_errors(
+    tmp_path: Path, line: int, path: str, value: Any, message: str
+) -> None:
+    # A hand-edited or third-party export: these used to end in a traceback with exit 1
+    # (a ':g' format of a string, an int minus a string, .get on a list or a string).
+    export = tmp_path / "c.jsonl"
+    history = ROOT / "examples" / "tomli" / "history.jsonl.gz"
+    args = ["mine", "--history", str(history), "--top", "0", "--explain", "0"]
+    assert runner.invoke(app, [*args, "--out", str(export)]).exit_code == 0
+    records = [json.loads(text) for text in export.read_text().splitlines()]
+    _edit(records[line], path, value)
+    export.write_text("".join(json.dumps(r) + "\n" for r in records), encoding="utf-8")
+    for fmt in ("markdown", "html"):
+        result = runner.invoke(app, ["report", str(export), "--format", fmt])
+        assert result.exit_code == 2, result.output
+        assert result.stderr.startswith(f"error: {message}")
 
 
 PRS = ROOT / "examples" / "tomli" / "prs"

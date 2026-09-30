@@ -998,7 +998,11 @@ The ranked table that follows has a column per score feature (`small_diff`,
 was mined with `--ledger`, and the subject; then one section per candidate, the rejected
 commits grouped by reason (collapsed in HTML), and the settings. The golden reports of the
 ledger demo's fork are in [tests/golden/report-fork.md](tests/golden/report-fork.md) and
-[report-fork.html](tests/golden/report-fork.html).
+[report-fork.html](tests/golden/report-fork.html). An export is checked before it is
+rendered: a missing field or a value of the wrong type, at the top level or among the
+values the report computes with (rejection counts, ledger counts, weights, a
+`pull_request` that is not an object), is one `error: line N.<field>: expected ...` and
+exit 2.
 
 Docker (the image contains the recorded history and the sample tree, so this runs offline):
 
