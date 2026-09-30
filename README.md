@@ -16,9 +16,12 @@ reviewer can see why a commit ranked where it did. Every candidate gets a patch
 fingerprint, and a shared SQLite ledger marks fixes that were already proposed: the same fix
 in a fork, a cherry-pick, a re-indented or moved copy. Merged pull requests can be mined
 from the GitHub REST API the same way (ETag cache, rate-limit handling, recorded fixtures),
-and their fixes collide in the ledger with the commits they became. The output is JSON
-Lines for downstream environment builders, with a committed JSON Schema, the likely
-fail-to-pass test ids of each candidate, and a Markdown or self-contained HTML report.
+and their fixes collide in the ledger with the commits they became. Several repositories
+(clones, recordings, pull requests) can be mined as one batch into one ledger: a watermark
+per repository makes a re-run walk only new commits, and a fix found in two repositories
+is reported as a collision. The output is JSON Lines for downstream environment builders,
+with a committed JSON Schema, the likely fail-to-pass test ids of each candidate, and a
+Markdown or self-contained HTML report.
 
 CommitMiner proposes and ranks. It does not build environments or run the tests; verifying
 the flip is the downstream builder's job.
@@ -122,7 +125,23 @@ the flip is the downstream builder's job.
   patch hash), an `overlap` (shares at least `--min-overlap`, default 0.5, of the distinct
   hunks of the smaller fix), or `new`. Adding is one `BEGIN IMMEDIATE` transaction backed by
   a unique constraint on the fingerprint, so two authors cannot claim the same fix;
-  checking never writes and also compares the candidates of one run with each other.
+  checking never writes and also compares the candidates of one run with each other. A
+  `claimed` add of a fix held as `proposed` (as batch runs record them) takes it over.
+- **Batch mining with incremental resume** (`commitminer batch commitminer.toml`): a
+  `[batch]` table lists local clones, recorded histories and GitHub pull requests
+  (`[[batch.repos]]`), mined in order with the file's classifier and scoring tables into
+  one ledger, one export and one report. The ledger (schema version 2, migrated from 1)
+  keeps a watermark per repository and source, and the shas each run evaluated: a clone
+  walks only `watermark..head` (its whole history, passing over what was evaluated, when
+  the watermark is no longer an ancestor), a recording passes over the commits evaluated
+  before, and the pull-request listing stops at the newest update time seen. Each
+  repository is recorded in one transaction (new fixes as `proposed`, walked shas,
+  watermark), so an interrupted batch resumes where it stopped. Candidates that duplicate
+  or overlap a fix recorded under another repository are reported as collisions: the same
+  commit (a fork shares its upstream's history) or the same fix in another commit.
+  `--full` ignores the watermarks, `--dry-run` records into an in-memory copy, `--only`
+  picks repositories, a repository that fails is reported and the others still run;
+  `commitminer ledger watermarks` lists where each one stopped.
 - **Likely fail-to-pass test ids**: the test functions a patch touches, found by their
   line ranges in the new file version (Python blocks by indentation with their decorators
   and classes; Rust, Go, Java and JavaScript/TypeScript by brace matching with the same
@@ -139,7 +158,10 @@ the flip is the downstream builder's job.
   per-file category, rule, signals and patch measurements, line counts, public API
   touched, score and difficulty breakdowns, fingerprint, the ledger verdict with its
   matches, and for pull requests their number, URL, labels, linked issues, base, head and
-  merge shas and commits. Plus a terminal table and per-candidate contribution tables.
+  merge shas and commits. A batch export starts with a batch record (the repositories
+  that failed, the collisions) and holds one run record per repository, each followed by
+  its candidates; run records say how the batch run resumed. Plus a terminal table and
+  per-candidate contribution tables.
 - **Reports** (`commitminer report CANDIDATES.jsonl --out report.md|report.html`): from an
   export, a Markdown report or one self-contained HTML page (inline CSS, no scripts, no
   external assets, every string escaped): the funnel with the remaining count after each
@@ -147,12 +169,22 @@ the flip is the downstream builder's job.
   contribution, a section per candidate with its files, test ids, fingerprint, ledger
   verdict and feature table, the rejected commits grouped by reason, and the settings.
   Commits and pull requests are linked when the export's URL is http(s) or a git remote.
-  Golden files pin both formats.
+  A batch export gives one report: every repository with how it resumed and what the
+  ledger said about its candidates, the collisions across repositories, the best new
+  candidates of the batch, then each repository's sections. Golden files pin both formats
+  for a single run and for a batch.
 - **Offline demo** on the recorded history of [hukkin/tomli](https://github.com/hukkin/tomli)
   (MIT, 312 non-merge commits), bundled in [`examples/tomli/`](examples/tomli/) with its
   license and provenance. CI re-records it from GitHub on every push and checks it still
   matches byte for byte. Next to it, 52 recorded API responses for tomli's 25 most
-  recently updated merged pull requests (`examples/tomli/prs/`) drive `make demo-prs`.
+  recently updated merged pull requests (`examples/tomli/prs/`) drive `make demo-prs`. A
+  second language: the recorded histories of the Go library
+  [mitchellh/mapstructure](https://github.com/mitchellh/mapstructure) (MIT, 236 commits,
+  archived) and its fork [go-viper/mapstructure](https://github.com/go-viper/mapstructure)
+  (374), in [`examples/mapstructure/`](examples/mapstructure/), which `make demo` mines
+  together with tomli and its pull requests as one batch
+  ([`examples/batch/commitminer.toml`](examples/batch/commitminer.toml)); CI re-records
+  them too.
 - **Docker image** on digest-pinned `python:3.12-slim` and `uv` bases, running as uid 10001,
   with `LABEL project=commitminer`.
 
@@ -163,22 +195,23 @@ Needs git, [uv](https://docs.astral.sh/uv/) and make.
 ```sh
 git clone https://github.com/vipul21435/commitminer && cd commitminer
 make install        # uv sync --locked + pre-commit hook
-make demo           # mine the bundled tomli history offline
+make demo           # mine the bundled tomli history, then batch-mine it with a Go fork pair
 make demo-explain   # explain one candidate and one rejected tomli commit
 make demo-classify  # classify the multi-language sample tree in examples/classify
 make demo-ledger    # claim upstream fixes, then find them again in a release branch and a fork
 make demo-prs       # rank tomli's merged pull requests from recorded GitHub responses
 make demo-report    # export the tomli history and render Markdown and HTML reports
 uv run commitminer mine /path/to/a/clone --out out/candidates.jsonl --ledger team.sqlite3
+uv run commitminer batch commitminer.toml --out out/batch.jsonl --report out/batch.html
 uv run commitminer report out/candidates.jsonl --out out/report.html
 GITHUB_TOKEN=... uv run commitminer prs OWNER/REPO --limit 30 --out out/prs.jsonl
 uv run commitminer ledger add team.sqlite3 out/candidates.jsonl --sha <sha> --owner <name>
 uv run commitminer explain <sha> --repo /path/to/a/clone
 ```
 
-Verified in a fresh clone of `cd8b012`: `make install` took 2.08 s, the first `make demo`
-0.67 s and `make demo-ledger` 1.11 s (`/usr/bin/time -p`, warm uv cache, 8 GB Apple
-Silicon Mac).
+Verified in a fresh clone of `b3c4057`: `make install` took 1.40 s, the first `make demo`
+(the tomli ranking, then the batch twice) 1.39 s and the next one 0.83 s, and
+`make demo-ledger` 1.33 s (`/usr/bin/time -p`, warm uv cache, 8 GB Apple Silicon Mac).
 
 ## Usage
 
@@ -187,12 +220,15 @@ commitminer mine [REPO] [--history FILE] [--rev REV] [--max-count N] [--max-line
                  [--max-source-files N] [--test-lines-cap N] [--top 10] [--explain 1]
                  [--out FILE] [--url URL] [--repo-name NAME] [--config FILE] [--no-content]
                  [--ledger FILE [--min-overlap 0.5] [--new-only]]
+commitminer batch CONFIG [--ledger FILE] [--out FILE] [--report FILE] [--only NAME]...
+                  [--full] [--dry-run] [--top 10]
 commitminer report CANDIDATES.jsonl [--out FILE] [--format markdown|html] [--top N]
 commitminer schema
 commitminer ledger add LEDGER CANDIDATES.jsonl [--sha SHA]... [--top N] [--owner NAME]
                        [--status claimed|proposed] [--min-overlap 0.5] [--allow-overlap]
 commitminer ledger check LEDGER CANDIDATES.jsonl [--min-overlap 0.5] [--json]
 commitminer ledger list LEDGER [--repo NAME] [--json]
+commitminer ledger watermarks LEDGER [--json]
 commitminer explain SHA [--repo DIR | --history FILE] [--max-lines N] [--max-source-files N]
                     [--test-lines-cap N] [--config FILE] [--no-content] [--json]
 commitminer record REPO --out FILE [--rev REV] [--max-count N] [--repo-name NAME] [--url URL]
@@ -210,18 +246,21 @@ commitminer version
 test modules are not found (their lines count as source). Patches are always measured.
 `classify` paths are relative to `--root` (default: the current directory) and need not
 exist; a path that is not a file there is classified by its path alone. `ledger add`
-creates a missing ledger file (empty, with its schema); `ledger check`, `ledger list`,
-`mine --ledger` and `prs --ledger` refuse a missing path, so a mistyped ledger cannot
+and `batch` create a missing ledger file (empty, with its schema); `ledger check`,
+`ledger list`, `ledger watermarks`, `mine --ledger` and `prs --ledger` refuse a missing path, so a mistyped ledger cannot
 report every candidate as new (an empty file counts as an empty ledger: `touch` one to
 start).
 
 Exit codes: 0 on success; 1 is an outcome, not an error (`ledger add` refused a candidate,
 `ledger check` found one that is not new), so scripts can tell that a fix was already
 taken; 2 for every error (usage, an unreadable file, git or GitHub failures, a ledger that
-is read-only or locked longer than the 10 s timeout), printed as one `error:` line.
+is read-only or locked longer than the 10 s timeout, a batch repository that could not be
+walked), printed as one `error:` line. A batch that finds collisions exits 0: they are
+outcomes, reported in the output.
 
-Output of `make demo` (the recorded tomli history, unedited). `diff` is the difficulty and
-its band; the ranking uses only the score:
+Output of `make demo` up to the batch (the recorded tomli history, unedited; the batch that
+follows is under [Batch mining](#batch-mining)). `diff` is the difficulty and its band; the
+ranking uses only the score:
 
 ```text
 hukkin/tomli: walked 312 commits, 44 candidates (easy 15, medium 17, hard 12), 268 rejected (docs-only 42, no-source 100, source-unchanged 1, source-cosmetic 6, no-test 115, oversize 4)
@@ -260,10 +299,12 @@ rank   score         diff  sha         date        lines  src  test  subject
 wrote 44 candidates to out/tomli-candidates.jsonl
 ```
 
-The first line of `out/tomli-candidates.jsonl`, with each feature and file on one line and
-the file lists cut to the source and test file (the commit also changes `CHANGELOG.md` and
-`README.md`). The fingerprint covers the 13 hunks of those two files; `ledger` is `null`
-because the demo mines without `--ledger`, and `pull_request` because it is a commit:
+The second line of `out/tomli-candidates.jsonl` (the first is the run record, under
+[Export schema and reports](#export-schema-and-reports)), with each feature and file on one
+line and the file list cut to the source and test file (the commit also changes
+`CHANGELOG.md` and `README.md`). The fingerprint covers the 13 hunks of those two files;
+`ledger` is `null` because the demo mines without `--ledger`, and `pull_request` because it
+is a commit:
 
 ```json
 {
@@ -276,6 +317,7 @@ because the demo mines without `--ledger`, and `pull_request` because it is a co
     {"contribution": 0.0, "detail": "1 source file with code changes (full value at 5)", "name": "cross_file", "value": 0.0, "weight": 2.0},
     {"contribution": 1.0, "detail": "def loads", "name": "public_api", "value": 1.0, "weight": 1.0}
   ]},
+  "fail_to_pass": ["tests/test_misc.py::test_deepcopy", "tests/test_misc.py::test_parse_float"],
   "features": [
     {"contribution": 2.535, "detail": "62 of at most 400 source+test lines changed", "name": "small_diff", "value": 0.845, "weight": 3.0},
     {"contribution": 1.75, "detail": "35 test lines added (full value at 40)", "name": "test_lines_added", "value": 0.875, "weight": 2.0},
@@ -285,18 +327,20 @@ because the demo mines without `--ledger`, and `pull_request` because it is a co
     {"contribution": 1.0, "detail": "1 source file changed", "name": "focused_source", "value": 1.0, "weight": 1.0}
   ],
   "files": [
-    {"added": 35, "category": "test", "deleted": 6, "patch": {"api": ["def test_parse_float"], "asserts": 3, "code_added": 33, "code_deleted": 6, "code_hunks": 3, "hunks": 3, "test_added": 0, "test_deleted": 0}, "path": "tests/test_misc.py", "rule": "test-dir"},
-    {"added": 13, "category": "source", "deleted": 8, "patch": {"api": ["def loads"], "asserts": 0, "code_added": 10, "code_deleted": 8, "code_hunks": 10, "hunks": 10, "test_added": 0, "test_deleted": 0}, "path": "tomli/_parser.py", "rule": "py-source"}
+    {"added": 35, "category": "test", "deleted": 6, "patch": {"api": ["def test_parse_float"], "asserts": 3, "code_added": 33, "code_deleted": 6, "code_hunks": 3, "hunks": 3, "test_added": 0, "test_deleted": 0, "tests": ["test_deepcopy", "test_parse_float"]}, "path": "tests/test_misc.py", "rule": "test-dir"},
+    {"added": 13, "category": "source", "deleted": 8, "patch": {"api": ["def loads"], "asserts": 0, "code_added": 10, "code_deleted": 8, "code_hunks": 10, "hunks": 10, "test_added": 0, "test_deleted": 0, "tests": []}, "path": "tomli/_parser.py", "rule": "py-source"}
   ],
-  "fingerprint": {"hunks": ["2238f1a042c06dea", "281157c378695ed6", "2d98fd8039a500da", "31087633dc36ca60", "42dc602a455f1507", "5a92b41459e49fb7", "66717315e93d09ff", "785747b132e589e7", "82c818dedf502363", "e1a9b9c9fabab1f0", "f1fa33414ce49364", "f2fac2deb39097db", "fa350b2a3bba7f1b"], "patch": "f10c534e4424fd9b", "version": 1},
+  "fingerprint": {"hunks": ["2238f1a042c06dea", "281157c378695ed6", "2d98fd8039a500da", "31087633dc36ca60", "42dc602a455f1507", "5a92b41459e49fb7", "66717315e93d09ff", "785747b132e589e7", "82c818dedf502363", "e1a9b9c9fabab1f0", "f1fa33414ce49364", "f2fac2deb39097db", "fa350b2a3bba7f1b"], "patch": "f10c534e4424fd9b", "version": 2},
   "inline_test_files": [],
+  "kind": "candidate",
   "ledger": null,
   "lines": {"changed": 62, "source_added": 13, "source_deleted": 8, "test_added": 35, "test_deleted": 6},
   "public_api": ["def loads"],
   "pull_request": null,
   "rank": 1,
   "repo": "hukkin/tomli",
-  "schema_version": 4,
+  "repo_url": "https://github.com/hukkin/tomli",
+  "schema_version": 6,
   "score": 6.885,
   "sha": "5ab9ec926d9dc1ef79e66215edd51285371fe8a0",
   "source_files": ["tomli/_parser.py"],
@@ -665,6 +709,187 @@ hukkin/tomli --limit 1 --cache-dir <dir> --top 0 --explain 0 --max-wait 5` sent 
 each and left 56, then 53 (3 answered 304), then 50 of 60; three more runs with a fresh
 cache left 46, 43 and 40.
 
+### Batch mining
+
+`commitminer batch FILE` mines every repository listed in a batch file into one ledger. The
+file is a `commitminer.toml`: its `[classify]`, `[filter]`, `[score]` and `[difficulty]`
+tables apply to every repository, and `[batch]` lists them. The demo's
+([examples/batch/commitminer.toml](examples/batch/commitminer.toml), comments trimmed):
+
+```toml
+[batch]
+min_overlap = 0.5
+owner = "batch-demo"
+
+[[batch.repos]]
+name = "hukkin/tomli"
+history = "../tomli/history.jsonl.gz"
+
+[[batch.repos]]
+name = "hukkin/tomli"
+github = "hukkin/tomli"
+limit = 25
+replay = "../tomli/prs"
+
+[[batch.repos]]
+name = "mitchellh/mapstructure"
+history = "../mapstructure/mitchellh.jsonl.gz"
+
+[[batch.repos]]
+name = "go-viper/mapstructure"
+history = "../mapstructure/go-viper.jsonl.gz"
+```
+
+`[batch]` may also set `ledger` (default `.commitminer/ledger.sqlite3`), `out` and `report`;
+paths are relative to the file, and `--ledger`, `--out` and `--report` override them. An
+entry has a `name` (the ledger's repository label) and exactly one of `clone` (a local
+clone; `rev`, default `HEAD`, and `content`), `history` (a recording) or `github`
+(`OWNER/REPO`; `limit`, `max_files`, `max_wait`, `api_url`, `cache_dir` and `replay`, as the
+`prs` options). Any entry may set `url` (written to the export) and `config` (another
+`commitminer.toml` whose tables replace the batch file's for that entry). Unknown keys, a
+key of another source (`rev` on a recording), a repeated name and source, or a bad
+`OWNER/REPO` are errors before anything runs. Entries run in file order, so the earlier of
+two copies of a fix is the one recorded, and the later one is its collision.
+
+Output of `make demo-batch`, which `make demo` runs after the tomli ranking (unedited,
+make's command lines left out): the batch, then the same batch again, then the head of
+`commitminer explain` for the best Go candidate:
+
+```text
+batch examples/batch/commitminer.toml: 4 repositories, ledger .commitminer/batch-demo/ledger.sqlite3
+hukkin/tomli [history]: first run, walked 312 commits: 44 candidates, 268 rejected; 44 new; watermark 5a77b12a7a
+hukkin/tomli [pull-requests]: first run, walked 24 pull requests: 6 candidates, 18 rejected; 6 already recorded; watermark 2026-04-14T16:51:36Z
+  github: 52 requests (0 answered 304 from the cache), 0 retries, waited 0 s; rate limit 4759 of 5000 left, resets 2026-09-30 01:25:39 UTC (replayed from examples/tomli/prs)
+  passed over: 6 closed without merging; #278 with more than 300 changed files
+mitchellh/mapstructure [history]: first run, walked 236 commits: 105 candidates, 131 rejected; 105 new; watermark 8508981c8b
+go-viper/mapstructure [history]: first run, walked 374 commits: 138 candidates, 236 rejected; 32 new, 106 colliding with other repositories; watermark 52aa5c6dc1
+collisions with other repositories: 106 (105 same commit, 1 overlap)
+  go-viper/mapstructure 2e2be32560  overlap: 1 of 2 hunks shared with mitchellh/mapstructure b37a0d6b00 (earlier in this run)
+  105 candidates of go-viper/mapstructure are commits of mitchellh/mapstructure too (a fork or a mirror shares its history)
+
+best new candidates across the batch (5 of 181):
+ score         diff  repo                    rank  commit      date        subject
+  9.44    0.92 easy  mitchellh/mapstructure     1  1d69ed7aa0  2020-05-21  Fix squash decoder option to squash only embedd...
+  8.35    0.62 easy  mitchellh/mapstructure     2  eb645e2472  2021-02-14  Fix empty keyName when decoding struct -> map w...
+  8.34  2.18 medium  mitchellh/mapstructure     3  c813330123  2016-12-11  #48: fixes for ptr and slice cases
+  8.20    0.77 easy  mitchellh/mapstructure     4  d5a6ad8db7  2018-09-16  Check input for nil before and after decode hook.
+  8.08  2.69 medium  mitchellh/mapstructure     5  375104a27b  2019-07-10  Added decoder option for squashing embedded str...
+
+wrote 4 runs and 293 candidates to out/batch-candidates.jsonl
+wrote the markdown report to out/batch-report.md
+
+Again: every watermark is up to date, so nothing is walked.
+batch examples/batch/commitminer.toml: 4 repositories, ledger .commitminer/batch-demo/ledger.sqlite3
+hukkin/tomli [history]: up to date at 5a77b12a7a, walked 0 commits (312 evaluated before)
+hukkin/tomli [pull-requests]: up to date at 2026-04-14T16:51:36Z, walked 0 pull requests
+  github: 1 request (0 answered 304 from the cache), 0 retries, waited 0 s; rate limit 4810 of 5000 left, resets 2026-09-30 01:25:39 UTC (replayed from examples/tomli/prs)
+mitchellh/mapstructure [history]: up to date at 8508981c8b, walked 0 commits (236 evaluated before)
+go-viper/mapstructure [history]: up to date at 52aa5c6dc1, walked 0 commits (374 evaluated before)
+collisions with other repositories: none
+
+The best Go candidate, classified by the Go rules:
+commit   1d69ed7aa0ba61f00b11a0233e6eb9109ace2870
+base     14428cd8e72132155ec2f0f13c4eb93ffe620f7c
+date     2020-05-21T13:37:21-07:00
+subject  Fix squash decoder option to squash only embedded fields
+verdict  candidate: score 9.44 of 10, difficulty 0.92 of 10 (easy)
+patch    fingerprint d2b3d4a483c3d67d (6 source and test hunks)
+tests    likely fail-to-pass: mapstructure_test.go::TestDecodeFrom_EmbeddedSquashConfig, mapstructure_test.go::TestDecode_EmbeddedSquashConfig
+
+  files
+    category  rule               added   del hunks  code tests asserts  path
+    source    go-source              2     2     2     2     0       0  mapstructure.go
+    test      go-test-file          70     1     4     4     0      11  mapstructure_test.go
+```
+
+The two tomli sources meet without a collision: tomli squash-merges its pull requests, so
+a pull request's merge commit is the commit the history had just recorded (`already
+recorded`: same repository, same sha). The fork is the
+cross-repository case. go-viper/mapstructure continued the archived mitchellh/mapstructure,
+so 105 of its 138 candidates are upstream commits, each reported once as `same commit`
+instead of being proposed twice; the remaining 33 are its own. One of those, `2e2be32560`
+("Fix untagged field decoding in case of decode to struct"), shares 1 of the 2 hunks of the
+smaller fix with upstream's `b37a0d6b00` ("DecoderConfig: introduce IgnoreUntaggedFields"):
+`git show --unified=0` on both shows the same three-line guard
+(`if tagValue == "" && d.config.IgnoreUntaggedFields { continue }`) added to the opposite
+decoding direction. It is a follow-up, not a copy, so a reviewer would keep it; at the
+default `min_overlap` of 0.5 it is flagged (see Known issues). The Go files are classified
+by the Go rules (`go-source`, `go-test-file`) and their test ids are `go test` names.
+
+The second run reads every watermark and walks nothing: each recording's commits were all
+evaluated before, and the pull-request listing stops at its first page (1 request instead
+of 52) because nothing was updated after the watermark. `commitminer ledger watermarks`
+shows where each run stopped (from a timed copy of the demo ledger; `walked` adds up every
+run):
+
+```text
+.commitminer/time-batch/l.sqlite3: 4 watermarks
+repo                      source         position              walked  runs  updated
+go-viper/mapstructure     history        52aa5c6dc1               374     2  2026-09-30T07:32:15+00:00
+hukkin/tomli              history        5a77b12a7a               312     2  2026-09-30T07:32:15+00:00
+hukkin/tomli              pull-requests  2026-04-14T16:51:36Z      24     2  2026-09-30T07:32:15+00:00
+mitchellh/mapstructure    history        8508981c8b               236     2  2026-09-30T07:32:15+00:00
+```
+
+How each source resumes from its watermark:
+
+- **clone**: the watermark is the head commit walked, and a re-run walks
+  `git log watermark..head` only. If the watermark is no longer an ancestor of the head
+  (history rewritten) or not in the clone, the whole history is walked, the commits
+  evaluated before are passed over, and the run says why.
+- **history**: the watermark is the recording's head; the commits evaluated before are
+  passed over by sha, so replaying the same recording walks nothing and a newer recording
+  of the same repository walks only its new commits.
+- **pull requests**: the watermark is the newest `updated_at` listed. The listing (newest
+  updated first) stops at the first pull request not updated since, and a merged pull
+  request whose commit was evaluated before (updated since, say by a comment) is passed
+  over before its files and commits are read.
+
+Resuming a live clone: a batch file with one entry for a fresh `git clone` of
+go-viper/mapstructure, run first with `rev = "8508981c8b6c964e6986dd8aa85490e70ce3c2e2"`
+(mitchellh/mapstructure's last commit, which the fork contains), then with
+`rev = "52aa5c6dc1d27226460807054ca2107b2d54fb2d"`, then again (the second line of each
+run's output, and `/usr/bin/time -p`, 3 runs each):
+
+```text
+go-viper/mapstructure [clone]: first run, walked 236 commits: 105 candidates, 131 rejected; 105 new; watermark 8508981c8b
+go-viper/mapstructure [clone]: resumed from 8508981c8b, walked 138 commits: 33 candidates, 105 rejected; 32 new, 1 matching other commits of this repository; watermark 52aa5c6dc1
+go-viper/mapstructure [clone]: up to date at 52aa5c6dc1, walked 0 commits
+```
+
+0.35 to 0.38 s, 0.35 s and 0.09 s; `mine` on the same clone at the new head walks all 374
+commits in 0.59 to 0.62 s. 236 + 138 is the 374 of a full walk, and the overlapping
+follow-up is now `matching other commits of this repository` (same repository, other
+commit), not a collision.
+
+Each repository is recorded in one SQLite transaction after it is walked: its new fixes
+(as `proposed`, with the batch's `owner`), its walked shas and its new watermark. A batch
+killed in the middle leaves the finished repositories recorded and the interrupted one
+untouched, so the next run picks up there. A repository that cannot be walked (a missing
+clone, a broken recording, a GitHub error) is reported as `failed` and the others still
+run; the batch then exits with 2. `--dry-run` runs the same code against an in-memory copy
+of the ledger (or an empty one, if the file does not exist), so its verdicts are those of a
+real run and nothing is written. `--full` ignores the watermarks and walks everything
+again; fixes recorded before under the same repository come back as `already recorded`.
+To take a proposed fix, `ledger add` it as usual (`--status claimed`, the default): the
+proposed entry becomes `claimed` by the new owner instead of being refused.
+
+`--report` (or `report` in `[batch]`) writes one report for the batch; `commitminer report`
+renders a batch export the same way. It starts with a table of the repositories (the first
+rows of `out/batch-report.md` after `make demo`):
+
+```markdown
+| repository | source | run | walked | evaluated before | candidates | new | already recorded | same repository | collisions | watermark |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| [hukkin/tomli](https://github.com/hukkin/tomli) | history | first run | 312 | 0 | 44 | 44 | 0 | 0 | 0 | 5a77b12a7a |
+| [hukkin/tomli](https://github.com/hukkin/tomli) | pull-requests | first run | 24 | 0 | 6 | 0 | 6 | 0 | 0 | 2026-04-14T16:51:36Z |
+| [mitchellh/mapstructure](https://github.com/mitchellh/mapstructure) | history | first run | 236 | 0 | 105 | 105 | 0 | 0 | 0 | 8508981c8b |
+| [go-viper/mapstructure](https://github.com/go-viper/mapstructure) | history | first run | 374 | 0 | 138 | 32 | 0 | 0 | 106 | 52aa5c6dc1 |
+```
+
+then the 106 collisions with links to both commits, the best new candidates of the batch,
+and each repository's funnel, ranking, candidates and rejections one heading level down.
+
 ### Export schema and reports
 
 `mine --out` and `prs --out` write one JSON object per line. The first line is the run
@@ -785,6 +1010,10 @@ flowchart LR
     signals --> testids[testids: test functions by line range]
     testids --> patch
     ledger --> export
+    batchfile[(commitminer.toml: batch.repos)] --> batch[batch: resume, record, collisions]
+    batch -->|"watermark..head, unseen commits, since updated_at"| commits
+    batch -->|"record_run: proposed fixes, walked shas, watermark"| ledgerdb
+    batch --> export
     scoring --> export[export: run record + candidates JSONL, table, breakdowns]
     export -->|validated by| schema[(export-v6.schema.json)]
     export -->|commitminer report| report[report: Markdown / HTML]
@@ -811,28 +1040,33 @@ flowchart LR
 | `filters.py` | hard filters and reason codes |
 | `scoring.py` | score and difficulty features, ranking |
 | `fingerprint.py` | hunk hashes (whitespace, path and position insensitive) and commit fingerprints |
-| `ledger.py` | the SQLite ledger: schema and migrations, verdicts, atomic claims, reading exported candidates |
+| `ledger.py` | the SQLite ledger: schema and migrations, verdicts, atomic claims, batch runs with watermarks and walked shas, reading exported candidates |
+| `batch.py` | the batch file, walking each source from its watermark, recording each repository in one transaction, collisions, the batch export and terminal output |
 | `export.py` | the run record and candidate JSONL export, the JSON Schema accessor, the terminal renderers |
 | `schemas/` | `export-v6.schema.json`, the committed JSON Schema of the export records |
-| `report.py` | reads an export and renders the Markdown and self-contained HTML reports |
+| `report.py` | reads an export (of one run or of a batch) and renders the Markdown and self-contained HTML reports |
 | `explain.py` | the `explain` output, text and JSON |
 | `ruletable.py` | `classify` and `rules` command output, `docs/rules.md` |
-| `cli.py` | Typer commands `mine`, `prs`, `report`, `schema`, `explain`, `record`, `classify`, `rules`, `ledger add/check/list`, `version` |
+| `cli.py` | Typer commands `mine`, `prs`, `batch`, `report`, `schema`, `explain`, `record`, `classify`, `rules`, `ledger add/check/list/watermarks`, `version` |
 
 ## Measured
 
 | What | Command | Result |
 | --- | --- | --- |
-| Tests and coverage | `make cov` | 941 passed, 100.00% line and branch coverage (gate 90%) |
-| Types | `make typecheck` | `mypy --strict`: no issues in 26 source files |
+| Tests and coverage | `make cov` | 1026 passed, 100.00% line and branch coverage (gate 90%) |
+| Types | `make typecheck` | `mypy --strict`: no issues in 27 source files |
 | Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |
+| Demo batch | `make demo` (its `demo-batch` part) | 4 runs, 946 commits and pull requests walked, 293 candidates, 181 new, 6 already recorded, 106 collisions (105 same commit, 1 overlap); run again: 0 walked, 1 GitHub request instead of 52 |
+| Batch run time | `/usr/bin/time -p uv run commitminer batch examples/batch/commitminer.toml --ledger <new file> --top 0`, then again on the same ledger | first run 0.29 to 0.52 s (3 runs; 0.52 s was the first, with a cold cache), second run 0.15 s (3 runs) |
+| Resuming a live clone | a batch entry for a fresh go-viper/mapstructure clone at `8508981c8b`, then at `52aa5c6dc1`, then again | 236 commits in 0.35 to 0.38 s, the 138 new ones in 0.35 s, none in 0.09 s (3 runs each); `mine` walks all 374 at the new head in 0.59 to 0.62 s |
 | Live walk of the tomli clone | `/usr/bin/time -p uv run commitminer mine <tomli clone> --top 0 --explain 0` | 0.40 to 0.44 s with content signals, 0.35 to 0.42 s with `--no-content` (3 runs each; 0.39 to 0.42 s and 0.37 s before slice 4) |
 | Live walk of the semver clone | same on dtolnay/semver (572 commits) | 0.67 s with content signals, 0.27 to 0.28 s with `--no-content` (3 runs each; 0.63 to 0.66 s and 0.36 s before slice 4) |
 | Live walk of the pflag clone | same on spf13/pflag (285 commits) | 0.30 to 0.31 s (3 runs) |
 | Live walk of the serde clone | same on serde-rs/serde at `6693a89c` (3542 commits; aborted on a symlink type change before slice 4) | 8.47 to 9.48 s (3 runs): 484 candidates |
 | Replay of the recording | same with `--history examples/tomli/history.jsonl.gz` | 0.19 to 0.22 s (3 runs, with test ids; 0.18 to 0.20 s before them; httpx and the GitHub client are imported only by `prs`) |
 | Report | `/usr/bin/time -p uv run commitminer report out/tomli-candidates.jsonl --out r.html` | 0.08 to 0.11 s (3 runs); `ls -l out/`: 102355 bytes of Markdown, 151400 of HTML for 44 candidates and 268 rejections |
+| Batch report | `/usr/bin/time -p uv run commitminer report out/batch-candidates.jsonl --out out/batch-report.html` after `make demo` | 0.11 to 0.15 s (3 runs); 590554 bytes of Markdown (`make demo`), 897204 of HTML, from a 1156110-byte export of 4 runs and 293 candidates |
 | Likely fail-to-pass ids | `make demo-report`, then count `fail_to_pass` in the export | 30 of 44 tomli candidates (the other 14 change only `.toml`/`.json` test data); 2 of the 6 pull-request candidates (no file contents there) |
 | Replay of the pull requests | `uv run commitminer prs hukkin/tomli --limit 25 --replay examples/tomli/prs --top 0 --explain 0` | 0.12 to 0.14 s (3 runs), 52 requests answered from 52 fixture files |
 | Live pull requests | same without `--replay`, with `GITHUB_TOKEN` and a fresh `--cache-dir`, twice | 24.65 s, 52 requests, rate limit 4700 of 5000 left; again: 23.79 s, 52 answered 304, still 4700 left |
@@ -844,8 +1078,9 @@ flowchart LR
 | Concurrent claims | `tests/test_ledger.py`: 8 threads, 8 connections, one fix | exactly 1 added, 7 refused |
 | Live vs replay | `mine <clone> --repo-name hukkin/tomli --out a.jsonl`, `make demo`, `cmp` | identical |
 | Recording size | `ls -l examples/tomli/history.jsonl.gz` | 126060 bytes (1046553 uncompressed) with version 2 hunk hashes and test ids; 125342 before test ids, 125311 with version 1 hashes, 67715 without hashes, 63697 before patch measurements |
-| Recording integrity | `make verify-recording` (also in CI) | byte-identical to a fresh recording from GitHub |
-| Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 112977638 bytes (112840949 before the schema and the report; 110897309 before httpx) |
+| Go recordings | `ls -l examples/mapstructure/`; `gzip -dc ... \| wc -c` | mitchellh/mapstructure 34004 bytes (124730 uncompressed, 236 commits, 364 file entries), go-viper/mapstructure 61973 (243930, 374 commits, 589 entries) |
+| Recording integrity | `make verify-recording` (also in CI) | all three byte-identical to fresh recordings from GitHub |
+| Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 113209978 bytes (112977638 before the batch demo's recordings; 112840949 before the schema and the report; 110897309 before httpx) |
 
 ## Design decisions
 
@@ -990,6 +1225,33 @@ flowchart LR
   (entities in HTML, backslashes before Markdown punctuation), links are made only for
   http(s) URLs (a `git@host:path` remote is turned into one; `javascript:` or a local path
   is printed as text), and the HTML has inline CSS and nothing to load.
+- **A watermark plus the walked shas.** A single high-water mark is exact only where git
+  can apply it: a clone walks `watermark..head`, which follows merges. A recording has no
+  merge commits (21 parent links in tomli's recording point to merges it leaves out), so
+  ancestry from an old head cannot be traced through it; the ledger keeps the sha of every commit a
+  batch evaluated instead (per repository and source; tomli's 312 and the fork's 374 are
+  a few kilobytes), which also lets a clone whose history was rewritten be re-walked
+  without proposing anything twice. Pull requests use the newest `updated_at` listed,
+  because the list endpoint is sorted by it and a stop there costs one page.
+- **One transaction per repository.** `Ledger.record_run` adds a repository's new fixes,
+  its walked shas and its watermark together, under `BEGIN IMMEDIATE`, after the walk.
+  Walking outside the transaction keeps the write lock short; recording everything at
+  once means a watermark never moves past fixes that were not recorded. Proposals are
+  compared with the ledger in rank order, including the ones this run just added, so a
+  fix repeated inside one repository (a cherry-pick on a release branch) is caught too.
+- **A collision is a match in another repository.** A duplicate or overlap of another
+  commit of the same repository is reported as such, and a commit walked again (`--full`,
+  or a pull request that squash-merged into a recorded commit) is `already recorded`; only
+  a match whose ledger entry has another repository label counts as a collision, and it
+  says whether it is the very same commit (a fork, a mirror) or the same fix elsewhere.
+  Batch entries record fixes as `proposed`, and a later `ledger add` claims them, so the
+  batch does not decide who takes a task.
+- **A fork pair as the second language.** The cross-repository case should be real, not
+  built: mitchellh/mapstructure (Go, MIT) was archived and go-viper/mapstructure continued
+  it, so the fork carries every upstream commit plus its own, and the upstream recording
+  never changes. Two small Go recordings (96 KB together) exercise the Go rules, `go test`
+  ids and collisions; the ledger demo's synthetic fork still covers re-indented and moved
+  copies with other shas.
 - **Fresh repository, not a fork.** PyDriller (Apache-2.0) was considered; CommitMiner
   needs only a narrow, typed parse of `git log`, and calling the git CLI keeps the
   dependency set small (Typer, and httpx for the GitHub API) and `mypy --strict` clean.
@@ -1099,16 +1361,33 @@ flowchart LR
   JavaScript `describe` names are not part of the id; Rust `#[test]` functions in pull
   requests (no contents) lose their module path; a Go `t.Run` subtest is not separated
   from its parent. The builder must run the tests to confirm the flip in any case.
+- **A pull-request watermark hides older pull requests beyond `limit`.** The listing stops at
+  the newest update time of the last run, so pull requests that were past `limit` then
+  (older updates) are not read by later runs; raise `limit` and run with `--full`, which
+  walks everything again and reports what was recorded before as `already recorded`.
+- **Batch runs are sequential.** Repositories are walked one after another, and two batch
+  processes on one ledger are not coordinated: each repository's record is atomic and a
+  fix is never recorded twice, but both may walk the same new commits and add them to the
+  walked counts.
+- **A clone's own `commitminer.toml` is not read by a batch.** The batch file's tables
+  apply to every entry unless the entry names another file with `config`, so a clone's
+  classifier overrides have to be listed there (explicit, but unlike `mine <clone>`).
+- **A follow-up can look like an overlap.** go-viper's `2e2be32560` applies upstream's
+  three-line `IgnoreUntaggedFields` guard to the other decoding direction; with 1 of the 2
+  hunks of the smaller fix shared it reaches the default 0.5 and is reported as a
+  collision, as pflag's same-line fixes are reported as overlaps.
+- **Settings are not part of the watermark.** A re-run walks only new commits, so changing
+  weights or rules does not re-rank what earlier runs recorded; use `--full` (or a new
+  ledger) to re-evaluate everything under the new settings.
 - **The report is as long as the export.** Every candidate gets a section and every
   rejected commit a row (`--top` limits the candidates, not the rejections): tomli's
-  Markdown report is 102 KB. Feature columns come from the export, so a candidate that
-  lacks a feature another one has shows an empty cell.
+  Markdown report is 102 KB, and the demo batch's 590 KB. Feature columns come from the
+  export, so a candidate that lacks a feature another one has shows an empty cell.
 
 ## Roadmap
 
-Planned in [PLAN.md](PLAN.md), not built yet (slices 1 to 5 are done):
-
-6. Multi-repository batch mining with incremental resume.
+All six slices planned in [PLAN.md](PLAN.md) are built; nothing else is planned there. The
+Known issues above are the open problems.
 
 ## Development
 
@@ -1123,4 +1402,7 @@ UPDATE_GOLDEN=1 uv run pytest tests/test_explain.py tests/test_report.py   # ref
 
 MIT, see [LICENSE](LICENSE). The recorded tomli history and pull-request responses in
 `examples/tomli/` come from tomli (MIT, Copyright (c) 2021 Taneli Hukkinen); its license is
-in [examples/tomli/LICENSE](examples/tomli/LICENSE).
+in [examples/tomli/LICENSE](examples/tomli/LICENSE). The recorded histories in
+`examples/mapstructure/` come from mitchellh/mapstructure and go-viper/mapstructure (MIT,
+Copyright (c) 2013 Mitchell Hashimoto); the license is in
+[examples/mapstructure/LICENSE](examples/mapstructure/LICENSE).

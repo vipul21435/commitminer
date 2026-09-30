@@ -325,6 +325,67 @@ Its output (JSONL) is the input for downstream environment builders.
   it does (re-measured: three cached runs left 46, 43 and 40 of 60), and the documented
   backoff sequences are pinned by a test.
 
+### Decisions made while building slice 6
+
+- No stashed work: `git stash list` was empty and PLAN.md had no "Stashed work" note, so
+  the slice was built on `db5472a`.
+- The batch file is a `commitminer.toml` with a `[batch]` table and `[[batch.repos]]`.
+  `config.py` accepts the table (so `mine` and `explain` still read the same file for
+  its classifier and scoring tables) and `batch.py` validates it strictly: exactly one of
+  `clone`, `history`, `github` per entry, keys of another source are errors with a hint,
+  `(name, source)` must be unique, `OWNER/REPO` is checked before anything runs. An
+  entry's `config` replaces the batch file's tables instead of merging with them, and a
+  clone's own `commitminer.toml` is not read (explicit; a known issue).
+- Ledger schema version 2 is the first real migration: `watermarks` (repo, source,
+  position, walked, runs, updated) and `walked` (repo, source, sha). The migration tests
+  became version-generic (they monkeypatch `SCHEMA_VERSION + 1`), and a hand-built
+  version 1 file is migrated with its entries kept.
+- A single watermark is not enough for recordings: they leave out merge commits (21
+  parent links of the tomli recording point to merges), so ancestry from an old head
+  cannot be traced. The ledger keeps every evaluated sha per repository and source;
+  clones still use the cheap `watermark..head` range and fall back to a full walk minus
+  the walked shas when the watermark is not an ancestor (`git rev-list --count
+  head..watermark` is 0 for an ancestor; an unknown sha fails, meaning "not in the
+  clone"). Pull requests use the newest `updated_at` listed (the list is sorted by it,
+  so the listing stops at the first older one) and skip a pull request whose commit was
+  evaluated before reading its files; `limit` counts only pull requests not skipped.
+- `Ledger.record_run` records a repository in one `BEGIN IMMEDIATE` transaction after the
+  walk: new fixes as `proposed` (each compared with the ledger and the proposals before
+  it; the same repository and sha again is "already recorded"), the walked shas, the
+  watermark. On any error the whole repository is rolled back and the entries it had
+  marked as part of the run are forgotten. `--dry-run` runs the same code on
+  `Ledger.snapshot()`; for a missing ledger it uses an empty temporary one.
+- A candidate's outcome in a batch is new, recorded (its own commit, walked again),
+  internal (another commit of the same repository), collision (a match whose entry has
+  another repository label) or unknown. Collisions say whether they are the same commit
+  (fork or mirror) or the same fix elsewhere; the terminal lists the other-commit ones and
+  counts the same-commit ones per repository pair.
+- `ledger add` with `--status claimed` now takes over a fix the ledger holds as
+  `proposed` (the entry keeps its repository, sha and first-seen time; owner and status
+  change) instead of refusing it, since batch runs record everything as proposed. The
+  previous test expected a refusal there and was changed to assert the claim. Verdicts
+  on the same sha under another repository read "same commit as" instead of "already in
+  the ledger" (terminal and report).
+- Export schema 6: a `batch` record first (config, ledger, min_overlap, dry_run, full,
+  the failed repositories and the collisions), then one run record per repository with
+  its candidates; run records gain `resume` (null outside a batch). The ledger reads
+  schema 3 to 6 and skips batch and run records; the report reads 5 and 6.
+- The second demo language is a Go fork pair, mitchellh/mapstructure (MIT, archived,
+  236 commits) and go-viper/mapstructure (MIT, 374), because a cross-repository
+  collision needs two repositories that share fixes. Checked on live clones before
+  choosing: the fork contains all 105 upstream candidates (same commits) and one
+  other-commit overlap (`2e2be32560`, a follow-up applying the same guard elsewhere).
+  satori/go.uuid and gofrs/uuid (MIT) gave 30 same-commit duplicates and no other-commit
+  match; spf13/pflag is BSD-3-Clause, outside the MIT/Apache-2.0 requirement. The
+  recordings are 34004 and 61973 bytes; `make verify-recording` and CI re-record both.
+- `make demo` keeps the tomli ranking and then runs `demo-batch`: the batch into a fresh
+  ledger, the same batch again (every source up to date, 1 GitHub request instead of
+  52), and the head of `explain` for the best Go candidate (go-source, go-test-file,
+  `go test` ids). The Docker job runs the batch twice in the image with `--network none`.
+- Measured: first batch run 0.29 to 0.52 s, resumed 0.15 s; a live go-viper clone walked
+  236, then only the 138 new commits (0.35 s each), then none (0.09 s), where `mine`
+  takes 0.59 to 0.62 s for all 374.
+
 ## Core (deliverable)
 
 - [x] Core: done on 2026-09-30. 127 tests, 100% line and branch coverage, CI green
@@ -427,7 +488,13 @@ The smallest end-to-end path, from a git history to a ranked JSONL file:
   report and a self-contained HTML report (no external assets, all text escaped): a funnel
   (walked, classified, filtered, deduplicated, exported), the ranked table with per-feature
   contributions, and the rejected commits by reason. Golden-file tests.
-- [ ] 6. Multi-repository batch mining with incremental resume.
+- [x] 6. Multi-repository batch mining with incremental resume. Done on 2026-09-30:
+  ledger schema 2 (watermarks and walked shas, the first real migration),
+  `commitminer batch` with `--full`, `--dry-run`, `--only` and `--report`,
+  `ledger watermarks`, claims of proposed fixes, export schema 6 with a batch record,
+  batch reports (golden files), recorded histories of mitchellh/mapstructure and its fork
+  go-viper/mapstructure (Go) and the batch in `make demo`; 1026 tests, 100% coverage. See
+  "Decisions made while building slice 6".
   `commitminer batch commitminer.toml` mines several repositories (local clones, recorded
   histories or GitHub pull requests) into one ledger and one report. A per-repository
   watermark in the ledger means a re-run walks only new commits. Collisions across the
