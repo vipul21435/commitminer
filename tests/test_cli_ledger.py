@@ -10,13 +10,17 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import sqlite3
 import sys
+from functools import partial
 from pathlib import Path
 from types import ModuleType
 
 import pytest
 from typer.testing import CliRunner
 
+from commitminer import cli
 from commitminer import ledger as ledger_module
 from commitminer.cli import app
 
@@ -188,7 +192,14 @@ def test_ledger_add_refuses_what_is_taken_and_check_reports_it(
         "duplicate",
         "alice",
     )
+    # A ledger that does not exist is an error, not an empty ledger: a mistyped path
+    # would otherwise report every candidate as new.
     fresh = tmp_path / "fresh.sqlite3"
+    typo = runner.invoke(app, ["ledger", "check", str(fresh), str(exported)])
+    assert typo.exit_code == 2
+    assert f"error: {fresh}: no such ledger (ledger add creates one)" in typo.stderr
+    assert not fresh.exists()
+    fresh.write_bytes(b"")  # an empty file is an empty ledger
     clean = runner.invoke(app, ["ledger", "check", str(fresh), str(exported)])
     assert clean.exit_code == 0, clean.output
     assert clean.stdout.splitlines()[0] == f"#1 demo/durations {fix_a[:10]}  new"
@@ -205,7 +216,7 @@ def test_ledger_add_selects_candidates(
     assert top.exit_code == 0, top.output
     assert top.stdout.splitlines()[0].endswith("  proposed")
     none = runner.invoke(app, ["ledger", "add", str(ledger), str(exported), "--sha", "ffff"])
-    assert none.exit_code == 1
+    assert none.exit_code == 2
     assert "no candidate in" in none.output
     bad = runner.invoke(app, ["ledger", "add", str(ledger), str(exported), "--status", "done"])
     assert bad.exit_code == 2
@@ -243,24 +254,86 @@ def test_ledger_list(claimed: tuple[Path, Path, dict[str, dict[str, str]]]) -> N
     assert empty.stdout == f"{ledger}: 0 entries (schema version 1)\n"
 
 
-def test_ledger_errors_are_plain(tmp_path: Path) -> None:
+def test_ledger_errors_are_plain_and_exit_2(tmp_path: Path) -> None:
+    """Exit code 1 means "not new" or "refused"; every error exits with 2."""
     text = tmp_path / "notes.txt"
     text.write_text("plain text, not SQLite\n" * 10)
     result = runner.invoke(app, ["ledger", "list", str(text)])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "cannot use as a ledger: file is not a database" in result.stderr
     bad = tmp_path / "bad.jsonl"
     bad.write_text('{"schema_version": 2}\n')
     checked = runner.invoke(app, ["ledger", "check", str(tmp_path / "l.sqlite3"), str(bad)])
-    assert checked.exit_code == 1
+    assert checked.exit_code == 2
     assert "schema_version 2, expected 3" in checked.stderr
+    unreadable = runner.invoke(
+        app, ["ledger", "check", str(text), str(tmp_path / "does-not-exist.jsonl")]
+    )
+    assert unreadable.exit_code == 2
+    assert "does-not-exist.jsonl: cannot read" in unreadable.stderr
     recording = ROOT / "examples" / "tomli" / "history.jsonl.gz"
     mined = runner.invoke(app, ["mine", "--history", str(recording), "--ledger", str(text)])
-    assert mined.exit_code == 1
+    assert mined.exit_code == 2
     assert "cannot use as a ledger" in mined.stderr
+    missing = tmp_path / "typo-ledger.sqlite3"
+    for args in (
+        ["mine", "--history", str(recording), "--ledger", str(missing)],
+        ["ledger", "list", str(missing)],
+    ):
+        result = runner.invoke(app, args)
+        assert result.exit_code == 2, result.output
+        assert f"{missing}: no such ledger (ledger add creates one)" in result.stderr
+    assert not missing.exists()
     new_only = runner.invoke(app, ["mine", "--history", str(bad), "--new-only"])
     assert new_only.exit_code == 2
     assert "--new-only needs --ledger" in new_only.output
+
+
+def test_a_ledger_that_cannot_be_written_is_a_plain_error(
+    demo: tuple[Path, dict[str, dict[str, str]]],
+    claimed: tuple[Path, Path, dict[str, dict[str, str]]],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A read-only file or a lock held longer than the timeout: no traceback, exit 2."""
+    root, _ = demo
+    ledger, _, shas = claimed
+    exported = tmp_path / "fork.jsonl"
+    mine(str(root / "fork"), "--repo-name", "demo/fork", "--out", str(exported))
+    fix_b = shas["fork"]["spaces"]  # the fork's own fix: not in the ledger
+    locked = tmp_path / "locked.sqlite3"
+    locked.write_bytes(ledger.read_bytes())
+    other = sqlite3.connect(locked, isolation_level=None)
+    other.execute("BEGIN IMMEDIATE")
+    other.execute("UPDATE entries SET owner = 'other'")
+    monkeypatch.setattr(cli, "open_ledger", partial(ledger_module.open_ledger, timeout=0.05))
+    try:
+        result = runner.invoke(
+            app, ["ledger", "add", str(locked), str(exported), "--sha", fix_b[:7], "--owner", "bob"]
+        )
+    finally:
+        other.execute("ROLLBACK")
+        other.close()
+    assert result.exit_code == 2, result.output
+    assert "Traceback" not in result.output
+    assert f"error: {locked}: cannot write: database is locked" in result.stderr
+    read_only = tmp_path / "ro.sqlite3"
+    read_only.write_bytes(ledger.read_bytes())
+    read_only.chmod(0o444)
+    if os.access(read_only, os.W_OK):
+        pytest.skip("file permissions are not enforced here (running as root?)")
+    result = runner.invoke(
+        app, ["ledger", "add", str(read_only), str(exported), "--sha", fix_b[:7], "--owner", "bob"]
+    )
+    assert result.exit_code == 2, result.output
+    assert "Traceback" not in result.output
+    assert f"error: {read_only}: cannot write: attempt to write a readonly database" in (
+        result.stderr
+    )
+    # Reading a read-only ledger still works.
+    listed = runner.invoke(app, ["ledger", "list", str(read_only)])
+    assert listed.exit_code == 0, listed.output
+    assert "3 entries" in listed.stdout
 
 
 def test_the_builder_refuses_an_existing_directory(tmp_path: Path) -> None:

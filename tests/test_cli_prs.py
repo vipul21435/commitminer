@@ -128,7 +128,7 @@ def test_live_runs_use_the_default_cache_and_the_token(
         (["--record", "a", "--replay", "b"], "give --record or --replay, not both", 2),
         (["--record", "a", "--cache-dir", "b"], "drop --cache-dir", 2),
         (["--new-only"], "--new-only needs --ledger", 2),
-        (["--replay", "no-such-dir"], "no-such-dir: no such fixture directory", 1),
+        (["--replay", "no-such-dir"], "no-such-dir: no such fixture directory", 2),
     ],
 )
 def test_prs_argument_errors(args: list[str], message: str, code: int) -> None:
@@ -139,10 +139,10 @@ def test_prs_argument_errors(args: list[str], message: str, code: int) -> None:
 
 def test_prs_reports_api_errors(tmp_path: Path) -> None:
     result = runner.invoke(app, ["prs", "not-a-repo", "--replay", str(PRS)])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "'not-a-repo' is not OWNER/REPO" in result.stderr
     missing = runner.invoke(app, ["prs", "hukkin/other", "--replay", str(PRS)])
-    assert missing.exit_code == 1
+    assert missing.exit_code == 2
     assert "no recorded response for GET /repos/hukkin/other/pulls" in missing.stderr
 
 

@@ -182,10 +182,16 @@ commitminer version
 `--no-content` skips reading file contents: classification uses path rules only and Rust
 test modules are not found (their lines count as source). Patches are always measured.
 `classify` paths are relative to `--root` (default: the current directory) and need not
-exist; a path that is not a file there is classified by its path alone. A ledger file is
-created (empty, with its schema) the first time any command opens it. `ledger add` exits
-with 1 when it refused a candidate and `ledger check` when a candidate is not new, so
-scripts can tell that a fix was already taken.
+exist; a path that is not a file there is classified by its path alone. `ledger add`
+creates a missing ledger file (empty, with its schema); `ledger check`, `ledger list`,
+`mine --ledger` and `prs --ledger` refuse a missing path, so a mistyped ledger cannot
+report every candidate as new (an empty file counts as an empty ledger: `touch` one to
+start).
+
+Exit codes: 0 on success; 1 is an outcome, not an error (`ledger add` refused a candidate,
+`ledger check` found one that is not new), so scripts can tell that a fix was already
+taken; 2 for every error (usage, an unreadable file, git or GitHub failures, a ledger that
+is read-only or locked longer than the 10 s timeout), printed as one `error:` line.
 
 Output of `make demo` (the recorded tomli history, unedited). `diff` is the difficulty and
 its band; the ranking uses only the score:

@@ -106,7 +106,7 @@ def test_classify_rejects_directories_and_outside_paths(tmp_path: Path) -> None:
 def test_classify_reports_config_errors(tmp_path: Path) -> None:
     (tmp_path / "commitminer.toml").write_text("[classify]\nbogus = 1\n", encoding="utf-8")
     result = runner.invoke(app, ["classify", "--root", str(tmp_path), "a.py"])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "unknown key 'bogus'" in result.stderr
 
 
@@ -209,7 +209,7 @@ def test_mine_uses_the_repository_config(fixtures_repo: GitRepo, tmp_path: Path)
 def test_mine_reports_a_bad_config(fixtures_repo: GitRepo) -> None:
     (fixtures_repo.root / "commitminer.toml").write_text("oops = [\n", encoding="utf-8")
     result = runner.invoke(app, ["mine", str(fixtures_repo.root)])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "invalid TOML" in result.stderr
 
 
@@ -242,7 +242,7 @@ def test_a_bad_glob_in_the_config_is_a_plain_error(tmp_path: Path) -> None:
     )
     for args in (["classify", "a.json"], ["rules"]):
         result = runner.invoke(app, [*args, "--root", str(tmp_path)])
-        assert result.exit_code == 1
+        assert result.exit_code == 2
         assert "Traceback" not in result.output
         assert "classify.rules[0]: rule fx: '[z-a]*.json': empty character range z-a" in (
             result.stderr

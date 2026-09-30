@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
@@ -74,7 +76,15 @@ def version() -> None:
     typer.echo(f"commitminer {__version__}")
 
 
-def _fail(message: str, code: int = 1) -> typer.Exit:
+EXIT_ERROR = 2
+"""Exit code of every failure (bad input, git, GitHub or SQLite errors), as for usage errors.
+
+Exit code 1 is an outcome, not an error: ``ledger add`` refused a candidate, or
+``ledger check`` found one that is not new.
+"""
+
+
+def _fail(message: str, code: int = EXIT_ERROR) -> typer.Exit:
     typer.echo(f"error: {message}", err=True)
     return typer.Exit(code=code)
 
@@ -148,7 +158,7 @@ LedgerOption = Annotated[
     Path | None,
     typer.Option(
         "--ledger",
-        help="SQLite ledger to check candidates against (read only; created empty if missing).",
+        help="SQLite ledger to check candidates against (read only; must exist).",
         show_default=False,
     ),
 ]
@@ -163,9 +173,12 @@ MinOverlapOption = Annotated[
 ]
 
 
-def _open(path: Path) -> Ledger:
+@contextmanager
+def _ledger(path: Path, create: bool = False) -> Iterator[Ledger]:
+    """Open a ledger for one command; any ledger error is a plain message and exit 2."""
     try:
-        return open_ledger(path)
+        with open_ledger(path, create=create) as opened:
+            yield opened
     except LedgerError as exc:
         raise _fail(str(exc)) from exc
 
@@ -222,10 +235,10 @@ def mine_command(
 ) -> None:
     """Filter and rank the commits of a clone or a recorded history."""
     if new_only and ledger is None:
-        raise _fail("--new-only needs --ledger", code=2)
+        raise _fail("--new-only needs --ledger")
     if (repo is None) == (history is None):
         # Plain text on purpose: Typer's rich usage panel re-wraps messages by terminal width.
-        raise _fail("give either a REPO path or --history FILE, not both or neither", code=2)
+        raise _fail("give either a REPO path or --history FILE, not both or neither")
     settings_config = _config(config, repo)
     commits: list[Commit]
     try:
@@ -273,7 +286,7 @@ def _report(
     ledger, new_only = output.ledger, output.new_only
     verdicts: list[Verdict] | None = None
     if ledger is not None:
-        with _open(ledger) as opened:
+        with _ledger(ledger) as opened:
             proposals = [_proposal(c, label) for c in result.candidates]
             verdicts = check_all(opened, proposals, output.min_overlap)
     typer.echo(render_summary(result, label, unit))
@@ -394,11 +407,11 @@ def prs_command(
 ) -> None:
     """Rank the merged pull requests of a GitHub repository (GITHUB_TOKEN is optional)."""
     if new_only and ledger is None:
-        raise _fail("--new-only needs --ledger", code=2)
+        raise _fail("--new-only needs --ledger")
     if record_dir is not None and replay_dir is not None:
-        raise _fail("give --record or --replay, not both", code=2)
+        raise _fail("give --record or --replay, not both")
     if record_dir is not None and cache_dir is not None:
-        raise _fail("--record fetches every response in full; drop --cache-dir", code=2)
+        raise _fail("--record fetches every response in full; drop --cache-dir")
     from commitminer.fixtures import RecordingTransport, ReplayTransport
     from commitminer.github import (
         GitHubClient,
@@ -524,7 +537,7 @@ def explain_command(
 ) -> None:
     """Explain one commit: its files, the filter verdict, score and difficulty contributions."""
     if repo is not None and history is not None:
-        raise _fail("give --repo or --history, not both", code=2)
+        raise _fail("give --repo or --history, not both")
     loaded = _config(config, (repo or Path()) if history is None else None)
     settings = loaded.settings(
         max_lines=max_lines, max_source_files=max_source_files, test_lines_cap=test_lines_cap
@@ -547,7 +560,7 @@ def _relative(root: Path, raw: str) -> str:
         try:
             path = path.resolve().relative_to(root.resolve())
         except ValueError:
-            raise _fail(f"{raw} is outside the root {root}", code=2) from None
+            raise _fail(f"{raw} is outside the root {root}") from None
     return path.as_posix()
 
 
@@ -573,7 +586,7 @@ def classify_command(
     for raw in paths:
         relative = _relative(root, raw)
         if (root / relative).is_dir():
-            raise _fail(f"{raw} is a directory; pass file paths", code=2)
+            raise _fail(f"{raw} is a directory; pass file paths")
         verdicts.append(classify_file(root, relative, rules, content))
     if as_json:
         for verdict in verdicts:
@@ -607,7 +620,8 @@ ledger_app = typer.Typer(
 )
 app.add_typer(ledger_app, name="ledger")
 
-LedgerArgument = Annotated[
+LedgerArgument = Annotated[Path, typer.Argument(help="Ledger file (SQLite).", show_default=False)]
+NewLedgerArgument = Annotated[
     Path, typer.Argument(help="Ledger file (SQLite; created if missing).", show_default=False)
 ]
 CandidatesArgument = Annotated[
@@ -630,7 +644,7 @@ def _label(rank: int | None, proposal: Proposal) -> str:
 
 @ledger_app.command(name="add")
 def ledger_add(
-    ledger: LedgerArgument,
+    ledger: NewLedgerArgument,
     candidates: CandidatesArgument,
     sha: Annotated[
         list[str] | None,
@@ -653,7 +667,7 @@ def ledger_add(
 ) -> None:
     """Record candidates in the ledger, refusing any fix it already holds (exit 1 if refused)."""
     if status not in STATUSES:
-        raise _fail(f"--status must be {' or '.join(STATUSES)}, not {status!r}", code=2)
+        raise _fail(f"--status must be {' or '.join(STATUSES)}, not {status!r}")
     chosen = _read_candidates(candidates)
     if sha:
         wanted = [prefix.lower() for prefix in sha]
@@ -663,7 +677,7 @@ def ledger_add(
     if top is not None:
         chosen = chosen[:top]
     added = refused = 0
-    with _open(ledger) as opened:
+    with _ledger(ledger, create=True) as opened:
         for rank, proposal in chosen:
             entry, verdict = opened.add(
                 proposal,
@@ -695,7 +709,7 @@ def ledger_check(
 ) -> None:
     """Check candidates against the ledger without writing (exit 1 if any is not new)."""
     chosen = _read_candidates(candidates)
-    with _open(ledger) as opened:
+    with _ledger(ledger) as opened:
         verdicts = check_all(opened, [proposal for _, proposal in chosen], min_overlap)
     for (rank, proposal), verdict in zip(chosen, verdicts, strict=True):
         if as_json:
@@ -719,7 +733,7 @@ def ledger_list(
     ),
 ) -> None:
     """List the recorded fixes, oldest first."""
-    with _open(ledger) as opened:
+    with _ledger(ledger) as opened:
         entries = opened.entries(repo)
         version = opened.schema_version
     if as_json:

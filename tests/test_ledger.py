@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+import multiprocessing
+import os
 import sqlite3
 import threading
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -343,13 +347,140 @@ def test_a_failed_migration_leaves_the_file_unchanged(
     path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     open_ledger(path).close()
-    monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", 2)
-    monkeypatch.setattr(ledger_module, "MIGRATIONS", {1: ("ALTER TABLE nope ADD COLUMN x",)})
+    monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", 3)
+    monkeypatch.setattr(
+        ledger_module,
+        "MIGRATIONS",
+        {1: ("ALTER TABLE entries ADD COLUMN note TEXT",), 2: ("ALTER TABLE nope ADD COLUMN x",)},
+    )
     with pytest.raises(LedgerError, match="cannot use as a ledger: no such table: nope"):
         open_ledger(path)
+    # One transaction for the whole chain: the first step was rolled back with the second.
+    db = sqlite3.connect(path)
+    assert db.execute("PRAGMA user_version").fetchone()[0] == 1
+    assert "note" not in [row[1] for row in db.execute("PRAGMA table_info(entries)")]
+    db.close()
     monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", 1)
     with open_ledger(path) as opened:
         assert opened.schema_version == 1
+
+
+COUNTING_MIGRATION = (
+    "INSERT INTO meta (key, value) VALUES ('migrations', '1') "
+    "ON CONFLICT (key) DO UPDATE SET value = value + 1"
+)
+"""A migration that counts how often it ran (the value must stay '1')."""
+
+
+def _migrations_applied(path: Path) -> tuple[int, str | None]:
+    db = sqlite3.connect(path)
+    version = int(db.execute("PRAGMA user_version").fetchone()[0])
+    row = db.execute("SELECT value FROM meta WHERE key = 'migrations'").fetchone()
+    db.close()
+    return version, None if row is None else str(row[0])
+
+
+def _race(monkeypatch: pytest.MonkeyPatch, between: Callable[[], None]) -> None:
+    """Run ``between`` after the first unlocked look at a ledger, before the lock is taken."""
+    original = ledger_module._identity
+    calls = 0
+
+    def looked(db: sqlite3.Connection) -> tuple[int, int]:
+        nonlocal calls
+        calls += 1
+        result = original(db)
+        if calls == 1:
+            between()
+        return result
+
+    monkeypatch.setattr(ledger_module, "_identity", looked)
+
+
+def test_a_ledger_created_by_another_process_after_the_first_look_is_used(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: the emptiness check ran before the lock and saw the other's schema."""
+
+    def other_process_creates_it() -> None:
+        with open_ledger(path, now=clock) as other:
+            other.add(proposal("a", "h1"), owner="other")
+
+    _race(monkeypatch, other_process_creates_it)
+    with open_ledger(path) as opened:
+        assert opened.schema_version == 1
+        assert [e.owner for e in opened.entries()] == ["other"]
+    db = sqlite3.connect(path)
+    assert db.execute("SELECT count(*) FROM meta").fetchone()[0] == 1
+    db.close()
+
+
+def test_a_file_that_became_another_database_after_the_first_look_is_refused(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def other_process_writes_something_else() -> None:
+        db = sqlite3.connect(path)
+        db.execute("CREATE TABLE t (x)")
+        db.execute("PRAGMA application_id = 7")
+        db.commit()
+        db.close()
+
+    _race(monkeypatch, other_process_writes_something_else)
+    with pytest.raises(LedgerError, match="an SQLite file, but not a commitminer ledger"):
+        open_ledger(path)
+
+
+def test_a_migration_done_by_another_process_after_the_first_look_is_not_repeated(
+    path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression: the version was read before the lock, so every opener migrated."""
+    open_ledger(path).close()
+    monkeypatch.setattr(ledger_module, "SCHEMA_VERSION", 2)
+    monkeypatch.setattr(ledger_module, "MIGRATIONS", {1: (COUNTING_MIGRATION,)})
+    _race(monkeypatch, lambda: open_ledger(path).close())
+    with open_ledger(path) as opened:
+        assert opened.schema_version == 2
+    assert _migrations_applied(path) == (2, "1")
+
+
+def _open_from_another_process(
+    path: str, migrate: bool, barrier: Any, results: Any
+) -> None:  # pragma: no cover - runs in a child process
+    from commitminer import ledger as module
+
+    if migrate:
+        module.SCHEMA_VERSION = 2  # type: ignore[misc]
+        module.MIGRATIONS[1] = (COUNTING_MIGRATION,)
+    barrier.wait()
+    try:
+        module.open_ledger(Path(path), timeout=30).close()
+    except module.LedgerError as exc:
+        results.put(f"error: {exc}")
+    else:
+        results.put("ok")
+
+
+@pytest.mark.parametrize("migrate", [False, True], ids=["create", "migrate"])
+def test_processes_opening_one_new_or_old_ledger_at_once_set_it_up_once(
+    path: Path, migrate: bool
+) -> None:
+    if migrate:
+        open_ledger(path).close()  # a schema version 1 ledger for everyone to migrate
+    context = multiprocessing.get_context("spawn")
+    count = 5
+    barrier, results = context.Barrier(count), context.Queue()
+    workers = [
+        context.Process(
+            target=_open_from_another_process, args=(str(path), migrate, barrier, results)
+        )
+        for _ in range(count)
+    ]
+    for worker in workers:
+        worker.start()
+    outcomes = [results.get(timeout=120) for _ in workers]
+    for worker in workers:
+        worker.join(timeout=120)
+    assert outcomes == ["ok"] * count
+    assert _migrations_applied(path) == ((2, "1") if migrate else (1, None))
 
 
 def test_fingerprint_versions_must_match(path: Path) -> None:
@@ -465,6 +596,54 @@ def test_the_unique_constraint_stops_a_writer_that_skips_the_check(
 def test_creating_an_existing_ledger_again_changes_nothing(path: Path) -> None:
     open_ledger(path).close()
     db = sqlite3.connect(path, isolation_level=None)
-    ledger_module._create(db)  # as when another process won the race to create it
+    ledger_module._setup(db, str(path))  # as when another process won the race to create it
     assert db.execute("SELECT count(*) FROM meta").fetchone()[0] == 1
     db.close()
+
+
+def test_a_missing_ledger_is_only_created_on_request(path: Path) -> None:
+    with pytest.raises(LedgerError, match="no such ledger \\(ledger add creates one\\)"):
+        open_ledger(path, create=False)
+    assert not path.exists()
+    open_ledger(path).close()
+    with open_ledger(path, create=False) as opened:
+        assert opened.schema_version == 1
+
+
+def test_sqlite_errors_after_opening_are_ledger_errors(path: Path, tmp_path: Path) -> None:
+    with open_ledger(path, now=clock) as opened:
+        opened.add(proposal("a", "h1"))
+    # Another writer holds the lock longer than the timeout.
+    other = sqlite3.connect(path, isolation_level=None)
+    other.execute("BEGIN IMMEDIATE")
+    try:
+        with (
+            open_ledger(path, timeout=0.05) as mine,
+            pytest.raises(LedgerError, match=f"{path}: cannot write: database is locked"),
+        ):
+            mine.add(proposal("b", "h2"))
+    finally:
+        other.execute("ROLLBACK")
+        other.close()
+    # A closed connection: every read and write reports the file, not a traceback.
+    closed = open_ledger(path)
+    closed.close()
+    with pytest.raises(LedgerError, match=f"{path}: cannot read: Cannot operate on a closed"):
+        closed.entries()
+    with pytest.raises(LedgerError, match="cannot read"):
+        _ = closed.schema_version
+    with pytest.raises(LedgerError, match="cannot read"):
+        check_all(closed, [proposal("d", "h4")])
+    with pytest.raises(LedgerError, match="cannot write"):
+        closed.add(proposal("d", "h4"))
+    # A read-only file can be read and checked, not written.
+    read_only = tmp_path / "ro.sqlite3"
+    read_only.write_bytes(path.read_bytes())
+    read_only.chmod(0o444)
+    if os.access(read_only, os.W_OK):
+        pytest.skip("file permissions are not enforced here (running as root?)")
+    with open_ledger(read_only) as frozen:
+        assert len(frozen.entries()) == 1
+        assert check_all(frozen, [proposal("b", "h1")])[0].status is Status.DUPLICATE
+        with pytest.raises(LedgerError, match="cannot write: attempt to write a readonly"):
+            frozen.add(proposal("e", "h5"))

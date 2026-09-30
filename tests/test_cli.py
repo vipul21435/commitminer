@@ -118,15 +118,15 @@ def test_mine_needs_exactly_one_source(args: list[str]) -> None:
 
 def test_mine_reports_git_and_history_errors(tmp_path: Path) -> None:
     not_a_repo = runner.invoke(app, ["mine", str(tmp_path)])
-    assert not_a_repo.exit_code == 1
+    assert not_a_repo.exit_code == 2
     assert "error: git exited with" in not_a_repo.output
     bad = tmp_path / "bad.jsonl"
     bad.write_text("{}\n")
     bad_history = runner.invoke(app, ["mine", "--history", str(bad)])
-    assert bad_history.exit_code == 1
+    assert bad_history.exit_code == 2
     assert "error: line 1: not a commitminer-history file" in bad_history.output
     missing = runner.invoke(app, ["mine", "--history", str(tmp_path / "missing.jsonl")])
-    assert missing.exit_code == 1
+    assert missing.exit_code == 2
     assert "No such file" in missing.output
 
 
@@ -134,7 +134,7 @@ def test_record_reports_bad_revisions(small_repo: GitRepo, tmp_path: Path) -> No
     result = runner.invoke(
         app, ["record", str(small_repo.root), "--rev", "no-such-branch", "--out", "x.jsonl"]
     )
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "error: git exited with" in result.output
     assert not (tmp_path / "x.jsonl").exists()
 
@@ -160,7 +160,7 @@ def test_a_bad_glob_in_the_mined_clone_config_stops_before_walking(small_repo: G
         'rationale = "r"\n'
     )
     result = runner.invoke(app, ["mine", str(small_repo.root)])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "Traceback" not in result.output
     assert "rule fx: 'a//b': empty path segment" in result.stderr
     assert result.stdout == ""

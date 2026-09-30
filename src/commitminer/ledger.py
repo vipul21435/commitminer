@@ -30,13 +30,21 @@ writer that skips the check, so of two authors adding the same fix at the same
 time exactly one succeeds. Checking never writes: :func:`check_all` copies the
 ledger into memory and adds each checked candidate to the copy, so candidates
 of one run are also compared with each other.
+
+Opening looks at the file without a lock first (the common case: a ledger at
+the current schema needs no write). Creating the schema or migrating it forward
+happens under ``BEGIN IMMEDIATE``, and the decision is taken again once the
+lock is held, so processes that open a new or an old ledger at the same time
+create or migrate it exactly once. Every SQLite error after that surfaces as a
+:class:`LedgerError` naming the file, never as a bare traceback.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import sqlite3
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -215,19 +223,34 @@ class Ledger:
         self._db.close()
 
     @property
+    def where(self) -> str:
+        """The file, or "the in-memory copy", for messages."""
+        return "the in-memory copy" if self.path is None else str(self.path)
+
+    @contextlib.contextmanager
+    def _guard(self, doing: str) -> Iterator[None]:
+        """Turn an SQLite error (locked, read-only, I/O) into a :class:`LedgerError`."""
+        try:
+            yield
+        except sqlite3.Error as exc:
+            raise LedgerError(f"{self.where}: cannot {doing}: {exc}") from exc
+
+    @property
     def schema_version(self) -> int:
         """``PRAGMA user_version``."""
-        return int(self._db.execute("PRAGMA user_version").fetchone()[0])
+        with self._guard("read"):
+            return int(self._db.execute("PRAGMA user_version").fetchone()[0])
 
     def entries(self, repo: str | None = None) -> list[Entry]:
         """Recorded entries, oldest first (optionally of one repository)."""
         query = f"SELECT {_ENTRY_COLUMNS} FROM entries"
-        rows = (
-            self._db.execute(query + " ORDER BY first_seen, id")
-            if repo is None
-            else self._db.execute(query + " WHERE repo = ? ORDER BY first_seen, id", (repo,))
-        )
-        return [_entry(row) for row in rows]
+        with self._guard("read"):
+            rows = (
+                self._db.execute(query + " ORDER BY first_seen, id")
+                if repo is None
+                else self._db.execute(query + " WHERE repo = ? ORDER BY first_seen, id", (repo,))
+            )
+            return [_entry(row) for row in rows]
 
     def _exact(self, fingerprint: str) -> Entry | None:
         row = self._db.execute(
@@ -329,35 +352,42 @@ class Ledger:
         Returns the new entry and the verdict it was added under, or ``None``
         and the verdict that refused it. The check and the insert are one
         transaction; the unique constraints refuse the fix if another writer got
-        there first.
+        there first. A ledger that cannot be written (read-only, locked longer
+        than the timeout, I/O error) raises :class:`LedgerError`.
         """
         if status not in STATUSES:
             raise LedgerError(f"unknown status {status!r} ({', '.join(STATUSES)})")
         if proposal.fingerprint is None:
             return None, Verdict(Status.UNKNOWN)
-        self._db.execute("BEGIN IMMEDIATE")
-        try:
-            verdict = self.verdict(proposal.fingerprint, min_overlap)
-            if verdict.status is not Status.NEW:
+        with self._guard("write"):
+            self._db.execute("BEGIN IMMEDIATE")
+            try:
+                verdict = self.verdict(proposal.fingerprint, min_overlap)
+                if verdict.status is not Status.NEW:
+                    self._db.execute("ROLLBACK")
+                    return None, verdict
+                entry = self._insert(proposal, status, owner)
+                self._db.execute("COMMIT")
+            except sqlite3.IntegrityError:
                 self._db.execute("ROLLBACK")
-                return None, verdict
-            entry = self._insert(proposal, status, owner)
-            self._db.execute("COMMIT")
-        except sqlite3.IntegrityError:
-            self._db.execute("ROLLBACK")
-            holder = self._holder(proposal)
-            exact = holder.fingerprint == proposal.fingerprint.patch
-            count = holder.hunk_count
-            return None, Verdict(Status.DUPLICATE, (Match(holder, count, count, exact),))
-        except BaseException:
-            self._db.execute("ROLLBACK")
-            raise
+                holder = self._holder(proposal)
+                exact = holder.fingerprint == proposal.fingerprint.patch
+                count = holder.hunk_count
+                return None, Verdict(Status.DUPLICATE, (Match(holder, count, count, exact),))
+            except BaseException:
+                self._db.execute("ROLLBACK")
+                raise
         return entry, verdict
 
     def snapshot(self) -> Ledger:
         """An in-memory copy to check candidates against without writing to the file."""
         memory = sqlite3.connect(":memory:", isolation_level=None)
-        self._db.backup(memory)
+        try:
+            with self._guard("read"):
+                self._db.backup(memory)
+        except BaseException:
+            memory.close()
+            raise
         return Ledger(memory, None, self._now)
 
     def note(self, proposal: Proposal) -> None:
@@ -378,19 +408,36 @@ def check_all(
     scratch = ledger.snapshot()
     try:
         verdicts = []
-        for proposal in proposals:
-            verdicts.append(scratch.verdict(proposal.fingerprint, min_overlap))
-            scratch.note(proposal)
+        with scratch._guard("check candidates against"):
+            for proposal in proposals:
+                verdicts.append(scratch.verdict(proposal.fingerprint, min_overlap))
+                scratch.note(proposal)
         return verdicts
     finally:
         scratch.close()
 
 
-def _create(db: sqlite3.Connection) -> None:
+def _identity(db: sqlite3.Connection) -> tuple[int, int]:
+    """``PRAGMA application_id`` and ``PRAGMA user_version``."""
+    application = int(db.execute("PRAGMA application_id").fetchone()[0])
+    version = int(db.execute("PRAGMA user_version").fetchone()[0])
+    return application, version
+
+
+def _setup(db: sqlite3.Connection, where: str) -> None:
+    """Create the schema in an empty file, or migrate an older one, under the write lock.
+
+    Both pragmas are read again once ``BEGIN IMMEDIATE`` holds the lock: another
+    process may have created or migrated the file between the caller's look
+    and the lock, and it must not be done twice. Everything is one transaction,
+    so a failure leaves the file as it was.
+    """
     db.execute("BEGIN IMMEDIATE")
     try:
-        # Another process may have created it between our look and the lock.
-        if db.execute("PRAGMA application_id").fetchone()[0] == 0:
+        application, version = _identity(db)
+        if application == 0:
+            if db.execute("SELECT count(*) FROM sqlite_master").fetchone()[0]:
+                raise LedgerError(f"{where}: an SQLite file, but not a commitminer ledger")
             for statement in _SCHEMA:
                 db.execute(statement)
             db.execute(
@@ -399,45 +446,34 @@ def _create(db: sqlite3.Connection) -> None:
             )
             db.execute(f"PRAGMA application_id = {APPLICATION_ID}")
             db.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+        elif application == APPLICATION_ID:
+            while version < SCHEMA_VERSION:
+                steps = MIGRATIONS.get(version)
+                if steps is None:
+                    raise LedgerError(f"{where}: no migration from schema version {version}")
+                for statement in steps:
+                    db.execute(statement)
+                version += 1
+                db.execute(f"PRAGMA user_version = {version}")
         db.execute("COMMIT")
     except BaseException:
         db.execute("ROLLBACK")
         raise
 
 
-def _migrate(db: sqlite3.Connection, version: int) -> None:
-    while version < SCHEMA_VERSION:
-        steps = MIGRATIONS.get(version)
-        if steps is None:
-            raise LedgerError(f"no migration from schema version {version}")
-        db.execute("BEGIN IMMEDIATE")
-        try:
-            for statement in steps:
-                db.execute(statement)
-            db.execute(f"PRAGMA user_version = {version + 1}")
-            db.execute("COMMIT")
-        except BaseException:
-            db.execute("ROLLBACK")
-            raise
-        version += 1
-
-
 def _prepare(db: sqlite3.Connection, where: str) -> None:
     db.execute("PRAGMA foreign_keys = ON")
-    application = db.execute("PRAGMA application_id").fetchone()[0]
-    if application == 0:
-        if db.execute("SELECT count(*) FROM sqlite_master").fetchone()[0]:
-            raise LedgerError(f"{where}: an SQLite file, but not a commitminer ledger")
-        _create(db)
-    elif application != APPLICATION_ID:
+    application, version = _identity(db)
+    if application == 0 or (application == APPLICATION_ID and version < SCHEMA_VERSION):
+        _setup(db, where)
+        application, version = _identity(db)
+    if application != APPLICATION_ID:
         raise LedgerError(f"{where}: an SQLite file, but not a commitminer ledger")
-    version = int(db.execute("PRAGMA user_version").fetchone()[0])
     if version > SCHEMA_VERSION:
         raise LedgerError(
             f"{where}: schema version {version} is newer than this commitminer "
             f"supports ({SCHEMA_VERSION}); upgrade commitminer"
         )
-    _migrate(db, version)
     row = db.execute("SELECT value FROM meta WHERE key = 'fingerprint_version'").fetchone()
     if row is None or row[0] != str(FINGERPRINT_VERSION):
         found = "none" if row is None else row[0]
@@ -448,15 +484,23 @@ def _prepare(db: sqlite3.Connection, where: str) -> None:
 
 
 def open_ledger(
-    path: Path, *, timeout: float = 10.0, now: Callable[[], str] | None = None
+    path: Path,
+    *,
+    timeout: float = 10.0,
+    now: Callable[[], str] | None = None,
+    create: bool = True,
 ) -> Ledger:
-    """Open the ledger at ``path``, creating it (and its schema) if it does not exist.
+    """Open the ledger at ``path``; with ``create``, a missing file becomes a new ledger.
 
-    ``timeout`` is how long a write waits for another writer's lock; ``now``
-    gives the ``first_seen`` time of new entries (default :func:`utc_now`).
+    Without ``create``, a missing file is an error, so a mistyped path cannot be
+    checked against an empty ledger. ``timeout`` is how long a write waits for
+    another writer's lock; ``now`` gives the ``first_seen`` time of new entries
+    (default :func:`utc_now`).
     """
     if path.is_dir():
         raise LedgerError(f"{path}: is a directory")
+    if not create and not path.exists():
+        raise LedgerError(f"{path}: no such ledger (ledger add creates one)")
     try:
         db = sqlite3.connect(path, timeout=timeout, isolation_level=None)
     except sqlite3.Error as exc:

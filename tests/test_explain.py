@@ -253,10 +253,10 @@ def test_explain_errors(repo: dict[str, str], tmp_path: Path) -> None:
     assert both.exit_code == 2
     assert "give --repo or --history, not both" in both.output
     unknown = runner.invoke(app, ["explain", "no-such-rev", "--repo", repo["root"]])
-    assert unknown.exit_code == 1
+    assert unknown.exit_code == 2
     assert "error: git exited with" in unknown.output
     missing = runner.invoke(app, ["explain", "abcd", "--history", str(tmp_path / "none.jsonl")])
-    assert missing.exit_code == 1
+    assert missing.exit_code == 2
     assert "No such file" in missing.output
 
 
@@ -268,7 +268,7 @@ def test_explain_refuses_merge_commits(git_repo: GitRepo) -> None:
     git_repo.commit("main", {"c.py": "c\n"})
     git_repo.git("merge", "-q", "--no-ff", "-m", "merge side", "side")
     result = runner.invoke(app, ["explain", "HEAD", "--repo", str(git_repo.root)])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "HEAD is a merge commit" in result.output
 
 
