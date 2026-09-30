@@ -170,6 +170,84 @@ def test_python_functions_methods_decorators_and_nesting() -> None:
     ]
 
 
+WRAPPED = """import unittest
+
+
+def test_add_with_fixtures(
+    tmp_path, monkeypatch
+) -> None:
+    result = add(1, 2)
+    assert result == 3
+
+
+class TestParser(
+    unittest.TestCase,
+):
+    def test_empty(self):
+        self.assertEqual(parse(""), {})
+
+    def test_long_signature_in_a_class(
+        self, value: int = (
+            1
+        )
+    ) -> None:
+        assert value == 1
+
+
+def test_after():
+    pass
+"""
+
+
+def test_python_wrapped_signatures_and_base_lists_keep_their_blocks() -> None:
+    # black and ruff format close a wrapped signature at the def's own indentation; that
+    # line used to end the range before the body, and a wrapped base list lost the class.
+    assert names(WRAPPED, Language.PYTHON) == [
+        ("test_add_with_fixtures", 4, 8),
+        ("TestParser::test_empty", 14, 15),
+        ("TestParser::test_long_signature_in_a_class", 17, 22),
+        ("test_after", 25, 26),
+    ]
+
+
+CONTINUED = '''def test_string():
+    expected = """
+[table]
+
+key = "value (with a bracket"
+"""
+    assert parse(expected) == {}
+
+
+def test_backslash():
+    total = 1 + \\
+2
+    assert total == 3  # a bracket in a comment: (
+
+
+def test_quotes():
+    assert text("it's", 'say "hi" (', "a\\"b", \'\'\'x\'\'\') == "["
+    assert join("a\\
+b") == 2
+
+
+def test_last():
+    pass
+'''
+
+
+def test_python_continuation_lines_never_close_a_block() -> None:
+    # Lines inside a multi-line string, after a backslash, or inside brackets are part of
+    # the statement above, whatever their indentation; brackets in strings and comments
+    # do not count.
+    assert names(CONTINUED, Language.PYTHON) == [
+        ("test_string", 1, 7),
+        ("test_backslash", 10, 13),
+        ("test_quotes", 16, 19),
+        ("test_last", 22, 23),
+    ]
+
+
 def test_rust_test_functions_carry_their_module_path() -> None:
     assert names(RUST, Language.RUST) == [
         ("tests::halves", 11, 14),

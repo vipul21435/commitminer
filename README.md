@@ -147,8 +147,10 @@ the flip is the downstream builder's job.
   `commitminer ledger watermarks` lists where each one stopped.
 - **Likely fail-to-pass test ids**: the test functions a patch touches, found by their
   line ranges in the new file version (Python blocks by indentation with their decorators
-  and classes; Rust, Go, Java and JavaScript/TypeScript by brace matching with the same
-  lexer) and named the way each runner takes them: `tests/test_x.py::TestCase::test_y`,
+  and classes, a wrapped signature, bracketed or multi-line-string line kept in its
+  statement: on this repository's `tests/` all 433 test functions get the range `ast`
+  gives them, 56 did not before; Rust, Go, Java and JavaScript/TypeScript by brace
+  matching with the same lexer) and named the way each runner takes them: `tests/test_x.py::TestCase::test_y`,
   `src/lib.rs::tests::name`, `pkg/x_test.go::TestName`, `.../XTest.java::XTest#method`,
   `x.test.js::test name`. 30 of tomli's 44 candidates get ids (the other 14 change only
   `.toml`/`.json` test data). Without file contents (pull requests, `--no-content`) only
@@ -1094,7 +1096,7 @@ flowchart LR
 | Demo batch | `make demo` (its `demo-batch` part) | 4 runs, 946 commits and pull requests walked, 293 candidates, 181 new, 6 already recorded, 106 collisions (105 same commit, 1 overlap); run again: 0 walked, 1 GitHub request instead of 52 |
 | Batch run time | `/usr/bin/time -p uv run commitminer batch examples/batch/commitminer.toml --ledger <new file> --top 0`, then again on the same ledger | first run 0.35 to 0.45 s, second run 0.23 to 0.24 s (3 runs each, re-measured after the batch became one transaction; 0.29 to 0.52 s and 0.15 s when first measured) |
 | Resuming a live clone | a batch entry for a fresh go-viper/mapstructure clone at `8508981c8b`, then at `52aa5c6dc1`, then again | 236 commits in 0.35 to 0.38 s, the 138 new ones in 0.35 s, none in 0.09 s (3 runs each); `mine` walks all 374 at the new head in 0.59 to 0.62 s |
-| Live walk of the tomli clone | `/usr/bin/time -p uv run commitminer mine <tomli clone> --top 0 --explain 0` | 0.40 to 0.44 s with content signals, 0.35 to 0.42 s with `--no-content` (3 runs each; 0.39 to 0.42 s and 0.37 s before slice 4) |
+| Live walk of the tomli clone | `/usr/bin/time -p uv run commitminer mine <tomli clone> --top 0 --explain 0` | 0.51 s with content signals (3 runs after the Python continuation-line scan of `testids.py`, on a busier machine: 0.47 to 0.48 s without the scan in the same session; 0.40 to 0.44 s when first measured), 0.35 to 0.42 s with `--no-content` (3 runs each; 0.39 to 0.42 s and 0.37 s before slice 4) |
 | Live walk of the semver clone | same on dtolnay/semver (572 commits) | 0.67 s with content signals, 0.27 to 0.28 s with `--no-content` (3 runs each; 0.63 to 0.66 s and 0.36 s before slice 4) |
 | Live walk of the pflag clone | same on spf13/pflag (285 commits) | 0.30 to 0.31 s (3 runs) |
 | Live walk of the serde clone | same on serde-rs/serde at `6693a89c` (3542 commits; aborted on a symlink type change before slice 4) | 8.47 to 9.48 s (3 runs): 484 candidates |
@@ -1398,8 +1400,8 @@ flowchart LR
 - **Fail-to-pass ids are a guess from the diff.** A test whose behaviour changes through a
   helper, a fixture or test data (tomli's `.toml` cases: 14 of its 44 candidates have no
   ids) is not named; a changed line right after a Rust, Go, Java or JavaScript function's
-  closing brace is attributed to that function; Python ranges are cut by the first line
-  at a lower indentation, so a multi-line string with less indentation ends them early;
+  closing brace is attributed to that function; a function nested in a Python test whose
+  name starts with `test` is named as a test of its own and cuts its parent's range;
   JavaScript `describe` names are not part of the id; Rust `#[test]` functions in pull
   requests (no contents) lose their module path; a Go `t.Run` subtest is not separated
   from its parent. The builder must run the tests to confirm the flip in any case.

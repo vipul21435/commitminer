@@ -18,9 +18,12 @@ own ids, and the export prefixes them with the file path
   (also ``.only``, ``.skip``, ``.each``); ``describe`` names are not included.
 
 Ranges are found line by line: Python blocks by indentation (a decorator run,
-the ``def``, then every deeper-indented line; trailing blank and comment lines
-are left out so an insertion after a function is not a change to it), the
-other languages by brace matching with the lexer of :mod:`commitminer.patch`.
+the ``def``, then every deeper-indented line; lines inside open brackets, such
+as a wrapped signature's closing ``) -> None:``, inside a multi-line string or
+after a backslash belong to the statement above whatever their indentation;
+trailing blank and comment lines are left out so an insertion after a function
+is not a change to it), the other languages by brace matching with the lexer of
+:mod:`commitminer.patch`.
 Like the other measurements this is a heuristic; the README's Known issues
 list the gaps.
 """
@@ -55,6 +58,61 @@ def _indent(line: str) -> int:
     return len(line) - len(line.lstrip(" \t"))
 
 
+_PY_TOKEN: Final = re.compile(r"""[\\#()\[\]{}'"]""")
+"""The characters that change the Python continuation state: brackets, quotes, comments, ``\\``."""
+_PY_STRING_END: Final = {
+    quote: re.compile(r"\\|" + re.escape(quote)) for quote in ("'", '"', "'''", '"""')
+}
+"""Inside a string: the next backslash (which escapes a character) or closing delimiter."""
+
+
+def _python_continuations(lines: Sequence[str]) -> list[bool]:
+    """For each line, whether it continues the logical line above it.
+
+    A line continues when a bracket is still open (a signature that black or
+    ruff wrapped: ``def test_x(`` / parameters / ``) -> None:``), when a
+    triple-quoted string is still open, or after a trailing backslash. Such a
+    line never opens or closes a block, whatever its indentation.
+    """
+    result: list[bool] = []
+    depth = 0
+    quote: str | None = None  # the open string's delimiter
+    joined = False
+    for line in lines:
+        result.append(depth > 0 or quote is not None or joined)
+        joined = False
+        index = 0
+        while index < len(line):
+            if quote is not None:
+                end = _PY_STRING_END[quote].search(line, index)
+                if end is None:
+                    break
+                if end.group() == "\\":
+                    index = end.end() + 1  # the escaped character
+                else:
+                    index, quote = end.end(), None
+                continue
+            match = _PY_TOKEN.search(line, index)
+            if match is None:
+                break
+            char, index = match.group(), match.end()
+            if char == "#":
+                break
+            if char == "\\":
+                joined = not line[index:].strip()
+            elif char in "([{":
+                depth += 1
+            elif char in ")]}":
+                depth = max(depth - 1, 0)
+            else:
+                quote = char * 3 if line.startswith(char * 3, index - 1) else char
+                index += len(quote) - 1
+        if quote is not None and len(quote) == 1:
+            joined = joined or line.endswith("\\")
+            quote = None if not joined else quote
+    return result
+
+
 def _python(lines: Sequence[str], syntax: Syntax) -> list[TestFunction]:
     """Blocks by indentation: classes qualify the test methods inside them."""
     found: list[TestFunction] = []
@@ -62,8 +120,13 @@ def _python(lines: Sequence[str], syntax: Syntax) -> list[TestFunction]:
     stack: list[tuple[int, str | None, str, int]] = []
     decorators: int | None = None
     last_code = 0
+    continuations = _python_continuations(lines)
     for number, line in enumerate(lines, 1):
         stripped = line.strip()
+        if continuations[number - 1]:
+            if stripped:
+                last_code = number  # a wrapped signature, call or string: part of the block
+            continue
         if not stripped or stripped.startswith("#"):
             continue
         indent = _indent(line)

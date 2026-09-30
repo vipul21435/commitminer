@@ -121,6 +121,48 @@ def test_credentials_in_the_origin_remote_are_not_exported(
     assert SECRET not in recording.read_text()
 
 
+def test_fixes_to_tests_with_wrapped_signatures_name_them(
+    git_repo: GitRepo, tmp_path: Path
+) -> None:
+    def calc_tests(first: int, second: int) -> str:
+        return (
+            "from pkg.calc import add\n\n\n"
+            "def test_add_with_fixtures(\n"
+            "    tmp_path, monkeypatch\n"
+            ") -> None:\n"
+            "    result = add(1, 2)\n"
+            f"    assert result == {first}\n\n\n"
+            "class TestCalc:\n"
+            "    def test_add_again(\n"
+            "        self, tmp_path, monkeypatch\n"
+            "    ) -> None:\n"
+            f"        assert add(2, 2) == {second}\n"
+        )
+
+    git_repo.commit(
+        "Add add",
+        {
+            "src/pkg/calc.py": "def add(a, b):\n    return a - b\n",
+            "tests/test_calc.py": calc_tests(-1, 0),
+        },
+    )
+    git_repo.commit(
+        "Fix add",
+        {
+            "src/pkg/calc.py": "def add(a, b):\n    return a + b\n",
+            "tests/test_calc.py": calc_tests(3, 4),
+        },
+    )
+    out = tmp_path / "c.jsonl"
+    result = runner.invoke(app, ["mine", str(git_repo.root), "--out", str(out), "--top", "0"])
+    assert result.exit_code == 0, result.output
+    (record,) = [r for r in read_export(out)[1] if r["subject"] == "Fix add"]
+    assert record["fail_to_pass"] == [
+        "tests/test_calc.py::TestCalc::test_add_again",
+        "tests/test_calc.py::test_add_with_fixtures",
+    ]
+
+
 def test_record_then_replay_matches_mining_the_clone(small_repo: GitRepo, tmp_path: Path) -> None:
     recording = tmp_path / "history.jsonl.gz"
     recorded = runner.invoke(
