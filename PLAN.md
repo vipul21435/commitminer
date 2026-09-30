@@ -493,7 +493,7 @@ The smallest end-to-end path, from a git history to a ranked JSONL file:
   `commitminer batch` with `--full`, `--dry-run`, `--only` and `--report`,
   `ledger watermarks`, claims of proposed fixes, export schema 6 with a batch record,
   batch reports (golden files), recorded histories of mitchellh/mapstructure and its fork
-  go-viper/mapstructure (Go) and the batch in `make demo`; 1026 tests, 100% coverage. See
+  go-viper/mapstructure (Go) and the batch in `make demo`; 1027 tests, 100% coverage. See
   "Decisions made while building slice 6".
   `commitminer batch commitminer.toml` mines several repositories (local clones, recorded
   histories or GitHub pull requests) into one ledger and one report. A per-repository

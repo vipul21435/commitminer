@@ -1053,7 +1053,7 @@ flowchart LR
 
 | What | Command | Result |
 | --- | --- | --- |
-| Tests and coverage | `make cov` | 1026 passed, 100.00% line and branch coverage (gate 90%) |
+| Tests and coverage | `make cov` | 1027 passed, 100.00% line and branch coverage (gate 90%) |
 | Types | `make typecheck` | `mypy --strict`: no issues in 27 source files |
 | Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |

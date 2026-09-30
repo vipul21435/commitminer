@@ -46,7 +46,7 @@ from commitminer.ledger import (
     Watermark,
     open_ledger,
 )
-from commitminer.scoring import mine
+from commitminer.scoring import Candidate, mine
 from commitminer.settings import Settings
 from fixturefiles import FakeClock
 from gitrepo import GitRepo
@@ -701,3 +701,24 @@ def test_parse_batch_accepts_a_parsed_document(tmp_path: Path) -> None:
 def test_history_of_the_demo_recording_is_read_once(tmp_path: Path) -> None:
     header, commits = read_history(TOMLI / "history.jsonl.gz")
     assert header.head == commits[0].sha
+
+
+def test_collision_kinds_add_up(tmp_path: Path) -> None:
+    """A same-commit match found by overlap (other settings) is counted once, as same commit."""
+    from commitminer.batch import Collision
+    from commitminer.models import Commit
+
+    commit = Commit("a" * 40, (), NOW, "Fix\n", ())
+    candidate = Candidate(commit, None, (), 1.0, None)  # type: ignore[arg-type]
+    config = BatchConfig(tmp_path / "b.toml", tmp_path / "l", None, None, 0.5, None, ())
+    same_sha = Match(_entry("up", "a" * 40), 1, 2, False)
+    other = Match(_entry("up", "b" * 40), 1, 2, False)
+    result = BatchResult(
+        config,
+        tmp_path / "l",
+        (),
+        (Collision("fork", 1, candidate, same_sha), Collision("fork", 2, candidate, other)),
+    )
+    assert render_collisions(result).splitlines()[0] == (
+        "collisions with other repositories: 2 (1 same commit, 1 overlap)"
+    )

@@ -707,10 +707,11 @@ def render_collisions(batch: BatchResult) -> str:
     if not collisions:
         return "collisions with other repositories: none"
     same = [c for c in collisions if c.same_commit]
+    others = [c for c in collisions if not c.same_commit]
     kinds = (
         (len(same), "same commit"),
-        (sum(1 for c in collisions if not c.same_commit and c.match.exact), "same fix"),
-        (sum(1 for c in collisions if not c.match.exact), "overlap"),
+        (sum(1 for c in others if c.match.exact), "same fix"),
+        (sum(1 for c in others if not c.match.exact), "overlap"),
     )
     text = ", ".join(f"{count} {kind}" for count, kind in kinds if count)
     rows = [f"collisions with other repositories: {len(collisions)} ({text})"]
