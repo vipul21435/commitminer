@@ -267,6 +267,50 @@ Its output (JSONL) is the input for downstream environment builders.
 - Export schema 4 adds `pull_request`; the ledger reads schema 3 and 4. Tables name pull
   requests `#123` in a `pull` column.
 
+### Decisions made while building slice 5
+
+- Three review findings were fixed first, each with a regression test. (1) Opening a
+  ledger decided whether to create or migrate the schema from reads made before
+  `BEGIN IMMEDIATE`: processes opening one new file at once could fail with "not a
+  commitminer ledger", and every opener of an old-schema file re-applied the migration.
+  `_setup` re-reads `application_id` and `user_version` under the lock and runs the whole
+  migration chain in one transaction; a hook test runs "the other process" between the
+  first look and the lock, and five spawned processes behind a barrier create (or
+  migrate) one ledger exactly once. (2) A fix that only changed whitespace inside a line
+  (`f"{a}  {b}"` to `f"{a} {b}"`) collapsed to identical lines and had no hunk hash, so
+  the commit had no fingerprint, `--new-only` dropped it and `ledger add` refused it.
+  Such a hunk is hashed a second way with inner whitespace kept (`FINGERPRINT_VERSION`
+  2; the tomli recording was re-recorded, 3 of 5292 file entries gained a hash). (3)
+  SQLite errors after opening (read-only file, a lock held longer than the timeout)
+  escaped as tracebacks, and every failure exited 1, the code that means "refused" or
+  "not new". They are `LedgerError` now, every error exits 2, and only `ledger add`
+  creates a missing ledger (`ledger check` on a mistyped path used to check against an
+  empty one and report everything new; an empty file still counts as an empty ledger).
+- Likely fail-to-pass test ids need the test functions' line ranges, which the walker
+  can compute because it already reads every changed code file for signals:
+  `testids.py` finds them (Python by indentation with decorators and classes, the other
+  languages by brace matching with the existing lexer) and `analyze` names the functions
+  whose lines a hunk's new side overlaps; a deletion-only hunk is placed by the line git
+  numbers it with. Without contents (pull requests, `--no-content`) only test
+  definitions among the added lines are named, so Rust ids lose their module path there.
+  Names are stored per file in recordings (`tests`, only when non-empty; format version
+  stays 1) and joined with the path at export time. The tomli recording grew from 125342
+  to 126060 bytes; 30 of its 44 candidates have ids, the rest change only test data.
+- Export schema 5: the first line is a run record (source, URL, funnel, every rejection,
+  ledger summary, settings) so the report has the funnel and the rejected commits without
+  a sidecar file; candidates carry `repo_url` (`--url`, the recording's URL, the clone's
+  `remote.origin.url`, or the GitHub web URL) and `fail_to_pass`. The JSON Schema is
+  committed in the package (`schemas/export-v5.schema.json`, printed by
+  `commitminer schema`) with `additionalProperties: false` everywhere; `jsonschema` is a
+  dev dependency only, and the tests validate the tomli, pull-request and ledger exports.
+  The ledger reader accepts schema 3 to 5 and skips the run record.
+- The report is one document (headings, paragraphs, tables, collapsible sections) built
+  from the export and rendered as Markdown or HTML, so both say the same thing. Links
+  only for http(s) URLs (a `user@host:path` remote is converted; `javascript:` is text),
+  entities in HTML, backslashes before Markdown punctuation, inline CSS and no scripts.
+  Golden files pin both formats on the ledger demo's fork mined against a ledger under
+  a fixed clock. `--top` limits candidates, not rejections.
+
 ## Core (deliverable)
 
 - [x] Core: done on 2026-09-30. 127 tests, 100% line and branch coverage, CI green
@@ -355,7 +399,13 @@ The smallest end-to-end path, from a git history to a ranked JSONL file:
   403/429, and backs off with an injectable clock so tests do not sleep. `--record <dir>`
   saves responses as fixtures and `--replay <dir>` serves them offline; tests use recorded
   fixtures only. Pull-request metadata (number, linked issues, labels) feeds the scorer.
-- [ ] 5. Candidate export schema and Markdown/HTML report.
+- [x] 5. Candidate export schema and Markdown/HTML report. Done on 2026-09-30: three
+  review fixes first (ledger set-up under the write lock, whitespace-inside-a-line
+  fingerprints, wrapped SQLite errors and exit code 2), then `testids.py`, export schema
+  5 with a run record and `fail_to_pass`, a committed JSON Schema validated in tests and
+  CI, `commitminer report` (Markdown and self-contained HTML, golden files),
+  `commitminer schema`, `make demo-report`; 930 tests, 100% coverage. See "Decisions
+  made while building slice 5".
   A versioned JSONL schema for downstream environment builders (repository URL, base commit,
   fix commit, source and test files, likely fail-to-pass test ids guessed from test
   functions touched in the diff, feature breakdown, fingerprint, ledger status), with a JSON

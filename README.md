@@ -17,7 +17,8 @@ fingerprint, and a shared SQLite ledger marks fixes that were already proposed: 
 in a fork, a cherry-pick, a re-indented or moved copy. Merged pull requests can be mined
 from the GitHub REST API the same way (ETag cache, rate-limit handling, recorded fixtures),
 and their fixes collide in the ledger with the commits they became. The output is JSON
-Lines for downstream environment builders.
+Lines for downstream environment builders, with a committed JSON Schema, the likely
+fail-to-pass test ids of each candidate, and a Markdown or self-contained HTML report.
 
 CommitMiner proposes and ranks. It does not build environments or run the tests; verifying
 the flip is the downstream builder's job.
@@ -122,12 +123,31 @@ the flip is the downstream builder's job.
   hunks of the smaller fix), or `new`. Adding is one `BEGIN IMMEDIATE` transaction backed by
   a unique constraint on the fingerprint, so two authors cannot claim the same fix;
   checking never writes and also compares the candidates of one run with each other.
-- **Export**: every candidate as one JSON object per line (schema version 4: base commit,
-  fix commit, source, test and inline-test files, per-file category, rule, signals and
-  patch measurements, line counts, public API touched, score and difficulty breakdowns,
-  fingerprint, the ledger verdict with its matches, and for pull requests their number,
-  URL, labels, linked issues, base, head and merge shas and commits), plus a terminal
-  table and per-candidate contribution tables.
+- **Likely fail-to-pass test ids**: the test functions a patch touches, found by their
+  line ranges in the new file version (Python blocks by indentation with their decorators
+  and classes; Rust, Go, Java and JavaScript/TypeScript by brace matching with the same
+  lexer) and named the way each runner takes them: `tests/test_x.py::TestCase::test_y`,
+  `src/lib.rs::tests::name`, `pkg/x_test.go::TestName`, `.../XTest.java::XTest#method`,
+  `x.test.js::test name`. 30 of tomli's 44 candidates get ids (the other 14 change only
+  `.toml`/`.json` test data). Without file contents (pull requests, `--no-content`) only
+  test definitions among the added lines are named.
+- **Export** (schema version 5, [JSON Schema](src/commitminer/schemas/export-v5.schema.json)
+  committed, printed by `commitminer schema`, every export validated against it in the
+  tests and in CI): a run record first (source, URL, funnel counts, every rejected commit
+  with its reason, ledger summary, settings), then one candidate per line: repository URL,
+  base and fix commits, source, test and inline-test files, likely fail-to-pass test ids,
+  per-file category, rule, signals and patch measurements, line counts, public API
+  touched, score and difficulty breakdowns, fingerprint, the ledger verdict with its
+  matches, and for pull requests their number, URL, labels, linked issues, base, head and
+  merge shas and commits. Plus a terminal table and per-candidate contribution tables.
+- **Reports** (`commitminer report CANDIDATES.jsonl --out report.md|report.html`): from an
+  export, a Markdown report or one self-contained HTML page (inline CSS, no scripts, no
+  external assets, every string escaped): the funnel with the remaining count after each
+  reason and each ledger verdict, the ranked table with one column per score feature
+  contribution, a section per candidate with its files, test ids, fingerprint, ledger
+  verdict and feature table, the rejected commits grouped by reason, and the settings.
+  Commits and pull requests are linked when the export's URL is http(s) or a git remote.
+  Golden files pin both formats.
 - **Offline demo** on the recorded history of [hukkin/tomli](https://github.com/hukkin/tomli)
   (MIT, 312 non-merge commits), bundled in [`examples/tomli/`](examples/tomli/) with its
   license and provenance. CI re-records it from GitHub on every push and checks it still
@@ -148,7 +168,9 @@ make demo-explain   # explain one candidate and one rejected tomli commit
 make demo-classify  # classify the multi-language sample tree in examples/classify
 make demo-ledger    # claim upstream fixes, then find them again in a release branch and a fork
 make demo-prs       # rank tomli's merged pull requests from recorded GitHub responses
+make demo-report    # export the tomli history and render Markdown and HTML reports
 uv run commitminer mine /path/to/a/clone --out out/candidates.jsonl --ledger team.sqlite3
+uv run commitminer report out/candidates.jsonl --out out/report.html
 GITHUB_TOKEN=... uv run commitminer prs OWNER/REPO --limit 30 --out out/prs.jsonl
 uv run commitminer ledger add team.sqlite3 out/candidates.jsonl --sha <sha> --owner <name>
 uv run commitminer explain <sha> --repo /path/to/a/clone
@@ -163,8 +185,10 @@ Silicon Mac).
 ```text
 commitminer mine [REPO] [--history FILE] [--rev REV] [--max-count N] [--max-lines N]
                  [--max-source-files N] [--test-lines-cap N] [--top 10] [--explain 1]
-                 [--out FILE] [--repo-name NAME] [--config FILE] [--no-content]
+                 [--out FILE] [--url URL] [--repo-name NAME] [--config FILE] [--no-content]
                  [--ledger FILE [--min-overlap 0.5] [--new-only]]
+commitminer report CANDIDATES.jsonl [--out FILE] [--format markdown|html] [--top N]
+commitminer schema
 commitminer ledger add LEDGER CANDIDATES.jsonl [--sha SHA]... [--top N] [--owner NAME]
                        [--status claimed|proposed] [--min-overlap 0.5] [--allow-overlap]
 commitminer ledger check LEDGER CANDIDATES.jsonl [--min-overlap 0.5] [--json]
@@ -636,6 +660,79 @@ Live, with a token (`GITHUB_TOKEN=$(gh auth token) uv run commitminer prs hukkin
 left 4700 of 5000; the second got 52 answers of 304 from the cache in 23.79 s and still
 left 4700. Without a token, `--limit 3 --no-cache` sent 7 requests and left 53 of 60.
 
+### Export schema and reports
+
+`mine --out` and `prs --out` write one JSON object per line. The first line is the run
+record; every other line is one candidate, best first. Trimmed from
+`out/tomli-candidates.jsonl` after `make demo-report` (the rejections list has 268
+entries, the settings every limit and weight, and a candidate also carries its files with
+their patch measurements, both feature breakdowns and the public API it touches):
+
+```json
+{"kind": "run", "schema_version": 5, "commitminer": "0.1.0", "repo": "hukkin/tomli",
+ "url": "https://github.com/hukkin/tomli", "source": "history", "unit": "commits",
+ "walked": 312, "candidates": 44, "bands": {"easy": 15, "medium": 17, "hard": 12},
+ "rejected": {"docs-only": 42, "no-source": 100, "source-unchanged": 1, "source-cosmetic": 6, "no-test": 115, "oversize": 4},
+ "rejections": [{"sha": "5a77b12a7a9f052ce5a20c335d2825658f6aea52", "date": "2026-04-14T11:34:49+02:00", "subject": "Use frozendict on Python 3.15", "reason": "no-test", "pull_request": null}, "..."],
+ "ledger": null, "exported": 44,
+ "settings": {"max_lines": 400, "max_source_files": 10, "test_lines_cap": 40, "weights": {"small_diff": 3.0, "...": "..."}, "...": "..."}}
+{"kind": "candidate", "schema_version": 5, "rank": 1, "repo": "hukkin/tomli",
+ "repo_url": "https://github.com/hukkin/tomli",
+ "sha": "5ab9ec926d9dc1ef79e66215edd51285371fe8a0", "base": "37a543b74bb1633478aea9f3a6a450a550bdeb63",
+ "date": "2021-05-28T23:10:06+02:00", "subject": "NEW: Allow float parse func customisation (#2)",
+ "score": 6.885, "source_files": ["tomli/_parser.py"], "test_files": ["tests/test_misc.py"],
+ "fail_to_pass": ["tests/test_misc.py::test_deepcopy", "tests/test_misc.py::test_parse_float"],
+ "fingerprint": {"version": 2, "patch": "f10c534e4424fd9b", "hunks": ["2238f1a042c06dea", "281157c378695ed6", "..."]},
+ "ledger": null, "pull_request": null, "...": "..."}
+```
+
+A downstream builder reads `repo_url`, `base` (the commit a task starts from), `sha` (the
+fix), `source_files`, `test_files` and `fail_to_pass`, then verifies the flip by running
+those tests on both commits. `commitminer schema` prints the JSON Schema
+(draft 2020-12, `additionalProperties: false` on every record, so a field the export
+starts writing without a schema change fails the tests); the ledger commands read schema
+3 to 5 and skip the run record. The fail-to-pass ids are a guess from the diff: in the
+demo's top candidate, `5ab9ec926d` adds `test_parse_float` and changes lines inside
+`test_deepcopy` (`git show --unified=0 5ab9ec926d -- tests/test_misc.py`); tomli keeps
+those tests as module-level functions, and its `unittest` classes give ids such as
+`tests/test_misc.py::TestMiscellaneous::test_incorrect_load` (#3).
+
+`commitminer report` renders the export. The first 22 lines of `out/tomli-report.md`, as
+`make demo-report` prints them (the HTML report has the same content in one page with
+collapsible sections):
+
+```markdown
+# CommitMiner report: hukkin/tomli
+
+Source: a recorded history of [https://github.com/hukkin/tomli](https://github.com/hukkin/tomli), 312 commits walked. CommitMiner 0.1.0, export schema version 5.
+
+## Funnel
+
+| step | count | remaining |
+| --- | ---: | ---: |
+| walked commits | 312 | 312 |
+| rejected: docs-only (every changed file is documentation) | 42 | 270 |
+| rejected: no-source (no source file changed (only tests, config or other files)) | 100 | 170 |
+| rejected: source-unchanged (no source line changed outside inline tests (renames, mode changes, binary files)) | 1 | 169 |
+| rejected: source-cosmetic (source changes touch only comments, blank lines or (outside Python) indentation) | 6 | 163 |
+| rejected: no-test (no test file changed and no inline tests were added) | 115 | 48 |
+| rejected: oversize (more source+test lines or source files than the limits allow) | 4 | 44 |
+| candidates | 44 | 44 |
+| exported | 44 | 44 |
+
+Difficulty bands: easy 15, medium 17, hard 12.
+
+## Ranked candidates
+```
+
+The ranked table that follows has a column per score feature (`small_diff`,
+`test_lines_added`, `added_assertions`, `linked_reference`, `fix_keyword`,
+`focused_source`), the lines, files and test-id counts, the ledger status when the export
+was mined with `--ledger`, and the subject; then one section per candidate, the rejected
+commits grouped by reason (collapsed in HTML), and the settings. The golden reports of the
+ledger demo's fork are in [tests/golden/report-fork.md](tests/golden/report-fork.md) and
+[report-fork.html](tests/golden/report-fork.html).
+
 Docker (the image contains the recorded history and the sample tree, so this runs offline):
 
 ```sh
@@ -643,6 +740,8 @@ make docker   # build, run the demo inside the image, prune this project's dangl
 docker run --rm commitminer:local explain 948211d852 --history examples/tomli/history.jsonl.gz
 docker run --rm --network none commitminer:local prs hukkin/tomli --limit 25 \
   --replay examples/tomli/prs
+docker run --rm --entrypoint sh commitminer:local -c 'commitminer mine --history \
+  examples/tomli/history.jsonl.gz --out /tmp/c.jsonl && commitminer report /tmp/c.jsonl --top 3'
 # Mine a clone on the host; -u keeps git's ownership check happy on Linux.
 docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/repo:ro" commitminer:local mine /repo
 ```
@@ -678,8 +777,12 @@ flowchart LR
     fingerprint --> scoring
     ledgerdb[(ledger.sqlite3)] --> ledger[ledger: duplicate / overlap / new]
     scoring --> ledger
+    signals --> testids[testids: test functions by line range]
+    testids --> patch
     ledger --> export
-    scoring --> export[export: JSONL, table, breakdowns]
+    scoring --> export[export: run record + candidates JSONL, table, breakdowns]
+    export -->|validated by| schema[(export-v5.schema.json)]
+    export -->|commitminer report| report[report: Markdown / HTML]
     scoring --> explain[explain: one commit]
 ```
 
@@ -687,7 +790,8 @@ flowchart LR
 | --- | --- |
 | `models.py` | frozen dataclasses `Commit`, `PullRequest`, `FileChange` and `PatchStats` |
 | `gitlog.py` | builds the git command and its environment, streams and parses the NUL-separated output, matches patches to numstat; reads file contents for signals with `git cat-file --batch` |
-| `patch.py` | `--unified=0` patch parser (and a splitter for patches with context), per-language comment, assertion and declaration rules, a C-like lexer for block comments and Rust test modules |
+| `patch.py` | `--unified=0` patch parser (and a splitter for patches with context), per-language comment, assertion, declaration and test-definition rules, a C-like lexer for block comments and Rust test modules, the tests a patch touches |
+| `testids.py` | test functions of a file version with their line ranges, named as pytest, cargo, go test, JUnit and Jest take them |
 | `github.py` | REST client: ETag cache on disk, rate limits, retries and backoff with an injectable clock, pagination |
 | `fixtures.py` | httpx transports that record responses as fixture files and replay them offline |
 | `pulls.py` | merged pull requests with their files and commits as `Commit` records, linked issues |
@@ -703,24 +807,28 @@ flowchart LR
 | `scoring.py` | score and difficulty features, ranking |
 | `fingerprint.py` | hunk hashes (whitespace, path and position insensitive) and commit fingerprints |
 | `ledger.py` | the SQLite ledger: schema and migrations, verdicts, atomic claims, reading exported candidates |
-| `export.py` | JSONL export and the terminal renderers |
+| `export.py` | the run record and candidate JSONL export, the JSON Schema accessor, the terminal renderers |
+| `schemas/` | `export-v5.schema.json`, the committed JSON Schema of the export records |
+| `report.py` | reads an export and renders the Markdown and self-contained HTML reports |
 | `explain.py` | the `explain` output, text and JSON |
 | `ruletable.py` | `classify` and `rules` command output, `docs/rules.md` |
-| `cli.py` | Typer commands `mine`, `prs`, `explain`, `record`, `classify`, `rules`, `ledger add/check/list`, `version` |
+| `cli.py` | Typer commands `mine`, `prs`, `report`, `schema`, `explain`, `record`, `classify`, `rules`, `ledger add/check/list`, `version` |
 
 ## Measured
 
 | What | Command | Result |
 | --- | --- | --- |
-| Tests and coverage | `make cov` | 892 passed, 100.00% line and branch coverage (gate 90%) |
-| Types | `make typecheck` | `mypy --strict`: no issues in 24 source files |
+| Tests and coverage | `make cov` | 930 passed, 100.00% line and branch coverage (gate 90%) |
+| Types | `make typecheck` | `mypy --strict`: no issues in 26 source files |
 | Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |
 | Live walk of the tomli clone | `/usr/bin/time -p uv run commitminer mine <tomli clone> --top 0 --explain 0` | 0.40 to 0.44 s with content signals, 0.35 to 0.42 s with `--no-content` (3 runs each; 0.39 to 0.42 s and 0.37 s before slice 4) |
 | Live walk of the semver clone | same on dtolnay/semver (572 commits) | 0.67 s with content signals, 0.27 to 0.28 s with `--no-content` (3 runs each; 0.63 to 0.66 s and 0.36 s before slice 4) |
 | Live walk of the pflag clone | same on spf13/pflag (285 commits) | 0.30 to 0.31 s (3 runs) |
 | Live walk of the serde clone | same on serde-rs/serde at `6693a89c` (3542 commits; aborted on a symlink type change before slice 4) | 8.47 to 9.48 s (3 runs): 484 candidates |
-| Replay of the recording | same with `--history examples/tomli/history.jsonl.gz` | 0.18 to 0.20 s (3 runs; 0.17 s before slice 4; httpx and the GitHub client are imported only by `prs`) |
+| Replay of the recording | same with `--history examples/tomli/history.jsonl.gz` | 0.19 to 0.22 s (3 runs, with test ids; 0.18 to 0.20 s before them; httpx and the GitHub client are imported only by `prs`) |
+| Report | `/usr/bin/time -p uv run commitminer report out/tomli-candidates.jsonl --out r.html` | 0.08 to 0.11 s (3 runs); `ls -l out/`: 102355 bytes of Markdown, 151400 of HTML for 44 candidates and 268 rejections |
+| Likely fail-to-pass ids | `make demo-report`, then count `fail_to_pass` in the export | 30 of 44 tomli candidates (the other 14 change only `.toml`/`.json` test data); 2 of the 6 pull-request candidates (no file contents there) |
 | Replay of the pull requests | `uv run commitminer prs hukkin/tomli --limit 25 --replay examples/tomli/prs --top 0 --explain 0` | 0.12 to 0.14 s (3 runs), 52 requests answered from 52 fixture files |
 | Live pull requests | same without `--replay`, with `GITHUB_TOKEN` and a fresh `--cache-dir`, twice | 24.65 s, 52 requests, rate limit 4700 of 5000 left; again: 23.79 s, 52 answered 304, still 4700 left |
 | Fixture size | `du -sh examples/tomli/prs`; `ls -lS` | 396 KB in 52 files, the largest 82378 bytes (the first page of 100 closed pull requests, about 1.5 MB before trimming) |
@@ -729,9 +837,9 @@ flowchart LR
 | Checking an export | `uv run commitminer ledger check <that ledger> <semver export>` | 0.08 s (3 runs) |
 | Concurrent claims | `tests/test_ledger.py`: 8 threads, 8 connections, one fix | exactly 1 added, 7 refused |
 | Live vs replay | `mine <clone> --repo-name hukkin/tomli --out a.jsonl`, `make demo`, `cmp` | identical |
-| Recording size | `ls -l examples/tomli/history.jsonl.gz` | 125342 bytes (1043068 uncompressed) with version 2 hunk hashes; 125311 with version 1, 67715 without hashes, 63697 before patch measurements |
+| Recording size | `ls -l examples/tomli/history.jsonl.gz` | 126060 bytes (1046553 uncompressed) with version 2 hunk hashes and test ids; 125342 before test ids, 125311 with version 1 hashes, 67715 without hashes, 63697 before patch measurements |
 | Recording integrity | `make verify-recording` (also in CI) | byte-identical to a fresh recording from GitHub |
-| Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 112840949 bytes (110897309 before httpx) |
+| Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 112977638 bytes (112840949 before the schema and the report; 110897309 before httpx) |
 
 ## Design decisions
 
@@ -850,6 +958,31 @@ flowchart LR
   `--max-files` of them, conditional requests are free, a pull request costs 1 + 2
   requests, and waiting is bounded by `--max-wait` so an unauthenticated run fails with a
   hint to set `GITHUB_TOKEN` instead of sleeping for an hour.
+- **Test ids are line ranges, measured once.** The walker already reads every changed
+  code file for signals, so the test functions of the new version are found there (one
+  regex pass per line, brace matching with the existing lexer) and a hunk names every
+  function its new-side lines overlap; a deletion-only hunk is placed by the line git
+  numbers it with. The names are stored per file in recordings like the other
+  measurements, without the path, so a rename does not change them; the export joins
+  `path::name`. Trailing blank and comment lines are left out of a Python function's
+  range, so an insertion after it is not attributed to it. Without contents only added
+  definitions are named, which is what pull requests get.
+- **A run record, not a sidecar file.** The report needs the funnel and the rejected
+  commits, which candidates alone cannot give. The export's first line carries them (and
+  the settings, so a file says how it was made); readers filter on `kind`, the ledger
+  reader skips it, and one file still travels as one unit. Reports are built from the
+  export, never from a live run, so a report can be regenerated later and the same file
+  feeds the builder and the reviewer.
+- **The schema forbids unknown fields.** Every record type in the JSON Schema has
+  `additionalProperties: false` and a complete `required` list, so adding a field to the
+  export without bumping the schema fails `tests/test_schema.py` on the tomli, pull-request
+  and ledger exports, and CI validates the demo export with the same schema.
+- **One document, two renderers.** The report is built once as headings, paragraphs,
+  tables and collapsible sections, then written as Markdown or HTML, so both formats
+  always say the same thing. Every string from the export is escaped for the format
+  (entities in HTML, backslashes before Markdown punctuation), links are made only for
+  http(s) URLs (a `git@host:path` remote is turned into one; `javascript:` or a local path
+  is printed as text), and the HTML has inline CSS and nothing to load.
 - **Fresh repository, not a fork.** PyDriller (Apache-2.0) was considered; CommitMiner
   needs only a narrow, typed parse of `git log`, and calling the git CLI keeps the
   dependency set small (Typer, and httpx for the GitHub API) and `mypy --strict` clean.
@@ -894,8 +1027,9 @@ flowchart LR
   `tests/`; they count toward `test_lines_added`, which suits tomli but may overrate
   fixture-heavy commits elsewhere.
 - **Recordings go stale when measurement rules change.** A recording stores measurements,
-  not patch text; after changing `patch.py`, re-record (CI's re-recording check fails until
-  the bundled one is refreshed).
+  not patch text; after changing `patch.py`, `fingerprint.py` or `testids.py`, re-record
+  (CI's re-recording check fails until the bundled one is refreshed). A recording does
+  not say which fingerprint version its hunk hashes have.
 - **English keywords only** for `fix_keyword` and closing references.
 - **Directory rules match any path component.** A Go or Python package directory named
   `tools`, `scripts`, `examples`, `docs` or `test` is classified by that directory rule
@@ -945,13 +1079,23 @@ flowchart LR
   started from, so a task built on it may need the base branch at merge time instead.
 - **Backoff has no jitter.** Retries wait fixed exponential times (1, 2, 4 s; 60, 120 s for
   secondary limits), which is deterministic to test but can synchronise parallel clients.
-- **No HTML report yet** (see Roadmap).
+- **Fail-to-pass ids are a guess from the diff.** A test whose behaviour changes through a
+  helper, a fixture or test data (tomli's `.toml` cases: 14 of its 44 candidates have no
+  ids) is not named; a changed line right after a Rust, Go, Java or JavaScript function's
+  closing brace is attributed to that function; Python ranges are cut by the first line
+  at a lower indentation, so a multi-line string with less indentation ends them early;
+  JavaScript `describe` names are not part of the id; Rust `#[test]` functions in pull
+  requests (no contents) lose their module path; a Go `t.Run` subtest is not separated
+  from its parent. The builder must run the tests to confirm the flip in any case.
+- **The report is as long as the export.** Every candidate gets a section and every
+  rejected commit a row (`--top` limits the candidates, not the rejections): tomli's
+  Markdown report is 102 KB. Feature columns come from the export, so a candidate that
+  lacks a feature another one has shows an empty cell.
 
 ## Roadmap
 
-Planned in [PLAN.md](PLAN.md), not built yet (slices 1 to 4 are done):
+Planned in [PLAN.md](PLAN.md), not built yet (slices 1 to 5 are done):
 
-5. A versioned export schema (JSON Schema) and Markdown/HTML reports.
 6. Multi-repository batch mining with incremental resume.
 
 ## Development
@@ -960,7 +1104,7 @@ Planned in [PLAN.md](PLAN.md), not built yet (slices 1 to 4 are done):
 make check              # lint, typecheck, tests with the coverage gate
 make verify-recording   # re-record tomli from GitHub and compare (network)
 make record-prs         # re-record the pull-request fixtures from GitHub (network)
-UPDATE_GOLDEN=1 uv run pytest tests/test_explain.py   # refresh the explain golden files
+UPDATE_GOLDEN=1 uv run pytest tests/test_explain.py tests/test_report.py   # refresh golden files
 ```
 
 ## License
