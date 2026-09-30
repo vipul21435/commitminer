@@ -84,6 +84,43 @@ def test_parse_binary_rename_and_mode_blocks() -> None:
     assert parse_patch(b"") == []
 
 
+def test_parse_merges_the_two_blocks_of_a_type_change() -> None:
+    text = block(
+        "diff --git a/LICENSE b/LICENSE",
+        "deleted file mode 100644",
+        "@@ -1,2 +0,0 @@",
+        "-MIT",
+        "-text",
+        "diff --git a/LICENSE b/LICENSE",
+        "new file mode 120000",
+        "@@ -0,0 +1 @@",
+        "+../LICENSE",
+        "\\ No newline at end of file",
+        "diff --git a/gone.py b/gone.py",
+        "deleted file mode 100644",
+        "@@ -1 +0,0 @@",
+        "-x",
+        "diff --git a/new.py b/new.py",
+        "new file mode 100644",
+        "@@ -0,0 +1 @@",
+        "+y",
+        "diff --git a/logo b/logo",
+        "deleted file mode 100644",
+        "Binary files a/logo and /dev/null differ",
+        "diff --git a/logo b/logo",
+        "new file mode 160000",
+        "@@ -0,0 +1 @@",
+        "+Subproject commit 4fff80d5efab7cc7bb7385c43112279f9d600cf1",
+    )
+    license_, gone, new, logo = parse_patch(text)
+    assert license_ == FilePatch((Hunk(1, 0, ("MIT", "text"), ()), Hunk(0, 1, (), ("../LICENSE",))))
+    assert (license_.added, license_.deleted) == (1, 2)
+    assert gone.hunks == (Hunk(1, 0, ("x",), ()),)
+    assert new.hunks == (Hunk(0, 1, (), ("y",)),)
+    assert logo.binary
+    assert len(logo.hunks) == 1
+
+
 @pytest.mark.parametrize(
     ("text", "message"),
     [

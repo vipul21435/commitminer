@@ -599,16 +599,27 @@ flowchart LR
 - **One git call, NUL-separated and streamed.** The walker reads commit headers, numstat
   and the patch from a single `git log -z` stream, one commit at a time, so memory stays
   flat. Commit messages cannot contain NUL, so each header field is one token; numstat
-  entries are self-delimiting; patch text has no NUL (git treats such files as binary), so
-  a commit's whole patch is one token whose file blocks come in numstat order. Each block
-  is checked against its numstat counts, so a misread is an error, not a wrong number.
-  `--end-of-options` stops a revision from being read as an option.
+  entries are self-delimiting. Patch text can contain NUL (git only checks a file's first
+  8000 bytes before calling it binary, a `diff` attribute forces text, and a hunk header
+  copies a file line as function context), but it always ends with a newline and a NUL
+  inside it never follows one, so the parser rejoins a commit's patch tokens until one
+  ends with a newline. File blocks come in numstat order; a type change (a file that
+  became a symlink or a submodule), which git prints as a deletion block and a creation
+  block under one header, is merged back into one. Each block is checked against its
+  numstat counts, so a misread is an error, not a wrong number. `--end-of-options` stops a
+  revision from being read as an option.
 - **Fixed git environment.** `LC_ALL=C`, no system or global config, no pager, and
-  command-line overrides for `core.fsmonitor`, `log.showSignature`, `color.ui`, the diff
-  algorithm, inter-hunk context and indent heuristic, so neither user nor repository
-  settings can change the output or run a hook (a test sets `diff.interHunkContext`,
-  `diff.algorithm`, `diff.noprefix` and `diff.context` and gets the same hunks). UTC dates
-  are normalised to `+00:00` because git versions differ on printing `Z`.
+  command-line overrides for `core.fsmonitor`, `log.showSignature`, `log.showRoot`,
+  `color.ui`, the diff algorithm, inter-hunk context, indent heuristic, submodule format
+  (`--submodule=short`, `--ignore-submodules=none`) and file order (`-O/dev/null`). The
+  caller's `GIT_DIFF_OPTS`, `GIT_EXTERNAL_DIFF` and `GIT_CONFIG_*` variables and the
+  repository-selecting ones (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE` and so on, set
+  inside git hooks) never reach git. Tests set `diff.interHunkContext`, `diff.algorithm`,
+  `diff.noprefix`, `diff.context`, `diff.submodule`, `diff.ignoreSubmodules`,
+  `GIT_DIFF_OPTS`, `GIT_DIR` and `GIT_CONFIG_*` and get the same result. Settings that
+  are not pinned (such as `diff.renameLimit`) can still change which renames are found,
+  but not how the output parses. UTC dates are normalised to `+00:00` because git
+  versions differ on printing `Z`.
 - **Hunks read by count.** With `--unified=0` every hunk is deleted lines then added lines,
   and the header gives both counts, so a content line such as `+++ x` is never mistaken for
   a header.

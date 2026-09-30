@@ -17,9 +17,14 @@ Commit messages cannot contain NUL, so every header field is exactly one token,
 and numstat entries are self-delimiting (``^(\\d+|-)\\t(\\d+|-)\\t``), so the
 parser always knows how many path tokens follow. A path that happens to equal
 the marker is consumed positionally and cannot start a new commit. Patch text
-contains no NUL (git treats such files as binary), so the whole patch of a
-commit is one token; its file blocks come in numstat order, and each block's
-line counts are checked against its numstat entry.
+usually has no NUL, but it can: git only checks a file's first 8000 bytes for
+NUL before calling it binary, a ``diff`` attribute in ``.gitattributes`` forces
+text, and a hunk header copies a line of the file as function context. Patch
+text always ends with a newline and a NUL inside it never follows one, so
+the parser rejoins the tokens of a patch until one ends with a newline (see
+:func:`_patch_text`). The file blocks come in numstat order (a type change,
+printed as two blocks, is merged back into one), and each block's line counts
+are checked against its numstat entry.
 
 The output is read as a stream, one commit at a time, so memory stays flat on
 long histories.
@@ -80,11 +85,46 @@ GIT_ENV = {
 }
 """Environment overrides for every git call (no system or global config)."""
 
+GIT_ENV_DROPPED = frozenset(
+    {
+        # Output shape: GIT_DIFF_OPTS overrides --unified, the others inject config.
+        "GIT_DIFF_OPTS",
+        "GIT_EXTERNAL_DIFF",
+        "GIT_CONFIG",
+        "GIT_CONFIG_PARAMETERS",
+        "GIT_CONFIG_COUNT",
+        # Repository selection: these would win over "git -C <repo>" (set inside git hooks).
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_NAMESPACE",
+    }
+)
+"""Variables of the caller's environment that never reach git."""
+
+_DROPPED_PREFIXES = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
+
+
+def git_env() -> dict[str, str]:
+    """The environment for every git call: the caller's, cleaned, plus :data:`GIT_ENV`."""
+    kept = {
+        key: value
+        for key, value in os.environ.items()
+        if key not in GIT_ENV_DROPPED and not key.startswith(_DROPPED_PREFIXES)
+    }
+    return {**kept, **GIT_ENV}
+
+
 GIT_CONFIG = (
     "-c",
     "core.fsmonitor=false",
     "-c",
     "log.showSignature=false",
+    "-c",
+    "log.showRoot=true",
     "-c",
     "color.ui=never",
 )
@@ -101,8 +141,16 @@ PATCH_OPTIONS = (
     "--inter-hunk-context=0",
     "--diff-algorithm=myers",
     "--indent-heuristic",
+    "--submodule=short",
+    "--ignore-submodules=none",
+    f"-O{os.devnull}",
 )
-"""Patch shape: no context lines, and settings a repository config could otherwise change."""
+"""Patch shape: no context lines, and settings a repository config could otherwise change.
+
+``diff.submodule`` would replace a submodule's ``diff --git`` block with a log,
+``diff.ignoreSubmodules`` (or ``ignore`` in ``.gitmodules``) would hide
+submodule changes, and ``diff.orderFile`` would reorder the files.
+"""
 
 
 def log_command(repo: Path, rev: str = "HEAD", max_count: int | None = None) -> list[str]:
@@ -120,7 +168,7 @@ def log_command(repo: Path, rev: str = "HEAD", max_count: int | None = None) -> 
 
 def run_git(args: Sequence[str], timeout: float = 600.0) -> bytes:
     """Run git with :data:`GIT_ENV` and return stdout; raise :class:`GitError` on failure."""
-    env = {**os.environ, **GIT_ENV}
+    env = git_env()
     try:
         proc = subprocess.run(
             list(args), capture_output=True, env=env, timeout=timeout, check=False
@@ -166,7 +214,7 @@ def stream_git(args: Sequence[str], timeout: float = 600.0) -> Iterator[Iterator
     pipe. git is killed after ``timeout`` seconds; a non-zero exit or a timeout
     raises :class:`GitError` once the caller is done reading.
     """
-    env = {**os.environ, **GIT_ENV}
+    env = git_env()
     with tempfile.TemporaryFile() as errors:
         try:
             proc = subprocess.Popen(list(args), stdout=subprocess.PIPE, stderr=errors, env=env)
@@ -230,7 +278,7 @@ class BlobReader:
     """
 
     def __init__(self, repo: Path, limit: int = MAX_CONTENT) -> None:
-        env = {**os.environ, **GIT_ENV}
+        env = git_env()
         cmd = ["git", "-C", str(repo), *GIT_CONFIG, "cat-file", "--batch"]
         try:
             self._proc = subprocess.Popen(
@@ -462,6 +510,21 @@ def _numstat(tokens: _Tokens, sha: str) -> list[FileChange]:
     return files
 
 
+def _patch_text(tokens: _Tokens) -> bytes:
+    """Take the patch of one commit, putting back the NUL bytes that split it.
+
+    Patch text ends with a newline, and a NUL inside it (from a text file whose
+    first NUL lies past the 8000 bytes git checks, or one marked ``diff`` in
+    ``.gitattributes``) is never right after a newline, because every patch line
+    starts with a marker such as ``+``. So a token that does not end with a
+    newline was cut by a NUL of the patch, and the next token continues it.
+    """
+    parts = [tokens.take() or b""]
+    while not parts[-1].endswith(b"\n") and (more := tokens.take()) is not None:
+        parts.append(more)
+    return b"\0".join(parts)
+
+
 def parse_log_tokens(
     tokens: Iterable[bytes],
 ) -> Iterator[tuple[Commit, list[FilePatch] | None]]:
@@ -488,7 +551,7 @@ def parse_log_tokens(
         if stream.peek() == b"" and after is not None and after.startswith(DIFF_HEADER):
             stream.take()
             try:
-                patches = parse_patch(stream.take() or b"")
+                patches = parse_patch(_patch_text(stream))
             except PatchError as exc:
                 raise GitError(f"bad patch in {sha}: {exc}") from exc
         commit = Commit(

@@ -106,7 +106,8 @@ Its output (JSONL) is the input for downstream environment builders.
 ### Decisions made while building slice 2
 
 - One `git log` call carries numstat and the patch (`-p --unified=0`). The patch of a
-  commit is one NUL-free token after the numstat terminator; its file blocks come in
+  commit is one token after the numstat terminator (see the slice 4 notes for NUL bytes
+  inside patches); its file blocks come in
   numstat order and are matched by position, with every block's +/- counts checked against
   numstat (no mismatch on tomli, semver or pflag). The walker now streams the output
   (Popen, 64 KiB reads, stderr to a temporary file, watchdog timer) instead of buffering it,
@@ -194,6 +195,22 @@ Its output (JSONL) is the input for downstream environment builders.
 - The demo repositories are built by a standard-library script with fixed dates
   (`examples/ledger/build_repos.py`), shared by `make demo-ledger`, the CLI tests, CI and
   the Docker job; the shas were identical on macOS and in the Linux image.
+
+### Decisions made while building slice 4
+
+- Review fixes first, each with a regression test. (1) A type change (a file that became
+  a symlink or a submodule, or back) is one numstat entry but two patch blocks under one
+  `diff --git` line; `parse_patch` merges a deletion block followed by a creation block
+  with the same header. serde (3542 commits) aborted on its "Update license symlinks"
+  commit and now mines. (2) Patch text can contain NUL bytes (git only checks the first
+  8000 bytes, a `diff` attribute forces text, hunk headers copy a file line as function
+  context). Patch text ends with a newline and a NUL in it never follows one (every patch
+  line starts with a marker), so the parser rejoins tokens until one ends with a newline.
+  (3) `--submodule=short`, `--ignore-submodules=none` and `-O/dev/null` pin the submodule
+  format, visibility and file order; `GIT_DIFF_OPTS`, `GIT_EXTERNAL_DIFF`, `GIT_CONFIG_*`
+  and the repository-selecting variables (`GIT_DIR`, `GIT_WORK_TREE`, ...) are removed
+  from git's environment. tomli, semver and pflag mine to byte-identical JSONL after
+  these three fixes.
 
 ## Core (deliverable)
 

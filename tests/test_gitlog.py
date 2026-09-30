@@ -261,3 +261,94 @@ def test_commit_subject_joins_the_first_paragraph() -> None:
     assert FileChange("x", None, None).binary
     assert not FileChange("x", 0, 0).binary
     assert FileChange("x", 2, 3).changed_lines == 5
+
+
+# --- type changes, NUL bytes in patches and the pinned git environment --------------
+
+
+def test_parse_rejoins_a_patch_split_by_nul_bytes() -> None:
+    patch = (
+        b"diff --git a/a.py b/a.py\n@@ -3 +3 @@ blob = 'a\0b'\n-x = '\0'\n+x = 2\n"
+        b"diff --git a/b.py b/b.py\n@@ -1 +1 @@\n-\0\n+y\0\n"
+    )
+    data = _header("f" * 40, "", "fix\n") + b"\n1\t1\ta.py\0" + b"1\t1\tb.py\0\0" + patch
+    data += _header("e" * 40, "", "next\n") + b"\n2\t1\ta.py\0\0" + PATCH
+    first, second = parse_log(data)
+    assert [f.patch.code_hunks if f.patch else None for f in first.files] == [1, 1]
+    assert second.sha == "e" * 40
+
+
+def test_walk_survives_type_changes(git_repo: GitRepo) -> None:
+    base = git_repo.commit("base", {"README.md": "hello\n", "mod.py": "x = 1\n", "lib": "a\nb\n"})
+    (git_repo.root / "README.md").unlink()
+    (git_repo.root / "README.md").symlink_to("mod.py")
+    git_repo.commit("readme becomes a symlink")
+    (git_repo.root / "README.md").unlink()
+    git_repo.commit("readme is a file again", {"README.md": "hello\nworld\n"})
+    git_repo.git("rm", "-q", "lib")
+    git_repo.git("update-index", "--add", "--cacheinfo", f"160000,{base},lib")
+    git_repo.git("commit", "-q", "-m", "lib becomes a submodule")
+    by_subject = {c.subject: c.files for c in walk(git_repo.root)}
+    (link,) = by_subject["readme becomes a symlink"]
+    assert (link.path, link.added, link.deleted) == ("README.md", 1, 1)
+    assert link.patch is not None
+    assert link.patch.hunks == 2
+    (file_again,) = by_subject["readme is a file again"]
+    assert (file_again.added, file_again.deleted) == (2, 1)
+    (sub,) = by_subject["lib becomes a submodule"]
+    assert (sub.path, sub.added, sub.deleted) == ("lib", 1, 2)
+
+
+def test_walk_reads_text_patches_that_contain_nul_bytes(git_repo: GitRepo) -> None:
+    big = "x = 1\n" * 1500 + 'blob = "a\0b"\n'
+    git_repo.commit(
+        "base", {"data.txt": big, "forced.dat": "one\n", ".gitattributes": "*.dat diff\n"}
+    )
+    git_repo.commit("update", {"data.txt": big + "y = 2\n", "forced.dat": "\0one\ntwo\0\n"})
+    update, _ = walk(git_repo.root)
+    assert [(f.path, f.added, f.deleted) for f in update.files] == [
+        ("data.txt", 1, 0),
+        ("forced.dat", 2, 1),
+    ]
+    assert all(f.patch is not None for f in update.files)
+
+
+def _gitlink_history(git_repo: GitRepo) -> tuple[str, str]:
+    first = git_repo.commit("base", {"mod.py": "x = 1\n"})
+    second = git_repo.commit("two", {"mod.py": "x = 2\n"})
+    git_repo.git("update-index", "--add", "--cacheinfo", f"160000,{first},inner")
+    git_repo.git("commit", "-q", "-m", "add a submodule")
+    git_repo.git("update-index", "--cacheinfo", f"160000,{second},inner")
+    git_repo.git("commit", "-q", "-m", "bump the submodule")
+    return first, second
+
+
+@pytest.mark.parametrize("mode", ["log", "diff"])
+def test_walk_ignores_repository_submodule_diff_settings(git_repo: GitRepo, mode: str) -> None:
+    _gitlink_history(git_repo)
+    git_repo.git("config", "diff.submodule", mode)
+    git_repo.git("config", "diff.ignoreSubmodules", "all")
+    bump, *_ = walk(git_repo.root)
+    assert bump.subject == "bump the submodule"
+    (change,) = bump.files
+    assert (change.path, change.added, change.deleted) == ("inner", 1, 1)
+
+
+def test_walk_ignores_git_variables_in_the_environment(
+    git_repo: GitRepo, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    git_repo.commit("base", {"a.go": lines(12)})
+    git_repo.commit("edit", {"a.go": lines(12).replace("line 5\n", "line five\n")})
+    expected = walk(git_repo.root)
+    other = GitRepo(tmp_path / "other")
+    other.commit("unrelated", {"b.py": "b\n"})
+    monkeypatch.setenv("GIT_DIFF_OPTS", "--unified=3")
+    monkeypatch.setenv("GIT_DIR", str(other.root / ".git"))
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "diff.context")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", "5")
+    monkeypatch.setenv("GIT_CONFIG_PARAMETERS", "'diff.noprefix'='true'")
+    assert walk(git_repo.root) == expected
+    env = gitlog.git_env()
+    assert not {"GIT_DIFF_OPTS", "GIT_DIR", "GIT_CONFIG_KEY_0", "GIT_CONFIG_VALUE_0"} & set(env)
+    assert env["LC_ALL"] == "C"

@@ -103,9 +103,17 @@ def _take(lines: list[bytes], start: int, count: int, sign: bytes) -> tuple[list
 
 
 def parse_patch(text: bytes) -> list[FilePatch]:
-    """Split the patch text of one commit into file blocks and hunks, in output order."""
+    """Split the patch text of one commit into file blocks and hunks, in output order.
+
+    A path whose type changed (a regular file became a symlink or a submodule,
+    or back) is one ``--numstat`` entry, but git prints it as two blocks under
+    the same ``diff --git`` line: the old file deleted, then the new one created.
+    Such a pair is merged into one :class:`FilePatch`, so the blocks still line
+    up with the numstat entries.
+    """
     lines = text.split(b"\n")
     patches: list[FilePatch] = []
+    previous: tuple[bytes, bool] | None = None  # header line, "deleted file mode" seen
     i = 0
     while i < len(lines):
         if not lines[i]:
@@ -113,11 +121,14 @@ def parse_patch(text: bytes) -> list[FilePatch]:
             continue
         if not lines[i].startswith(DIFF_HEADER):
             raise PatchError(f"expected a diff header, got {lines[i][:60]!r}")
+        header = lines[i]
         i += 1
-        binary = False
+        binary = deleted_file = new_file = False
         while i < len(lines) and lines[i] and not lines[i].startswith((b"@@", DIFF_HEADER)):
             if lines[i].startswith((b"Binary files ", b"GIT binary patch")):
                 binary = True
+            deleted_file |= lines[i].startswith(b"deleted file mode ")
+            new_file |= lines[i].startswith(b"new file mode ")
             i += 1
         hunks: list[Hunk] = []
         while i < len(lines) and lines[i].startswith(b"@@"):
@@ -130,7 +141,14 @@ def parse_patch(text: bytes) -> list[FilePatch]:
             added, i = _take(lines, i, new_count, b"+")
             old_start, new_start = int(match.group(1)), int(match.group(3))
             hunks.append(Hunk(old_start, new_start, tuple(deleted), tuple(added)))
+        if new_file and previous == (header, True):
+            # The second half of a type change: one file, one patch.
+            first = patches.pop()
+            patches.append(FilePatch(first.hunks + tuple(hunks), first.binary or binary))
+            previous = None
+            continue
         patches.append(FilePatch(tuple(hunks), binary))
+        previous = (header, deleted_file)
     return patches
 
 
