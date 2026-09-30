@@ -411,10 +411,13 @@ def walk_pulls(
                 seen=seen,
             )
     except (GitHubError, OSError) as exc:
-        # OSError: the response cache (cache_dir, or $XDG_CACHE_HOME) cannot be written.
+        # A cache that cannot be written is only a warning (ResponseCache.failure); OSError
+        # still covers fixture files the replay transport cannot list.
         raise SourceError(f"{spec.target}: {exc}") from exc
     replayed = f" (replayed from {spec.replay})" if spec.replay is not None else ""
     notes = [f"github: {client.stats.describe()}{replayed}"]
+    if client.cache is not None and client.cache.failure is not None:
+        notes.append(f"warning: {client.cache.failure}")
     passed = []
     if pulls.closed_unmerged:
         passed.append(f"{pulls.closed_unmerged} closed without merging")

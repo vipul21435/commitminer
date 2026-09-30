@@ -166,6 +166,52 @@ def test_prs_argument_errors(args: list[str], message: str, code: int) -> None:
     assert message in result.stderr
 
 
+def test_a_cache_that_cannot_be_written_is_a_warning_not_a_crash(tmp_path: Path) -> None:
+    # --cache-dir names a file: every cache write fails. That used to end the walk
+    # with a FileExistsError traceback and exit 1, losing everything fetched.
+    occupied = tmp_path / "cachefile"
+    occupied.write_text("x")
+    args = ["--cache-dir", str(occupied), "--top", "0", "--explain", "0"]
+    result = runner.invoke(app, [*REPLAY, *args])
+    assert result.exit_code == 0, result.output
+    assert result.stderr.startswith(f"warning: cannot write the ETag cache in {occupied} (")
+    assert "the rest of the run was not cached" in result.stderr
+    plain = runner.invoke(app, [*REPLAY, "--top", "0", "--explain", "0"])
+    assert result.stdout == plain.stdout
+
+
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (["--no-cache", "--api-url", "https://api.github.com:abc"], "invalid API URL"),
+        (["--no-cache", "--api-url", "https://[::1"], "invalid API URL"),
+        (["--record", "{file}"], "cannot create the fixture directory"),
+    ],
+)
+def test_prs_path_and_url_errors_are_one_line(
+    tmp_path: Path, args: list[str], message: str
+) -> None:
+    occupied = tmp_path / "file"
+    occupied.write_text("x")
+    arguments = [a.replace("{file}", str(occupied)) for a in args]
+    result = runner.invoke(app, ["prs", "hukkin/tomli", "--limit", "1", *arguments])
+    assert result.exit_code == 2, result.output
+    assert result.stderr.startswith("error: ")
+    assert message in result.stderr
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
+def test_a_malformed_api_url_from_the_environment_is_one_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GITHUB_API_URL", "https://api.github.com:abc")
+    result = runner.invoke(app, ["prs", "hukkin/tomli", "--no-cache"])
+    assert result.exit_code == 2
+    assert result.stderr == (
+        "error: invalid API URL 'https://api.github.com:abc': Invalid port: 'abc'\n"
+    )
+
+
 def test_prs_reports_api_errors(tmp_path: Path) -> None:
     result = runner.invoke(app, ["prs", "not-a-repo", "--replay", str(PRS)])
     assert result.exit_code == 2

@@ -647,7 +647,12 @@ The API root is `--api-url`, else `$GITHUB_API_URL` (GitHub Enterprise runners s
 from, so replaying a GitHub Enterprise recording needs its `--api-url` again. Live
 requests (and `--record`) go through the proxies in `HTTP_PROXY`, `HTTPS_PROXY`,
 `ALL_PROXY` and `NO_PROXY`, as a plain httpx client would (checked in
-`tests/test_cli_prs.py` against a local proxy).
+`tests/test_cli_prs.py` against a local proxy). The ETag cache is an optimisation: when it
+cannot be written (`--cache-dir` names a file or a read-only directory, the disk is full),
+`prs` prints `warning: cannot write the ETag cache in <dir> (...)` on stderr and carries on
+uncached. A `--record` directory that cannot be created or written and a malformed
+`--api-url` or `$GITHUB_API_URL` (`https://api.github.com:abc`) are one `error:` line and
+exit 2.
 
 Output of `make demo-prs` (unedited from the first command on; it replays the 52 recorded
 responses in `examples/tomli/prs/`, so the rate-limit counters are the recorded ones):
@@ -884,9 +889,10 @@ cannot write: ...; nothing was recorded in the ledger`), and the next run does t
 batch again, so a fix is never recorded without having been exported. The window between
 writing the export and the commit is small; a batch killed exactly there exports its
 candidates again on the next run (at least once, never lost). A repository that cannot be
-walked (a missing clone, a broken, truncated or non-UTF-8 recording, a GitHub error, a
-`cache_dir` that cannot be written) is reported as `failed` and the others still run; the
-batch then exits with 2. `--dry-run` runs the same code against an in-memory copy of the
+walked (a missing clone, a broken, truncated or non-UTF-8 recording, a GitHub error) is
+reported as `failed` and the others still run; the batch then exits with 2. A `cache_dir`
+that cannot be written is not a failure: the entry runs uncached with a `warning:` note,
+as `prs` does. `--dry-run` runs the same code against an in-memory copy of the
 ledger (or an empty one, if the file does not exist), so its verdicts are those of a real
 run and nothing is written: the file is opened read-only, and an older schema is migrated
 in the copy, not in the file. `ledger list`, `ledger check`, `ledger watermarks`,

@@ -511,6 +511,8 @@ def prs_command(
         raise _fail(str(exc)) from exc
     source = f" (replayed from {replay_dir})" if replay_dir is not None else ""
     typer.echo(f"github: {client.stats.describe()}{source}")
+    if cache is not None and cache.failure is not None:
+        typer.echo(f"warning: {cache.failure}", err=True)
     if recorder is not None:
         typer.echo(f"recorded {recorder.recorded} responses to {record_dir}")
     skipped = ""

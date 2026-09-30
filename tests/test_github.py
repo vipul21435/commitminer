@@ -472,9 +472,50 @@ def test_a_failed_cache_write_leaves_no_temporary_file(
         raise OSError("disk full")
 
     monkeypatch.setattr(github.json, "dump", fail)
-    with pytest.raises(OSError, match="disk full"):
-        ResponseCache(tmp_path).put(CachedResponse("u", None, None, None, "[]"))
+    cache = ResponseCache(tmp_path)
+    cache.put(CachedResponse("u", None, None, None, "[]"))
     assert list(tmp_path.iterdir()) == []
+    assert cache.failure == (
+        f"cannot write the ETag cache in {tmp_path} (disk full); the rest of the run was not cached"
+    )
+
+
+def test_a_failed_cache_write_stops_caching_but_not_the_run(tmp_path: Path) -> None:
+    # The cache directory is a file: every write would fail, and used to raise
+    # FileExistsError out of the walk, losing what had been fetched.
+    occupied = tmp_path / "cache"
+    occupied.write_text("x")
+    cache = ResponseCache(occupied)
+    replies = iter(
+        [
+            httpx.Response(200, json=[1], headers={"etag": '"a"'}),
+            httpx.Response(200, json=[2], headers={"etag": '"b"'}),
+        ]
+    )
+    client = GitHubClient(
+        transport=httpx.MockTransport(lambda request: next(replies)),
+        cache=cache,
+        clock=FakeClock(),
+    )
+    assert client.get("/a").data == [1]
+    assert cache.failure is not None
+    assert "File exists" in cache.failure
+    assert client.get("/b").data == [2]
+    assert occupied.read_text() == "x"
+
+
+@pytest.mark.parametrize("url", ["https://api.github.com:abc", "https://[::1"])
+def test_a_malformed_api_url_is_a_github_error(url: str) -> None:
+    with pytest.raises(GitHubError, match=r"invalid API URL .*Invalid port"):
+        GitHubClient(api_url=url, transport=httpx.MockTransport(lambda _: httpx.Response(200)))
+
+
+def test_a_malformed_next_page_link_is_a_github_error() -> None:
+    link = '<https://api.github.com:abc/x?page=2>; rel="next"'
+    reply = httpx.Response(200, json=[1], headers={"link": link})
+    client = GitHubClient(transport=httpx.MockTransport(lambda request: reply), clock=FakeClock())
+    with pytest.raises(GitHubError, match=r"invalid URL .*Invalid port"):
+        list(client.items("/x"))
 
 
 def test_default_cache_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

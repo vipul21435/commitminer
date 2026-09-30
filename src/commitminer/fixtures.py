@@ -131,7 +131,10 @@ class RecordingTransport(httpx.BaseTransport):
         self._inner = inner
         self.directory = directory
         self._responses: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
-        directory.mkdir(parents=True, exist_ok=True)
+        try:
+            directory.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise FixtureError(f"{directory}: cannot create the fixture directory: {exc}") from exc
 
     @property
     def recorded(self) -> int:
@@ -163,7 +166,11 @@ class RecordingTransport(httpx.BaseTransport):
             "key": key,
             "responses": self._responses[key],
         }
-        (self.directory / fixture_name(key)).write_text(_dump(record), encoding="ascii")
+        path = self.directory / fixture_name(key)
+        try:
+            path.write_text(_dump(record), encoding="ascii")
+        except OSError as exc:
+            raise FixtureError(f"{path}: cannot write the fixture: {exc}") from exc
         return httpx.Response(
             response.status_code, headers=headers, content=content, request=request
         )

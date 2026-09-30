@@ -139,11 +139,15 @@ class ResponseCache:
 
     Entries are keyed by the SHA-256 of the full URL (query included). An
     entry that cannot be read, or belongs to another URL or format version,
-    is ignored and later overwritten.
+    is ignored and later overwritten. The cache is an optimisation, so a write
+    that fails (a directory that is a file or read-only, a full disk) does not
+    stop the run: :attr:`failure` says why, and nothing more is written.
     """
 
     def __init__(self, directory: Path) -> None:
         self.directory = directory
+        self.failure: str | None = None
+        """Why the cache stopped writing, or ``None`` while every write succeeded."""
 
     def _path(self, url: str) -> Path:
         return self.directory / f"{hashlib.sha256(url.encode()).hexdigest()[:40]}.json"
@@ -167,7 +171,18 @@ class ResponseCache:
         return CachedResponse(url, etag, last_modified, link, body)
 
     def put(self, entry: CachedResponse) -> None:
-        """Store ``entry``, replacing any older one for its URL."""
+        """Store ``entry``, replacing any older one for its URL; a failure is remembered."""
+        if self.failure is not None:
+            return
+        try:
+            self._write(entry)
+        except OSError as exc:
+            self.failure = (
+                f"cannot write the ETag cache in {self.directory} ({exc}); "
+                "the rest of the run was not cached"
+            )
+
+    def _write(self, entry: CachedResponse) -> None:
         self.directory.mkdir(parents=True, exist_ok=True)
         record = {
             "format": CACHE_FORMAT,
@@ -283,13 +298,16 @@ class GitHubClient:
         }
         if token:
             headers["Authorization"] = f"Bearer {token}"
-        self._http = httpx.Client(
-            base_url=api_url,
-            headers=headers,
-            transport=transport,
-            timeout=timeout,
-            follow_redirects=True,
-        )
+        try:
+            self._http = httpx.Client(
+                base_url=api_url,
+                headers=headers,
+                transport=transport,
+                timeout=timeout,
+                follow_redirects=True,
+            )
+        except httpx.InvalidURL as exc:
+            raise GitHubError(f"invalid API URL {api_url!r}: {exc}") from exc
         self.cache = cache
         self.clock: Clock = clock or SystemClock()
         self.max_retries = max_retries
@@ -313,7 +331,11 @@ class GitHubClient:
 
     def get(self, url: str, params: Mapping[str, str | int] | None = None) -> Page:
         """GET ``url`` (a path under the API URL, or an absolute URL) and decode its JSON."""
-        request = self._http.build_request("GET", url, params=params)
+        try:
+            request = self._http.build_request("GET", url, params=params)
+        except httpx.InvalidURL as exc:
+            # A malformed next-page link from the server, say.
+            raise GitHubError(f"invalid URL {url!r}: {exc}") from exc
         key = str(request.url)
         cached = self.cache.get(key) if self.cache is not None else None
         if cached is not None:

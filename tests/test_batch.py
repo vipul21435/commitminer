@@ -445,11 +445,12 @@ def test_pull_request_errors_are_source_errors(tmp_path: Path) -> None:
         walk_pulls(missing, None, frozenset(), False, batch_module_client)
 
 
-def test_a_cache_that_cannot_be_written_is_a_source_error(
+def test_a_cache_that_cannot_be_written_is_a_warning(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    # A cache_dir occupied by a file (or a read-only cache, or a full disk) raises OSError
-    # from the response cache; it used to escape and abort the whole batch.
+    # A cache_dir occupied by a file (or a read-only cache, or a full disk): the cache is
+    # an optimisation, so the entry is walked without it and the note says why. It used
+    # to abort the whole batch, and then to fail the entry.
     occupied = write(tmp_path / "cachefile", "x")
 
     def cached_client(spec: RepoSpec) -> GitHubClient:
@@ -460,8 +461,10 @@ def test_a_cache_that_cannot_be_written_is_a_source_error(
             clock=FakeClock(),
         )
 
-    with pytest.raises(batch_module.SourceError, match=r"hukkin/tomli: .*File exists"):
-        walk_pulls(pr_spec(), None, frozenset(), False, cached_client)
+    walked = walk_pulls(pr_spec(), None, frozenset(), False, cached_client)
+    assert len(walked.commits) == 24
+    assert walked.notes[1].startswith(f"warning: cannot write the ETag cache in {occupied} (")
+    assert "File exists" in walked.notes[1]
 
     def unreadable(root: Path, rev: str) -> str:
         raise PermissionError(13, "Permission denied", str(root))

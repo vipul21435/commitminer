@@ -219,9 +219,9 @@ def test_pull_requests_go_to_the_network_without_replay(
     assert list((tmp_path / "cache").iterdir())
 
 
-def test_a_repository_whose_cache_cannot_be_written_fails_alone(tmp_path: Path) -> None:
-    # The cache_dir is occupied by a file: that entry fails and the next one still runs.
-    # This used to abort the batch and blame the ledger's directory.
+def test_a_repository_whose_cache_cannot_be_written_runs_without_it(tmp_path: Path) -> None:
+    # The cache_dir is occupied by a file: that entry runs uncached with a warning and the
+    # next one still runs. This used to abort the batch and blame the ledger's directory.
     (tmp_path / "cachefile").write_text("x")
     config = tmp_path / "batch.toml"
     config.write_text(
@@ -232,15 +232,16 @@ def test_a_repository_whose_cache_cannot_be_written_fails_alone(tmp_path: Path) 
         f'history = "{TOMLI / "history.jsonl.gz"}"\n'
     )
     result = runner.invoke(app, ["batch", str(config), "--top", "0"])
-    assert result.exit_code == 2
+    assert result.exit_code == 0, result.output
     lines = result.stdout.splitlines()
-    assert lines[1].startswith("hukkin/tomli [pull-requests]: failed: hukkin/tomli: ")
-    assert "File exists" in lines[1]
-    assert lines[2].startswith("hukkin/tomli [history]: first run, walked ")
-    assert "1 of 2 repositories failed: hukkin/tomli [pull-requests]" in result.stderr
+    assert lines[1].startswith("hukkin/tomli [pull-requests]: first run, walked 24 ")
+    warning = next(line for line in lines if "warning:" in line)
+    assert warning.startswith(f"  warning: cannot write the ETag cache in {tmp_path / 'cachefile'}")
+    assert "File exists" in warning
+    assert any(line.startswith("hukkin/tomli [history]: first run, walked ") for line in lines)
     assert "ledger's directory" not in result.stderr
     with open_ledger(tmp_path / "ledger.sqlite3") as ledger:
-        assert [m.source for m in ledger.watermarks()] == ["history"]
+        assert sorted(m.source for m in ledger.watermarks()) == ["history", "pull-requests"]
 
 
 def test_a_dry_run_and_read_only_commands_leave_an_old_ledger_alone(tmp_path: Path) -> None:

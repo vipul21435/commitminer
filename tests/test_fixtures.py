@@ -187,3 +187,19 @@ def test_replay_rejects_a_missing_directory_and_duplicate_keys(tmp_path: Path) -
     (tmp_path / "copy.json").write_text(first.read_text())
     with pytest.raises(FixtureError, match="a second fixture for GET /x"):
         ReplayTransport(tmp_path)
+
+
+def test_a_recording_directory_that_cannot_be_made_is_a_fixture_error(tmp_path: Path) -> None:
+    occupied = tmp_path / "fixtures"
+    occupied.write_text("x")
+    inner = httpx.MockTransport(lambda _: httpx.Response(200, json=[]))
+    with pytest.raises(FixtureError, match=r"cannot create the fixture directory: .*File exists"):
+        RecordingTransport(inner, occupied)
+
+
+def test_a_fixture_that_cannot_be_written_is_a_fixture_error(tmp_path: Path) -> None:
+    recorder = RecordingTransport(httpx.MockTransport(lambda _: httpx.Response(200)), tmp_path)
+    (tmp_path / fixture_name("GET /x")).mkdir()
+    client = GitHubClient(transport=recorder, clock=FakeClock())
+    with pytest.raises(FixtureError, match="cannot write the fixture"):
+        client.get(f"{API}/x")
