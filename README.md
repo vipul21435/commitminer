@@ -37,12 +37,12 @@ the flip is the downstream builder's job.
 - **GitHub merged pull-request walker** (`commitminer prs OWNER/REPO`): the `--limit` most
   recently updated merged pull requests, each with its commits and changed files, through
   the REST API (httpx). An on-disk ETag cache turns repeat runs into conditional requests
-  (`304 Not Modified` is served from the cache and does not count against the rate
-  limit). `X-RateLimit-Remaining`/`Reset` are read from every answer, `Retry-After` is
-  honoured on 403 and 429, secondary limits back off from 60 s, server and network errors
-  back off 1, 2, 4 s, all through an injectable clock; a wait over `--max-wait` fails
-  instead of hanging. `--record DIR` saves every response as a fixture, `--replay DIR`
-  answers from fixtures without network. Linked issues come from closing keywords in the
+  (`304 Not Modified` is served from the cache; with a token GitHub does not count a 304
+  against the rate limit, without one it does). `X-RateLimit-Remaining`/`Reset` are read
+  from every answer, `Retry-After` is honoured on 403 and 429, secondary limits back off
+  60, 120, 240 s, server and network errors 1, 2, 4, 8 s, all through an injectable clock;
+  a wait over `--max-wait` (300 s) fails instead of hanging. `--record DIR` saves every
+  response as a fixture, `--replay DIR` answers from fixtures without network. Linked issues come from closing keywords in the
   description and commit messages; labels and linked issues feed the score. GitHub's
   per-file patches (three context lines) are split into `--unified=0` hunks, so pull
   requests get the same measurements and fingerprints as commits. `GITHUB_TOKEN` is
@@ -658,7 +658,12 @@ and #280 is a version bump without tests (`no-test`). #278 ("Update external tes
 Live, with a token (`GITHUB_TOKEN=$(gh auth token) uv run commitminer prs hukkin/tomli
 --limit 25 --cache-dir <dir>`, run twice): the first run sent 52 requests in 24.65 s and
 left 4700 of 5000; the second got 52 answers of 304 from the cache in 23.79 s and still
-left 4700. Without a token, `--limit 3 --no-cache` sent 7 requests and left 53 of 60.
+left 4700. Without a token, `--limit 3 --no-cache` sent 7 requests and left 53 of 60, and
+the cache does not stretch that budget: GitHub only exempts 304 answers to authenticated
+requests. Three runs of `env -u GITHUB_TOKEN -u GH_TOKEN uv run commitminer prs
+hukkin/tomli --limit 1 --cache-dir <dir> --top 0 --explain 0 --max-wait 5` sent 3 requests
+each and left 56, then 53 (3 answered 304), then 50 of 60; three more runs with a fresh
+cache left 46, 43 and 40.
 
 ### Export schema and reports
 
@@ -818,7 +823,7 @@ flowchart LR
 
 | What | Command | Result |
 | --- | --- | --- |
-| Tests and coverage | `make cov` | 930 passed, 100.00% line and branch coverage (gate 90%) |
+| Tests and coverage | `make cov` | 941 passed, 100.00% line and branch coverage (gate 90%) |
 | Types | `make typecheck` | `mypy --strict`: no issues in 26 source files |
 | Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |
@@ -956,9 +961,10 @@ flowchart LR
   path and sorted query, one readable JSON file per request, with scripted sequences
   (`403` then `200`) for retry tests.
 - **Spend the rate limit on candidates.** Files are read before commits and at most
-  `--max-files` of them, conditional requests are free, a pull request costs 1 + 2
-  requests, and waiting is bounded by `--max-wait` so an unauthenticated run fails with a
-  hint to set `GITHUB_TOKEN` instead of sleeping for an hour.
+  `--max-files` of them, conditional requests are free with a token (and still served
+  from the cache without one), a pull request costs 1 + 2 requests, and waiting is bounded
+  by `--max-wait` so an unauthenticated run fails with a hint to set `GITHUB_TOKEN`
+  instead of sleeping for an hour.
 - **Test ids are line ranges, measured once.** The walker already reads every changed
   code file for signals, so the test functions of the new version are found there (one
   regex pass per line, brace matching with the existing lexer) and a hunk names every
@@ -1078,8 +1084,13 @@ flowchart LR
 - **Base sha is GitHub's.** `base.sha` is the base branch commit GitHub recorded for the
   pull request; for a long-lived pull request it can be ahead of the commit the branch
   started from, so a task built on it may need the base branch at merge time instead.
-- **Backoff has no jitter.** Retries wait fixed exponential times (1, 2, 4 s; 60, 120 s for
-  secondary limits), which is deterministic to test but can synchronise parallel clients.
+- **Backoff has no jitter.** Retries wait fixed exponential times (1, 2, 4, 8 s for server
+  and network errors; 60, 120, 240 s for secondary limits, after which the 480 s wait
+  exceeds the default `--max-wait` and the run fails), which is deterministic to test but
+  can synchronise parallel clients.
+- **The ETag cache saves rate limit only with a token.** Without `GITHUB_TOKEN`, a 304
+  answer costs one of the 60 hourly requests (three cached runs above: 56, 53, 50 left), so
+  a cached re-run of `--limit 29` spends 1 + 2 * 29 = 59 of them like the first run.
 - **Fail-to-pass ids are a guess from the diff.** A test whose behaviour changes through a
   helper, a fixture or test data (tomli's `.toml` cases: 14 of its 44 candidates have no
   ids) is not named; a changed line right after a Rust, Go, Java or JavaScript function's

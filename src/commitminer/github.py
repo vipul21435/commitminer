@@ -3,16 +3,22 @@
 - **Conditional requests.** Every successful GET with an ``ETag`` (or
   ``Last-Modified``) is stored in :class:`ResponseCache`, keyed by its full URL.
   The next request for that URL sends ``If-None-Match`` (``If-Modified-Since``);
-  a ``304 Not Modified`` answer is served from the cache, and GitHub does not
-  count it against the rate limit.
+  a ``304 Not Modified`` answer is served from the cache. GitHub does not count
+  a 304 against the rate limit of an authenticated request; without a token a
+  304 costs one of the 60 requests an hour like any other answer (measured:
+  three cached runs of the same three requests left 56, 53 and 50). The
+  counters of a 304 are read like those of every other answer, so the
+  reported budget is right either way.
 - **Rate limits.** ``X-RateLimit-Remaining`` and ``X-RateLimit-Reset`` are read
   from every response; once the budget is used up, the client waits for the
   reset before the next request. A ``403`` or ``429`` answer is retried after
   its ``Retry-After`` seconds, after the reset when the budget is at zero, or
   with an exponential backoff from 60 s for a secondary rate limit without
-  either header. Server errors (``5xx``) and network errors back off 1, 2, 4 ...
-  seconds. A wait longer than ``max_wait`` raises :class:`RateLimitError`
-  instead of hanging.
+  either header. Server errors (``5xx``) and network errors back off 1, 2, 4,
+  8 s (``max_retries`` retries, 4 by default, so five attempts). A wait longer
+  than ``max_wait`` (300 s by default) raises :class:`RateLimitError` instead
+  of hanging: a secondary limit waits 60, 120 and 240 s and fails at the 480 s
+  it would need next.
 - **Injectable clock and transport.** Waiting goes through a :class:`Clock`,
   so tests advance time instead of sleeping, and requests go through any
   ``httpx`` transport, such as the record and replay transports of

@@ -296,6 +296,40 @@ def test_retries_give_up(tmp_path: Path) -> None:
     assert clock.sleeps == [1.0, 2.0]
 
 
+def test_the_documented_backoff_sequences() -> None:
+    # The README and the module docstring quote these exact waits: keep them honest.
+    clock = FakeClock()
+    server_error = mock_client(lambda r: httpx.Response(500, json={"message": "boom"}), clock)
+    with server_error, pytest.raises(GitHubError, match="gave up after 5 attempts"):
+        server_error.get("/x")
+    assert clock.sleeps == [1.0, 2.0, 4.0, 8.0]
+    clock = FakeClock()
+    secondary = mock_client(
+        lambda r: httpx.Response(403, json={"message": "You have exceeded a secondary rate limit"}),
+        clock,
+    )
+    with secondary, pytest.raises(RateLimitError, match="secondary rate limit: waiting 480 s"):
+        secondary.get("/x")
+    assert clock.sleeps == [60.0, 120.0, 240.0]
+
+
+def test_a_304_answers_rate_limit_counters_are_read(tmp_path: Path) -> None:
+    # Without a token GitHub charges a 304 like any other answer, so the budget
+    # it reports on a 304 is the truth and must replace what the client knew.
+    fixtures = tmp_path / "fixtures"
+    write_fixture(fixtures, "GET /x", reply(200, [1], {"etag": '"v1"', **limits(59, 1)}))
+    cache = ResponseCache(tmp_path / "cache")
+    with client_for(fixtures, cache=cache) as first:
+        first.get("/x")
+        assert first.stats.remaining == 59
+    write_fixture(fixtures, "GET /x", reply(200, [1], {"etag": '"v1"', **limits(58, 1)}))
+    with client_for(fixtures, cache=cache) as second:
+        assert second.get("/x").data == [1]
+        assert (second.stats.not_modified, second.stats.remaining) == (1, 58)
+        assert "1 answered 304 from the cache" in second.stats.describe()
+        assert "58 of 60 left" in second.stats.describe()
+
+
 def test_long_waits_raise_instead_of_hanging(tmp_path: Path) -> None:
     clock = FakeClock()
     write_fixture(tmp_path, "GET /a", reply(200, [], limits(0, clock.now + 3000)))

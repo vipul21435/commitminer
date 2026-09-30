@@ -311,6 +311,20 @@ Its output (JSONL) is the input for downstream environment builders.
   Golden files pin both formats on the ledger demo's fork mined against a ledger under
   a fixed clock. `--top` limits candidates, not rejections.
 
+### Review fixes committed before slice 6
+
+- An interrupted agent left three reviewed fixes uncommitted; each had regression tests
+  and the suite was green, so they were committed as three separate commits (941 tests,
+  100% coverage) instead of being stashed. (1) `regex_end` searched the whole line prefix
+  for a keyword before every `/`, so a 200000-character minified line with 24000 slashes
+  took 50.75 s in `code_text`; it reads an 11-character window now (0.05 s) and the
+  literal pattern uses possessive quantifiers. (2) A pull request whose title (or a
+  closing keyword before a pull-request URL) looked like a closing reference scored 1.0
+  while its export listed no linked issues; only the issues `linked_issues` reads count
+  now. (3) The docs claimed a 304 never counts against the rate limit; without a token
+  it does (re-measured: three cached runs left 46, 43 and 40 of 60), and the documented
+  backoff sequences are pinned by a test.
+
 ## Core (deliverable)
 
 - [x] Core: done on 2026-09-30. 127 tests, 100% line and branch coverage, CI green
