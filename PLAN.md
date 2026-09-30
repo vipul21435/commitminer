@@ -150,6 +150,51 @@ Its output (JSONL) is the input for downstream environment builders.
   digits). Golden files pin text and JSON output for fixed synthetic commits built with
   fixed dates, so shas are reproducible; `UPDATE_GOLDEN=1` refreshes them.
 
+### Decisions made while building slice 3
+
+- Five review findings were fixed first, each with a regression test: the Java main source
+  set (see slice 1 notes above), Cargo `build.rs`, Jasmine's `spec/`, a generated-header
+  signal that fired on comments merely mentioning generated code (tket2's and shimmy's
+  crate roots), and unchecked `commitminer.toml` globs (crash on `[z-a]`, silent no-op on a
+  `/` in `dirs`, exponential backtracking on repeated `**/`). The glob matcher is now a
+  module of its own: `fnmatch.translate` per component (atomic groups) and a first-fit
+  block matcher across `**` segments, plus a plain-component precheck that brought tomli
+  replay back from 0.21 s to 0.17 s.
+- Hunk normalisation collapses whitespace runs instead of deleting all whitespace. The first
+  version deleted it, and semver's top candidate (`"{} {}"` to `"{}{}"`) and pflag's gofmt
+  commit had no hash left; with collapsing every one of the 202 candidates of tomli, semver
+  and pflag has a fingerprint and re-indented copies still match.
+- The fingerprint covers source and test hunks only; docs, config and CI hunks differ
+  between forks and backports. Hunk hashes are 64 bits (16 hex digits of SHA-256): with a
+  million hunks in a ledger the chance of any collision is about 3e-8.
+- Recordings store `hunk_hashes` per file whenever computed, even when empty, so an old
+  recording (no key) reads as "unknown" rather than "no hunks". The recording format stays
+  version 1; the tomli recording grew from 67715 to 125311 bytes and was re-recorded (CI's
+  byte-for-byte check passed on Ubuntu).
+- Overlap is measured against the smaller fix (`shared / min(|A|, |B|)`), so a squash that
+  contains the whole fix overlaps, and the default threshold is 0.5. Measured on the three
+  real histories with an in-run check: 2 pairs reach it (semver's re-landed change, 45 of
+  46 hunks; pflag's same one-line fix in two files, 1 of 2), 11 pairs share one hunk at
+  25% or less.
+- Ledger: one SQLite file, `PRAGMA user_version` for the schema version with a migration
+  table (tested with a monkeypatched version 2), `PRAGMA application_id` to refuse other
+  SQLite files, the fingerprint version in a `meta` table. Rollback journal, not WAL, so it
+  works where WAL does not (network drives). Statuses `proposed` and `claimed` only.
+- Claims: `BEGIN IMMEDIATE`, check, insert; `UNIQUE (fingerprint)` and `UNIQUE (repo, sha)`
+  as the backstop. A test starts 8 threads with their own connections behind a barrier:
+  exactly one claim wins.
+- Checks never write: `mine --ledger` and `ledger check` copy the ledger into an in-memory
+  database (backup API) and add each checked candidate there, so in-run duplicates use the
+  same query. `mine --ledger` creates an empty ledger if the file is missing, like every
+  ledger command.
+- `ledger add` reads the `mine --out` file (schema version 3, which adds `fingerprint` and
+  `ledger`) instead of re-walking, so what is claimed is exactly what was reviewed; it
+  checks that the patch hash matches the listed hunks. Exit code 1 when a candidate is
+  refused (and for `ledger check` when one is not new) lets scripts detect a lost race.
+- The demo repositories are built by a standard-library script with fixed dates
+  (`examples/ledger/build_repos.py`), shared by `make demo-ledger`, the CLI tests, CI and
+  the Docker job; the shas were identical on macOS and in the Linux image.
+
 ## Core (deliverable)
 
 - [x] Core: done on 2026-09-30. 127 tests, 100% line and branch coverage, CI green
@@ -211,7 +256,11 @@ The smallest end-to-end path, from a git history to a ranked JSONL file:
   Weights load from `commitminer.toml`. `commitminer explain <sha>` prints the contribution
   table for one commit and a difficulty band (easy, medium, hard). Golden tests pin the
   explanations for fixed synthetic commits.
-- [ ] 3. Patch fingerprints and a SQLite dedupe ledger.
+- [x] 3. Patch fingerprints and a SQLite dedupe ledger. Done on 2026-09-30: hunk hashes
+  measured while walking, candidate fingerprints, a versioned SQLite ledger with atomic
+  claims, `ledger add|check|list`, `mine --ledger` (with `--min-overlap`, `--new-only`),
+  export schema 3, `make demo-ledger`; 752 tests, 100% coverage. See "Decisions made while
+  building slice 3".
   A patch fingerprint that ignores whitespace, file paths and renames, and hunk line
   numbers: normalise each changed line, hash per hunk, and hash the sorted hunk hashes for
   the whole patch; keep the per-hunk set for partial-overlap detection (a cherry-pick that

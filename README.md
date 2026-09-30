@@ -12,8 +12,10 @@ CommitMiner walks the history, classifies every changed file, measures every fil
 drops the commits that cannot work (with a reason code), and ranks the rest with a
 transparent score. A separate difficulty estimate puts each candidate in an easy, medium or
 hard band. Each feature's value, weight and contribution are printed and exported, so a
-reviewer can see why a commit ranked where it did. The output is JSON Lines for downstream
-environment builders.
+reviewer can see why a commit ranked where it did. Every candidate gets a patch
+fingerprint, and a shared SQLite ledger marks fixes that were already proposed: the same fix
+in a fork, a cherry-pick, a re-indented or moved copy. The output is JSON Lines for
+downstream environment builders.
 
 CommitMiner proposes and ranks. It does not build environments or run the tests; verifying
 the flip is the downstream builder's job.
@@ -44,7 +46,10 @@ the flip is the downstream builder's job.
   file-name or path glob, or a content signal), a category (source, test, docs, config,
   generated, vendored, other) and a rationale; the first match wins and its id is reported.
   Every rule has positive and negative examples in a table-driven test, which fails when a
-  rule has none.
+  rule has none. Java package directories below `src/<set>/java/` are not layout, so
+  `com/shop/vendor/` is not vendored and junit5's `src/main/java/.../Test.java` is source.
+  Globs are checked when a rule is built (a `/` in a directory or file-name pattern, an
+  empty range such as `[z-a]`, an empty path segment are errors) and matched in linear time.
 - **Content signals**: generated-code headers (`Code generated ... DO NOT EDIT`,
   `@generated`, or a comment that opens with "Auto-generated" or "This file was
   generated"; a comment that only mentions generated bindings does not count), minified
@@ -78,10 +83,25 @@ the flip is the downstream builder's job.
   [Configuration](#configuration).
 - **`commitminer classify PATH...`** and **`commitminer rules`** show how paths are
   classified and the effective rule table.
-- **Export**: every candidate as one JSON object per line (schema version 2: base commit,
+- **Patch fingerprints**: every hunk of every walked patch gets a 64-bit hash of its
+  changed lines with leading and trailing whitespace dropped, inner runs of whitespace
+  collapsed and blank lines left out; the file path and the hunk's line numbers are not
+  hashed. A candidate's fingerprint is its source and test hunk hashes, sorted, plus a patch
+  hash over them, so a cherry-pick onto a shifted file, a re-indented copy and a renamed or
+  moved file all get the same fingerprint, and a cherry-pick with a resolved conflict
+  shares most of its hunks.
+- **Dedupe ledger** (`commitminer ledger add|check|list`, `mine --ledger`): one SQLite file
+  (standard library `sqlite3`, versioned schema) records proposed fixes by fingerprint with
+  repository, sha, status, owner and first-seen time. A candidate is a `duplicate` (same
+  patch hash), an `overlap` (shares at least `--min-overlap`, default 0.5, of the distinct
+  hunks of the smaller fix), or `new`. Adding is one `BEGIN IMMEDIATE` transaction backed by
+  a unique constraint on the fingerprint, so two authors cannot claim the same fix;
+  checking never writes and also compares the candidates of one run with each other.
+- **Export**: every candidate as one JSON object per line (schema version 3: base commit,
   fix commit, source, test and inline-test files, per-file category, rule, signals and
-  patch measurements, line counts, public API touched, score and difficulty breakdowns),
-  plus a terminal table and per-candidate contribution tables.
+  patch measurements, line counts, public API touched, score and difficulty breakdowns,
+  fingerprint, and the ledger verdict with its matches), plus a terminal table and
+  per-candidate contribution tables.
 - **Offline demo** on the recorded history of [hukkin/tomli](https://github.com/hukkin/tomli)
   (MIT, 312 non-merge commits), bundled in [`examples/tomli/`](examples/tomli/) with its
   license and provenance. CI re-records it from GitHub on every push and checks it still
@@ -99,12 +119,14 @@ make install        # uv sync --locked + pre-commit hook
 make demo           # mine the bundled tomli history offline
 make demo-explain   # explain one candidate and one rejected tomli commit
 make demo-classify  # classify the multi-language sample tree in examples/classify
-uv run commitminer mine /path/to/a/clone --out out/candidates.jsonl
+make demo-ledger    # claim upstream fixes, then find them again in a release branch and a fork
+uv run commitminer mine /path/to/a/clone --out out/candidates.jsonl --ledger team.sqlite3
+uv run commitminer ledger add team.sqlite3 out/candidates.jsonl --sha <sha> --owner <name>
 uv run commitminer explain <sha> --repo /path/to/a/clone
 ```
 
-Verified in a fresh clone of `7c3acc6`: `make install` took 1.80 s, the first `make demo`
-0.68 s and `make demo-explain` 0.20 s (`/usr/bin/time -p`, warm uv cache, 8 GB Apple
+Verified in a fresh clone of `cd8b012`: `make install` took 2.08 s, the first `make demo`
+0.67 s and `make demo-ledger` 1.11 s (`/usr/bin/time -p`, warm uv cache, 8 GB Apple
 Silicon Mac).
 
 ## Usage
@@ -113,6 +135,11 @@ Silicon Mac).
 commitminer mine [REPO] [--history FILE] [--rev REV] [--max-count N] [--max-lines N]
                  [--max-source-files N] [--test-lines-cap N] [--top 10] [--explain 1]
                  [--out FILE] [--repo-name NAME] [--config FILE] [--no-content]
+                 [--ledger FILE [--min-overlap 0.5] [--new-only]]
+commitminer ledger add LEDGER CANDIDATES.jsonl [--sha SHA]... [--top N] [--owner NAME]
+                       [--status claimed|proposed] [--min-overlap 0.5] [--allow-overlap]
+commitminer ledger check LEDGER CANDIDATES.jsonl [--min-overlap 0.5] [--json]
+commitminer ledger list LEDGER [--repo NAME] [--json]
 commitminer explain SHA [--repo DIR | --history FILE] [--max-lines N] [--max-source-files N]
                     [--test-lines-cap N] [--config FILE] [--no-content] [--json]
 commitminer record REPO --out FILE [--rev REV] [--max-count N] [--repo-name NAME] [--url URL]
@@ -124,7 +151,10 @@ commitminer version
 `--no-content` skips reading file contents: classification uses path rules only and Rust
 test modules are not found (their lines count as source). Patches are always measured.
 `classify` paths are relative to `--root` (default: the current directory) and need not
-exist; a path that is not a file there is classified by its path alone.
+exist; a path that is not a file there is classified by its path alone. A ledger file is
+created (empty, with its schema) the first time any command opens it. `ledger add` exits
+with 1 when it refused a candidate and `ledger check` when a candidate is not new, so
+scripts can tell that a fix was already taken.
 
 Output of `make demo` (the recorded tomli history, unedited). `diff` is the difficulty and
 its band; the ranking uses only the score:
@@ -168,7 +198,8 @@ wrote 44 candidates to out/tomli-candidates.jsonl
 
 The first line of `out/tomli-candidates.jsonl`, with each feature and file on one line and
 the file lists cut to the source and test file (the commit also changes `CHANGELOG.md` and
-`README.md`):
+`README.md`). The fingerprint covers the 13 hunks of those two files; `ledger` is `null`
+because the demo mines without `--ledger`:
 
 ```json
 {
@@ -193,12 +224,14 @@ the file lists cut to the source and test file (the commit also changes `CHANGEL
     {"added": 35, "category": "test", "deleted": 6, "patch": {"api": ["def test_parse_float"], "asserts": 3, "code_added": 33, "code_deleted": 6, "code_hunks": 3, "hunks": 3, "test_added": 0, "test_deleted": 0}, "path": "tests/test_misc.py", "rule": "test-dir"},
     {"added": 13, "category": "source", "deleted": 8, "patch": {"api": ["def loads"], "asserts": 0, "code_added": 10, "code_deleted": 8, "code_hunks": 10, "hunks": 10, "test_added": 0, "test_deleted": 0}, "path": "tomli/_parser.py", "rule": "py-source"}
   ],
+  "fingerprint": {"hunks": ["2238f1a042c06dea", "281157c378695ed6", "2d98fd8039a500da", "31087633dc36ca60", "42dc602a455f1507", "5a92b41459e49fb7", "66717315e93d09ff", "785747b132e589e7", "82c818dedf502363", "e1a9b9c9fabab1f0", "f1fa33414ce49364", "f2fac2deb39097db", "fa350b2a3bba7f1b"], "patch": "f10c534e4424fd9b", "version": 1},
   "inline_test_files": [],
+  "ledger": null,
   "lines": {"changed": 62, "source_added": 13, "source_deleted": 8, "test_added": 35, "test_deleted": 6},
   "public_api": ["def loads"],
   "rank": 1,
   "repo": "hukkin/tomli",
-  "schema_version": 2,
+  "schema_version": 3,
   "score": 6.885,
   "sha": "5ab9ec926d9dc1ef79e66215edd51285371fe8a0",
   "source_files": ["tomli/_parser.py"],
@@ -220,6 +253,7 @@ base     bc1048993c13c8942e5cdf3faaf904453fa89416
 date     2021-06-05T01:34:14+03:00
 subject  FIX: Three odd cases
 verdict  candidate: score 6.64 of 10, difficulty 3.42 of 10 (medium)
+patch    fingerprint 3cbcfe3f86d6105c (16 source and test hunks)
 
   files
     category  rule               added   del hunks  code tests asserts  path
@@ -348,21 +382,24 @@ at `280ebcb6ed` (Rust, inline `#[cfg(test)]` modules) and
 not bundled; the numbers come from `uv run commitminer mine <clone> --rev <sha>` (and with
 `--no-content`) on a fresh `git clone`:
 
-| Repository | Before slice 1 (`a2226d2`) | Slice 1 (`1cc6ca9`) | Now | Now, `--no-content` |
-| --- | --- | --- | --- | --- |
-| dtolnay/semver, 572 commits | 0 candidates | 50 | 68 (easy 28, medium 22, hard 18) | 18 |
-| spf13/pflag, 285 commits | 0 candidates | 97 | 92 (easy 41, medium 34, hard 17) | 92 |
+| Repository | Before slice 1 (`a2226d2`) | Slice 1 (`1cc6ca9`) | Slice 2 (`0c0112a`) | Now | Now, `--no-content` |
+| --- | --- | --- | --- | --- | --- |
+| dtolnay/semver, 572 commits | 0 candidates | 50 | 68 | 66 (easy 27, medium 21, hard 18) | 16 |
+| spf13/pflag, 285 commits | 0 candidates | 97 | 92 | 92 (easy 41, medium 34, hard 17) | 92 |
 
-Against slice 1, semver gained 22 candidates: Rust fixes that edit an existing inline test
-without adding a `#[test]` now count as changing tests. It lost 4 whose only source edits
-are inside test modules (`source-unchanged`). 50 of the 68 change no test file at all:
-their tests live in the fixed source file. pflag lost 5: two comment or formatting-only
+In slice 2, semver gained 22 candidates: Rust fixes that edit an existing inline test
+without adding a `#[test]` count as changing tests. It lost 4 whose only source edits are
+inside test modules (`source-unchanged`). pflag lost 5: two comment or formatting-only
 commits (`source-cosmetic`) and three that change 14 to 17 source files (`oversize`).
-The semver top 5 (the `test` column "0+1" means no test file, one source file with changed
-inline tests):
+Since then semver lost the two candidates whose only "source" file was the Cargo build
+script: `c41ab5af3a` ("Delete no_track_caller configuration", `build.rs` -7 lines) and
+`d2a5e41d4a` ("Backport test suite to rustc <1.46", `build.rs` +6); `build.rs` outside
+`src/` is now config, like `setup.py`. 50 of the 66 change no test file at all: their tests
+live in the fixed source file. The semver top 5 (the `test` column "0+1" means no test
+file, one source file with changed inline tests):
 
 ```text
-dtolnay/semver: walked 572 commits, 68 candidates (easy 28, medium 22, hard 18), 504 rejected (docs-only 24, no-source 179, source-unchanged 18, source-cosmetic 45, no-test 231, oversize 7)
+dtolnay/semver: walked 572 commits, 66 candidates (easy 27, medium 21, hard 18), 506 rejected (docs-only 24, no-source 184, source-unchanged 18, source-cosmetic 44, no-test 229, oversize 7)
 
 rank   score         diff  sha         date        lines  src  test  subject
    1    7.41    0.46 easy  5e87530d55  2020-07-22     26    1   0+1  fix tests and formatting to comply with #196
@@ -380,6 +417,7 @@ base     33087a0fb4f3e40270bd7bf37d156cc19de6bbcb
 date     2016-02-01T13:53:25-05:00
 subject  Fix bug with pre-release parsing
 verdict  candidate: score 7.40 of 10, difficulty 0.46 of 10 (easy)
+patch    fingerprint 389bad59ed820ca5 (2 source and test hunks)
 
   files
     category  rule               added   del hunks  code tests asserts  path
@@ -410,6 +448,70 @@ verdict  candidate: score 7.40 of 10, difficulty 0.46 of 10 (easy)
 for issue 88"), ranked 7th before, only adds a test to that module and is now rejected as
 `source-unchanged`.
 
+### Dedupe ledger
+
+`make demo-ledger` builds two small repositories with fixed dates
+([examples/ledger/build_repos.py](examples/ledger/build_repos.py), an original toy duration
+parser), so the shas below are the same on every machine. `upstream` has two fixes on
+`main` and a `release` branch that adds license headers to the parser (every line moves
+down), cherry-picks fix A cleanly, adds a fix of its own, and cherry-picks fix B with a
+conflict on the `UNITS` line resolved by hand. `fork` is an independent copy that
+re-indented the code with two spaces, applied fix A, moved the package to `lib/`, applied
+fix B there, and added a fix of its own. The demo mines `upstream` (3 candidates), claims
+them for `alice`, then mines the release branch and the fork against the ledger (unedited
+output from the `ledger add` step on; the dates are the day it ran):
+
+```text
+added    #1 demo/durations 536d6c4adf  claimed
+added    #2 demo/durations 0287bf15bc  claimed
+added    #3 demo/durations a4320cdcff  claimed
+3 added, 0 refused: .commitminer/ledger-demo/ledger.sqlite3
+demo/durations: walked 5 commits, 4 candidates (easy 4), 1 rejected (source-cosmetic 1)
+ledger .commitminer/ledger-demo/ledger.sqlite3: 1 new, 2 duplicate, 1 overlap
+  #1 b7894eea9b duplicate: same fix as demo/durations 536d6c4adf (claimed by alice on 2026-09-29)
+  #3 352f6038e7 overlap: 2 of 3 hunks shared with demo/durations 0287bf15bc (claimed by alice on 2026-09-29)
+  #4 a4320cdcff duplicate: already in the ledger (claimed by alice on 2026-09-29)
+
+rank   score         diff  sha         date        lines  src  test  ledger   subject
+   1    7.67    0.92 easy  b7894eea9b  2025-03-02     11    1     1  dup      Reject numbers without a unit (fixes #7)
+   2    7.36    0.56 easy  69dbcfede3  2025-03-07      6    1     1  new      Accept upper-case units (fixes #11)
+   3    7.34    0.92 easy  352f6038e7  2025-03-04      8    1     1  overlap  Accept days and weeks (fixes #9)
+   4    4.36    1.95 easy  a4320cdcff  2025-03-01     25    1     1  dup      Add duration parser
+demo/durations-fork: walked 5 commits, 4 candidates (easy 4), 1 rejected (source-unchanged 1)
+ledger .commitminer/ledger-demo/ledger.sqlite3: 1 new, 3 duplicate
+  #2 e275649a9e duplicate: same fix as demo/durations 536d6c4adf (claimed by alice on 2026-09-29)
+  #3 6dbfaa8121 duplicate: same fix as demo/durations a4320cdcff (claimed by alice on 2026-09-29)
+  #4 287f42b780 duplicate: same fix as demo/durations 0287bf15bc (claimed by alice on 2026-09-29)
+
+rank   score         diff  sha         date        lines  src  test  ledger   subject
+   1    7.36    0.56 easy  92ee5dce6f  2025-03-14      6    1     1  new      Allow spaces between parts (fixes #3)
+   2    4.67    0.92 easy  e275649a9e  2025-03-11     11    1     1  dup      Reject numbers without a unit
+   3    4.36    1.95 easy  6dbfaa8121  2025-03-10     25    1     1  dup      Import durations with two-space indentation
+   4    4.34    0.92 easy  287f42b780  2025-03-13      8    1     1  dup      Accept days and weeks
+.commitminer/ledger-demo/ledger.sqlite3: 3 entries (schema version 1)
+first seen  status    owner       repo                sha         hunks  fingerprint       subject
+2026-09-29  claimed   alice       demo/durations      536d6c4adf      3  d3c6af7bc86c6f62  Reject numbers without a unit (fixes #7)
+2026-09-29  claimed   alice       demo/durations      0287bf15bc      3  c282f61bc585bf9b  Accept days and weeks (fixes #9)
+2026-09-29  claimed   alice       demo/durations      a4320cdcff      2  7842e726a4b52616  Add duration parser
+```
+
+The cherry-pick of fix A and the fork's re-indented and moved copies are duplicates; the
+cherry-pick with a resolved conflict keeps 2 of its 3 hunks and is an overlap; the
+maintenance branch's and the fork's own fixes are new. The release branch's shared root
+commit is "already in the ledger", and the fork's rename-only commit is rejected
+(`source-unchanged`) before the ledger is asked. `ledger add` on the same file again refuses
+all three and exits with 1.
+
+On real histories the in-run check finds two pairs among 202 candidates (`mine <clone>
+--ledger <empty file>`): semver's `dcfb5efdea` (`Revert "Revert "Implement comparison for
+pre-release tags.""`) shares 45 of its 46 hunks with `0faefa8679`, the change it re-lands;
+pflag's `13e924deb5` ("fix bug of string_slice with square brackets") shares 1 of 2 hunks
+with `b027180f68` ("Fix square bracket handling in string_array"): the same one-line fix
+(`sval = sval[1 : len(sval)-1]`) in two files, with different tests. Eleven more pairs
+(one in tomli, three in semver, seven in pflag) share exactly one hunk, at most a quarter of
+the smaller fix, and stay new under the default `--min-overlap 0.5`. No two candidates have
+the same patch hash, and every candidate of the three histories has a fingerprint.
+
 Docker (the image contains the recorded history and the sample tree, so this runs offline):
 
 ```sh
@@ -439,6 +541,12 @@ flowchart LR
     filters -->|rejected| funnel[summary funnel]
     filters -->|candidates| scoring[scoring: score + difficulty band]
     settings --> scoring
+    patch -->|hunk hashes| commits
+    stats --> fingerprint[fingerprint: source + test hunks]
+    fingerprint --> scoring
+    ledgerdb[(ledger.sqlite3)] --> ledger[ledger: duplicate / overlap / new]
+    scoring --> ledger
+    ledger --> export
     scoring --> export[export: JSONL, table, breakdowns]
     scoring --> explain[explain: one commit]
 ```
@@ -451,34 +559,40 @@ flowchart LR
 | `history.py` | writes and validates recorded histories (JSONL, optional reproducible gzip) |
 | `languages.py` | the six languages and extension detection |
 | `signals.py` | content-signal detectors over file bytes |
-| `classify.py` | the ordered rule table, glob matcher and `classify(path, rules, signals)` |
+| `globs.py` | glob syntax, pattern checks, linear-time component and path matching |
+| `classify.py` | the ordered rule table, Java package-directory handling and `classify(path, rules, signals)` |
 | `config.py` | `commitminer.toml` loading and validation |
 | `settings.py` | limits, caps, weights and band thresholds with their defaults |
 | `stats.py` | per-category measurements of one commit |
 | `filters.py` | hard filters and reason codes |
 | `scoring.py` | score and difficulty features, ranking |
+| `fingerprint.py` | hunk hashes (whitespace, path and position insensitive) and commit fingerprints |
+| `ledger.py` | the SQLite ledger: schema and migrations, verdicts, atomic claims, reading exported candidates |
 | `export.py` | JSONL export and the terminal renderers |
 | `explain.py` | the `explain` output, text and JSON |
 | `ruletable.py` | `classify` and `rules` command output, `docs/rules.md` |
-| `cli.py` | Typer commands `mine`, `explain`, `record`, `classify`, `rules`, `version` |
+| `cli.py` | Typer commands `mine`, `explain`, `record`, `classify`, `rules`, `ledger add/check/list`, `version` |
 
 ## Measured
 
 | What | Command | Result |
 | --- | --- | --- |
-| Tests and coverage | `make cov` | 596 passed, 100.00% line and branch coverage (gate 90%) |
-| Types | `make typecheck` | `mypy --strict`: no issues in 18 source files |
+| Tests and coverage | `make cov` | 752 passed, 100.00% line and branch coverage (gate 90%) |
+| Types | `make typecheck` | `mypy --strict`: no issues in 21 source files |
 | Classifier table | `commitminer rules --markdown` | 35 rules, each with positive and negative examples in `tests/test_classify.py` |
 | Demo funnel | `make demo` | 312 commits walked, 44 candidates (easy 15, medium 17, hard 12), 268 rejected |
-| Live walk of the tomli clone | `/usr/bin/time -p uv run commitminer mine <tomli clone> --top 0 --explain 0` | 0.35 s with content signals, 0.33 s with `--no-content` (3 runs each; 0.25 s before patches were read) |
-| Live walk of the semver clone | same on dtolnay/semver (572 commits) | 0.65 s with content signals, 0.35 s with `--no-content` (3 runs each) |
-| Live walk of the pflag clone | same on spf13/pflag (285 commits) | 0.31 s (3 runs) |
-| Replay of the recording | same with `--history examples/tomli/history.jsonl.gz` | 0.16 s (3 runs) |
+| Live walk of the tomli clone | `/usr/bin/time -p uv run commitminer mine <tomli clone> --top 0 --explain 0` | 0.39 to 0.42 s with content signals, 0.37 s with `--no-content` (3 runs each; 0.35 s and 0.33 s before fingerprints and the glob matcher) |
+| Live walk of the semver clone | same on dtolnay/semver (572 commits) | 0.63 to 0.66 s with content signals, 0.36 s with `--no-content` (3 runs each) |
+| Live walk of the pflag clone | same on spf13/pflag (285 commits) | 0.32 s (3 runs) |
+| Replay of the recording | same with `--history examples/tomli/history.jsonl.gz` | 0.17 s (3 runs; 0.16 s before, 0.21 s before the plain-component precheck) |
 | One explanation | `uv run commitminer explain 55bf7fb619 --repo <semver clone>` | 0.10 s (3 runs) |
+| Mining against a ledger | semver walk with `--ledger` holding its 66 candidates | 0.66 to 0.67 s (3 runs): 65 duplicate, 1 overlap |
+| Checking an export | `uv run commitminer ledger check <that ledger> <semver export>` | 0.08 s (3 runs) |
+| Concurrent claims | `tests/test_ledger.py`: 8 threads, 8 connections, one fix | exactly 1 added, 7 refused |
 | Live vs replay | `mine <clone> --repo-name hukkin/tomli --out a.jsonl`, `make demo`, `cmp` | identical |
-| Recording size | `ls -l examples/tomli/history.jsonl.gz` | 67715 bytes (862561 uncompressed; 63697 before patch measurements) |
+| Recording size | `ls -l examples/tomli/history.jsonl.gz` | 125311 bytes (1043013 uncompressed) with hunk hashes; 67715 before them, 63697 before patch measurements |
 | Recording integrity | `make verify-recording` (also in CI) | byte-identical to a fresh recording from GitHub |
-| Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 110726560 bytes |
+| Image size | `docker image inspect commitminer:local --format '{{.Size}}'` | 110897309 bytes |
 
 ## Design decisions
 
@@ -541,6 +655,22 @@ flowchart LR
   module is a test change when its `#[test]` count grew or lines inside the module were
   added; lines inside the module are test lines, the rest are code. A commit whose only
   source edits are inside test modules is rejected (`source-unchanged`).
+- **Fingerprints ignore what copies change, not what fixes change.** Leading and trailing
+  whitespace is dropped and inner runs are collapsed (re-indentation, tabs, realigned
+  columns), but a space where there was none still counts. Removing all whitespace was
+  tried first: semver's top candidate `5e87530d55` changes `"{} {}"` to `"{}{}"`, and it
+  was left with nothing to hash. Only source and test hunks count, because a fork or a
+  backport usually has its own changelog and CI edits.
+- **Hunk hashes are measurements.** Like the other patch measurements they are computed
+  while walking and stored in recordings (64 bits per hunk; the tomli recording grew from
+  67715 to 125311 bytes), so replay needs no patch text. Their absence in an old recording
+  means "unknown", never "no hunks".
+- **Check in memory, claim in one transaction.** `mine --ledger` and `ledger check` copy the
+  ledger into memory with SQLite's backup API and add each checked candidate to the copy,
+  so duplicates inside one run and against the ledger are found by the same query and the
+  shared file is never written. `ledger add` checks and inserts inside `BEGIN IMMEDIATE`,
+  and `UNIQUE (fingerprint)` and `UNIQUE (repo, sha)` refuse a second claim even from a
+  writer that skipped the check.
 - **Fresh repository, not a fork.** PyDriller (Apache-2.0) was considered; CommitMiner
   needs only a narrow, typed parse of `git log`, and calling the git CLI keeps the
   dependency set to Typer and `mypy --strict` clean. See [PLAN.md](PLAN.md).
@@ -591,14 +721,27 @@ flowchart LR
 - **Docker and file ownership.** git refuses a repository owned by another user, and the
   walker deliberately ignores global config (so `safe.directory` cannot be set there);
   mining a bind-mounted clone on Linux needs `-u "$(id -u):$(id -g)"`.
-- **No dedupe, no GitHub walker, no HTML report yet** (see Roadmap).
+- **Fingerprints are textual.** The same fix written differently (other variable names, a
+  formatter that adds spaces around operators) gets other hunk hashes; hunk boundaries come
+  from git's diff, so a cherry-pick onto code that changed around the fix can split or
+  merge hunks and share fewer of them. Hunks that only change whitespace are left out.
+- **Overlap counts hunks, not lines.** A one-line hunk weighs as much as a 40-line one:
+  pflag's `13e924deb5` and `b027180f68` apply the same one-line fix to two files with
+  different tests and are reported as overlapping (1 of 2 hunks) at the default 0.5; raise
+  `--min-overlap` to ignore such pairs.
+- **The ledger's repository is a label.** `--repo-name` (or the directory name) is stored,
+  not a URL, so one repository mined under two labels counts as two (its fixes still collide
+  by fingerprint). Statuses are `proposed` and `claimed`; there is no command yet to change
+  a status or release a claim.
+- **SQLite locking on network drives.** Concurrent claims rely on SQLite's file locks,
+  which some network filesystems do not implement correctly; the concurrency test runs on a
+  local disk.
+- **No GitHub walker, no HTML report yet** (see Roadmap).
 
 ## Roadmap
 
-Planned in [PLAN.md](PLAN.md), not built yet (slices 1 and 2 are done):
+Planned in [PLAN.md](PLAN.md), not built yet (slices 1 to 3 are done):
 
-3. Patch fingerprints that ignore whitespace and renames, and a SQLite dedupe ledger
-   across repositories, forks and cherry-picks.
 4. GitHub merged pull-request walker with an ETag cache, rate-limit handling and recorded
    fixtures.
 5. A versioned export schema (JSON Schema) and Markdown/HTML reports.
