@@ -1469,6 +1469,17 @@ make record-prs         # re-record the pull-request fixtures from GitHub (netwo
 UPDATE_GOLDEN=1 uv run pytest tests/test_explain.py tests/test_report.py   # refresh golden files
 ```
 
+## Related tools
+
+- [reporewind](https://github.com/vipul21435/reporewind): rebuild a Python repository at a historical commit inside a Docker image on a digest-pinned base, to prove a fix commit flips its tests from failing to passing.
+- [cargorewind](https://github.com/vipul21435/cargorewind): rebuild a Rust crate at a historical commit inside a digest-pinned Docker image and prove that a fix commit flips its new tests from failing to passing.
+- [taskledger](https://github.com/vipul21435/taskledger): schema-checked task bundles, review lint rules, a canonical content hash and near-duplicate detection with MinHash and LSH.
+- [issuelint](https://github.com/vipul21435/issuelint): check issue-to-fix task records for solution leaks, test leaks, location hints, underspecification and scope gaps.
+- [patchmin](https://github.com/vipul21435/patchmin): delta debugging over the hunks of a patch, down to a 1-minimal subset that still turns the target tests green.
+- [testlogs](https://github.com/vipul21435/testlogs): parse pytest, JUnit XML and TAP output into per-test results, and diff two runs.
+
+The full list is on the author's profile: https://github.com/vipul21435
+
 ## License
 
 MIT, see [LICENSE](LICENSE). The recorded tomli history and pull-request responses in
